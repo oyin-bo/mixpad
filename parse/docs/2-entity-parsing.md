@@ -57,7 +57,7 @@ At runtime the entity mapping data will look like:
 - Implement code carefully to avoid bounds checks overhead: check remaining input length before character-by-character comparisons.
 
 ## Ambiguity & fallback
-- If the generator during early memory population finds a bucket string that cannot be parsed unambiguously with the semicolon/AZ09 rule throw an Error with descriptive text, the code is broken.
+- If the code during early memory population finds a bucket string that cannot be parsed unambiguously with the semicolon/AZ09 rule throw an Error with descriptive text, the code is broken.
 
 ## Validation and tests
 - [Entity annotated Markdown test](../tests/2-entities.md) must verify whole of WHATWG JSON entity unvierse and assert:
