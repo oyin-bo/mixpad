@@ -67,8 +67,10 @@ export function scan0({
  
       case 9 /* \t */:
       case 32 /* space */: {
-        // TODO: if latest token is Whitespace, append to it, else emit new Whitespace token
-        if (output.length > 0 && (output[output.length - 1] & 0x2000000) === 0x2000000) {
+        // If latest token is exactly Whitespace, append to it, else emit new Whitespace token
+        const FLAG_MASK = 0xff000000;
+        const WHITESPACE_FLAG = 0x2000000;
+        if (output.length > 0 && ((output[output.length - 1] & FLAG_MASK) === WHITESPACE_FLAG)) {
           output[output.length - 1] ++; // Increment length
         } else {
           output.push(0x2000001 /* Whitespace, length: 1 */);

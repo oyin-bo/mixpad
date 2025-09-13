@@ -12,18 +12,28 @@
  * @param {import('./scan0').ProvisionalToken[]} output
  */
 export function scanInlineText(input, offset, endOffset, output) {
-  if (output.length > 1 && // previous token is a single whitespace
-    (output[output.length - 1] & 0x2000000) === 0x2000000 && (output[output.length - 2] & 0x1FFFFFF) === 0x1000001 &&
-    input.charCodeAt(offset - 2) === 32 /* space */
-  ) {
-    output[output.length - 2]++; // Increment length of InlineText
-    output.pop(); // Remove Whitespace token
+  // Mask for the high-byte flags (flags live in bits 24..31)
+  const FLAG_MASK = 0xff000000;
+  const INLINE_FLAG = 0x1000000;
+  const WHITESPACE_FLAG = 0x2000000;
 
-    // this optimisation merges "word<space>word" into a single InlineText token
-    return -1;
+  if (output.length > 1) {
+    const last = output[output.length - 1];
+    const lastFlags = last & FLAG_MASK;
+    const prev = output[output.length - 2];
+    const prevFlags = prev & FLAG_MASK;
+    const prevLen = prev & 0xffffff;
+
+    // previous token is a single InlineText, followed by a single Whitespace
+    if (lastFlags === WHITESPACE_FLAG && prevFlags === INLINE_FLAG && prevLen === 1 && input.charCodeAt(offset - 2) === 32 /* space */) {
+      output[output.length - 2]++; // Increment length of InlineText
+      output.pop(); // Remove Whitespace token
+      // merge "word<space>word" into a single InlineText token
+      return -1;
+    }
   }
 
-  if (output.length > 0 && (output[output.length - 1] & 0x1000000) === 0x1000000) {
+  if (output.length > 0 && ((output[output.length - 1] & FLAG_MASK) === INLINE_FLAG)) {
     // add to existing InlineText token
     output[output.length - 1]++; // Increment length
     return 0;
