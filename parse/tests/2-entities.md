@@ -34,14 +34,16 @@ A simple named entity: &amp;
 @2 EntityNamed
 
 Decimal numeric entity: &#38; - note that numeric refs always require ';'.
-1                       2
+1                       2     3
 @1 InlineText
 @2 EntityDecimal
+@3 InlineText
 
 Hex numeric entity, using lowercase 'x': smile &#x1F600; - note hex digits are case-insensitive.
-1                                              2
+1                                              2         3
 @1 InlineText
 @2 EntityHex
+@3 InlineText
 
 
 Named reference immediately stuck with text (no whitespace) - note semicolon&copy;included here.
@@ -232,10 +234,11 @@ Infinity: &infin;
 @1 InlineText
 @2 EntityNamed
 
-Summation: &sum;
-1          2
+Summation: &sum; (plus)
+1          2     3
 @1 InlineText
 @2 EntityNamed
+@3 InlineText
 
 Product: &prod;
 1        2
