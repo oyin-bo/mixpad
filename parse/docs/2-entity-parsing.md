@@ -71,3 +71,15 @@ At runtime the entity mapping data will look like:
 This plan lets us keep `entity-map.json` and the compact on-disk form tiny and human-editable, while producing a safe, allocation-free runtime lookup that exactly implements WHATWG entity semantics.
 
 # Progress report
+
+Implemented in `parse/scan-entity.js`:
+
+- Loaded the compact `scan-entity-map.json` at module init and built runtime buckets.
+- Folded two-letter buckets into their parent first-letter buckets (prefixing the remainder with the second letter).
+- Implemented zero-allocation named-entity matching: per-bucket linear scan using charCode comparisons only. When a bucket entry's remainder fully matches the input, the scanner returns an EntityNamed provisional token with the consumed length (including `&` and optional `;`).
+- Left numeric entity parsing unchanged (decimal and hex) per original implementation.
+
+Notes / next steps:
+
+- The map parsing follows the semicolon-first rule and ASCII alphanumeric boundary fallback. For rare ambiguous cases further per-entry flags can be added later.
+- Run the test suite and iterate on any failing cases. See `tests/2-entities.md` for expected behaviors.

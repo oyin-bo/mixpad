@@ -87,11 +87,19 @@ export function scan0({
 }
 
 /** @param {number} ch */
-export function isAlphaNum(ch) {
+export function isAsciiAlphaNum(ch) {
   return (
     (ch >= 65 /* A */ && ch <= 90 /* Z */) ||
     (ch >= 97 /* a */ && ch <= 122 /* z */) ||
     (ch >= 48 /* 0 */ && ch <= 57 /* 9 */)
+  );
+}
+
+/** @param {number} ch */
+export function isAsciiAlpha(ch) {
+  return (
+    (ch >= 65 /* A */ && ch <= 90 /* Z */) ||
+    (ch >= 97 /* a */ && ch <= 122 /* z */)
   );
 }
 
