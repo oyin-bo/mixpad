@@ -1,3 +1,7 @@
+# HTML Entities parsing
+
+
+
 A simple named entity: a &amp; b
 1                        2
 @1 InlineText
@@ -26,3 +30,4 @@ Copy with whitespace &copy; end
 @3 EntityNamed
 @4 Whitespace
 @5 InlineText
+
