@@ -45,7 +45,7 @@ Hex numeric entity, using lowercase 'x': smile &#x1F600; - note hex digits are c
 
 
 Named reference immediately stuck with text (no whitespace) - note semicolon&copy;included here.
-1                                                                            2     3
+1                                                                           2     3
 @1 InlineText
 @2 EntityNamed
 @4 InlineText
