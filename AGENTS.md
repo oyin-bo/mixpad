@@ -21,5 +21,6 @@ This testing philosophy is central to MixPad's ability to move fast while stayin
 These are considered hard constraints set out as the policy.
 
 * There is no build step. All code is JavaScript with JSDoc comments ready to be run.
-* This project relies on a test script in package.json for running tests
+* No temporary scripts are allowed in the project at any time except in git-ignored locations.
+* This project relies on a test script in package.json for running tests.
 * The [older implementation](old-parser) of the parser in MixPad is deprecated and should not be used directly, only for historical reference and for comparison.

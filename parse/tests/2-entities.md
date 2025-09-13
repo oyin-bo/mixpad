@@ -58,3 +58,213 @@ Named reference surrounded by whitespace; verifies &copy; that scanner recognize
 @4 Whitespace
 @5 InlineText
 
+## Additional WHATWG named-entity checks (representative)
+
+Representative single-entity checks (one entity per line)
+
+Ampersand: &amp;
+1          2
+@1 InlineText
+@2 EntityNamed
+
+Less-than: &lt;
+1          2
+@1 InlineText
+@2 EntityNamed
+
+Greater-than: &gt;
+1             2
+@1 InlineText
+@2 EntityNamed
+
+Double quote: &quot;
+1             2
+@1 InlineText
+@2 EntityNamed
+
+Apostrophe: &apos;
+1           2
+@1 InlineText
+@2 EntityNamed
+
+Copyright: &copy;
+1          2
+@1 InlineText
+@2 EntityNamed
+
+Registered: &reg;
+1           2
+@1 InlineText
+@2 EntityNamed
+
+Trademark: &trade;
+1          2
+@1 InlineText
+@2 EntityNamed
+
+Ellipsis: &hellip;
+1         2
+@1 InlineText
+@2 EntityNamed
+
+Em dash: &mdash;
+1        2
+@1 InlineText
+@2 EntityNamed
+
+En dash: &ndash;
+1        2
+@1 InlineText
+@2 EntityNamed
+
+No-break space: &nbsp;
+1               2
+@1 InlineText
+@2 EntityNamed
+
+Euro: &euro;
+1     2
+@1 InlineText
+@2 EntityNamed
+
+Pound: &pound;
+1      2
+@1 InlineText
+@2 EntityNamed
+
+Yen: &yen;
+1    2
+@1 InlineText
+@2 EntityNamed
+
+Cent: &cent;
+1     2
+@1 InlineText
+@2 EntityNamed
+
+Plus-minus: &plusmn;
+1           2
+@1 InlineText
+@2 EntityNamed
+
+Multiplication: &times;
+1               2
+@1 InlineText
+@2 EntityNamed
+
+Division: &divide;
+1         2
+@1 InlineText
+@2 EntityNamed
+
+One quarter: &frac14;
+1            2
+@1 InlineText
+@2 EntityNamed
+
+One half: &frac12;
+1         2
+@1 InlineText
+@2 EntityNamed
+
+Three quarters: &frac34;
+1               2
+@1 InlineText
+@2 EntityNamed
+
+Micro: &micro;
+1      2
+@1 InlineText
+@2 EntityNamed
+
+Alpha: &alpha;
+1      2
+@1 InlineText
+@2 EntityNamed
+
+Beta: &beta;
+1     2
+@1 InlineText
+@2 EntityNamed
+
+Gamma: &gamma;
+1      2
+@1 InlineText
+@2 EntityNamed
+
+Delta (lower): &delta;
+1              2
+@1 InlineText
+@2 EntityNamed
+
+Delta (upper): &Delta;
+1              2
+@1 InlineText
+@2 EntityNamed
+
+Omega (upper): &Omega;
+1              2
+@1 InlineText
+@2 EntityNamed
+
+omega (lower): &omega;
+1              2
+@1 InlineText
+@2 EntityNamed
+
+Less-or-equal: &le;
+1              2
+@1 InlineText
+@2 EntityNamed
+
+Greater-or-equal: &ge;
+1                 2
+@1 InlineText
+@2 EntityNamed
+
+Not-equal: &ne;
+1          2
+@1 InlineText
+@2 EntityNamed
+
+Infinity: &infin;
+1         2
+@1 InlineText
+@2 EntityNamed
+
+Summation: &sum;
+1          2
+@1 InlineText
+@2 EntityNamed
+
+Product: &prod;
+1        2
+@1 InlineText
+@2 EntityNamed
+
+Negative tests — numeric references without semicolon must not match
+
+Decimal numeric without semicolon: &#169
+1                       
+@1 InlineText
+
+Hex numeric without semicolon: &#x1F600
+1                         
+@1 InlineText
+
+Unknown named reference: &notanentity;
+1                      
+@1 InlineText
+
+Ambiguous/illegal forms
+
+Known entity followed immediately by alphanumeric without semicolon: &ampx
+1                        
+@1 InlineText
+
+Known entity followed immediately by punctuation without semicolon (should match only if canonical allows omission): &copy)
+1                      
+@1 InlineText
+
+EOF
+
