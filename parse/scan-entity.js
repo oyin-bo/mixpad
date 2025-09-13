@@ -17,21 +17,21 @@ import { isAlphaNum } from './scan0.js';
  * @param {string} input
  * @param {number} start  Index of '&'
  * @param {number} end  Exclusive end index to not read past buffer
- * @returns {{length:number, kind:number}|null} object with length and token kind, or null if not a valid entity
+ * @returns {import('./scan0.js').ProvisionalToken} object with length and token kind, or null if not a valid entity
  */
 export function scanEntity(input, start, end) {
-  if (start < 0 || start >= end) return null;
-  if (input.charCodeAt(start) !== 38 /* & */) return null;
+  if (start < 0 || start >= end) return 0;
+  if (input.charCodeAt(start) !== 38 /* & */) return 0;
 
   let offset = start + 1;
-  if (offset >= end) return null;
+  if (offset >= end) return 0;
 
   const ch = input.charCodeAt(offset);
 
   // Numeric entity: &#... or &#x...
   if (ch === 35 /* # */) {
     offset++;
-    if (offset >= end) return null;
+    if (offset >= end) return 0;
 
     // hex?
     const cc = input.charCodeAt(offset);
@@ -39,7 +39,7 @@ export function scanEntity(input, start, end) {
     if (cc === 120 /* x */ || cc === 88 /* X */) {
       isHex = true;
       offset++;
-      if (offset >= end) return null;
+      if (offset >= end) return 0;
     }
 
     const digitsStart = offset;
@@ -55,14 +55,14 @@ export function scanEntity(input, start, end) {
     }
 
     // require at least one digit
-    if (offset === digitsStart) return null;
+    if (offset === digitsStart) return 0;
     // require terminating semicolon
     if (offset < end && input.charCodeAt(offset) === 59 /* ; */) {
       const length = offset - start + 1;
       const kind = isHex ? 0x5000000 /* EntityHex */ : 0x4000000 /* EntityDecimal */;
-      return { length, kind };
+      return length | kind;
     }
-    return null;
+    return 0;
   }
 
   // Named entity: &name;
@@ -74,12 +74,12 @@ export function scanEntity(input, start, end) {
   }
 
   // require at least one name character and a terminating semicolon
-  if (offset === nameStart) return null;
+  if (offset === nameStart) return 0;
   if (offset < end && input.charCodeAt(offset) === 59 /* ; */) {
     const length = offset - start + 1;
     const kind = 0x3000000; /* EntityNamed */
-    return { length, kind };
+    return length | kind;
   }
 
-  return null;
+  return 0;
 }

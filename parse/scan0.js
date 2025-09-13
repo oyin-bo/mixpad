@@ -51,12 +51,14 @@ export function scan0({
       }
 
       case 38 /* & */: {
-        // Try to parse an entity and get both its length and its token kind.
-        const entityResult = scanEntity(input, offset - 1, endOffset);
-        if (entityResult && entityResult.length > 0) {
-          output.push(entityResult.kind | entityResult.length);
+        // Try to parse an entity; scanEntity now returns a numeric ProvisionalToken
+        // (flags in the upper bits, length in the lower 24 bits), or 0 when none.
+        const entityToken = scanEntity(input, offset - 1, endOffset);
+        if (entityToken !== 0) {
+          const length = entityToken & 0xFFFFFF; // lower 24 bits
+          output.push(entityToken);
           tokenCount++;
-          offset += entityResult.length - 1;
+          offset += length - 1;
         } else {
           tokenCount += scanInlineText(input, offset - 1, endOffset, output);
         }

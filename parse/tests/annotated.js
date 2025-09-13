@@ -131,7 +131,7 @@ for (const md of mdFiles) {
   for (const blk of blocks) {
     // Test name: `{line-text-content} {positional-marker-line}` (use the last content line)
     const contentLine = blk.content[blk.content.length - 1] || '';
-    const niceName = `${contentLine} ${blk.markerLine}`;
+    const niceName = `${contentLine} ${blk.markerLine.replace(/\s+/g, '-')}`.trim();
     test(niceName, () => {
       // construct clean input (content lines joined with newlines)
       const input = blk.content.join('\n');
