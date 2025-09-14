@@ -7,7 +7,8 @@ import { test } from 'node:test';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 
-import { PARSE_TOKENS } from '../scan-core.js';
+import { getTokenKind, getTokenLength } from '../scan-core.js';
+import * as PARSE_TOKENS from '../scan-tokens.js';
 import { scan0 } from '../scan0.js';
 
 // __dirname replacement for ESM, to find annotated Markdown test files
@@ -97,11 +98,11 @@ function parseAnnotatedBlocks(text) {
  * @param {number} tok
  */
 function decodeProvisionalToken(tok) {
-  const length = tok & 0xffffff;
+  const length = getTokenLength(tok);
   // Keep flags in the same high-bit format as PARSE_TOKENS (no right-shift).
-  // PARSE_TOKENS values live in the high bits (e.g. 0x1000000). Return the
-  // masked high bits so callers can compare directly against PARSE_TOKENS.
-  const flags = tok & 0xff000000;
+  // PARSE_TOKENS values live in the high bits (e.g. 0x1000000). Use getTokenKind
+  // so we centralize the masking of the high bits.
+  const flags = getTokenKind(tok);
   return { length, flags };
 }
 
@@ -305,7 +306,9 @@ for (const md of mdFiles) {
         const decoded = raw == null ? { length: 0, flags: 0 } : decodeProvisionalToken(raw);
         let flagsNum = decoded.flags;
         if (flagsNum === 0 && typeof raw === 'number') {
-          for (const v of Object.values(PARSE_TOKENS)) if ((raw & v) === v) flagsNum |= v;
+          // Use getTokenKind to extract the high-bit flags and compare against named tokens.
+          const kind = getTokenKind(raw);
+          for (const v of Object.values(PARSE_TOKENS)) if ((kind & v) === v) flagsNum |= v;
         }
 
         // Determine best name(s) for this token flags mask

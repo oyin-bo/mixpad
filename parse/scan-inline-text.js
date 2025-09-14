@@ -1,5 +1,8 @@
 // @ts-check
 
+import { getTokenKind, getTokenLength } from './scan-core.js';
+import { InlineText, Whitespace } from './scan-tokens.js';
+
 /**
  * Parse a range of text from the input string.
  * Returns increment of token count:
@@ -12,28 +15,26 @@
  * @param {import('./scan0').ProvisionalToken[]} output
  */
 export function scanInlineText(input, offset, endOffset, output) {
-  // Mask for the high-byte flags (flags live in bits 24..31)
-  const FLAG_MASK = 0xff000000;
-  const INLINE_FLAG = 0x1000000;
-  const WHITESPACE_FLAG = 0x2000000;
+  const INLINE_FLAG = InlineText;
+  const WHITESPACE_FLAG = Whitespace;
 
   if (output.length > 1) {
     const last = output[output.length - 1];
-    const lastFlags = last & FLAG_MASK;
+    const lastFlags = getTokenKind(last);
     const prev = output[output.length - 2];
-    const prevFlags = prev & FLAG_MASK;
-    const prevLen = prev & 0xffffff;
+    const prevFlags = getTokenKind(prev);
+    const prevLen = getTokenLength(prev);
 
     // previous token is a single InlineText, followed by a single Whitespace
     if (lastFlags === WHITESPACE_FLAG && prevFlags === INLINE_FLAG && prevLen === 1 && input.charCodeAt(offset - 2) === 32 /* space */) {
-      output[output.length - 2]++; // Increment length of InlineText
+      output[output.length - 2]++; // Increment length of InlineText (low bits)
       output.pop(); // Remove Whitespace token
       // merge "word<space>word" into a single InlineText token
       return -1;
     }
   }
 
-  if (output.length > 0 && ((output[output.length - 1] & FLAG_MASK) === INLINE_FLAG)) {
+  if (output.length > 0 && getTokenKind(output[output.length - 1]) === INLINE_FLAG) {
     // add to existing InlineText token
     output[output.length - 1]++; // Increment length
     return 0;

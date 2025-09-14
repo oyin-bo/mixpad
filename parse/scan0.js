@@ -2,6 +2,7 @@
 
 import { scanEntity } from './scan-entity.js';
 import { scanInlineText } from './scan-inline-text.js';
+import { getTokenLength, getTokenKind } from './scan-core.js';
 
 /**
  * Bitwise OR: length: lower 24 bits, flags: upper 7 bits.
@@ -55,7 +56,7 @@ export function scan0({
         // (flags in the upper bits, length in the lower 24 bits), or 0 when none.
         const entityToken = scanEntity(input, offset - 1, endOffset);
         if (entityToken !== 0) {
-          const length = entityToken & 0xFFFFFF; // lower 24 bits
+          const length = getTokenLength(entityToken);
           output.push(entityToken);
           tokenCount++;
           offset += length - 1;
@@ -68,10 +69,9 @@ export function scan0({
       case 9 /* \t */:
       case 32 /* space */: {
         // If latest token is exactly Whitespace, append to it, else emit new Whitespace token
-        const FLAG_MASK = 0xff000000;
         const WHITESPACE_FLAG = 0x2000000;
-        if (output.length > 0 && ((output[output.length - 1] & FLAG_MASK) === WHITESPACE_FLAG)) {
-          output[output.length - 1] ++; // Increment length
+        if (output.length > 0 && getTokenKind(output[output.length - 1]) === WHITESPACE_FLAG) {
+          output[output.length - 1] ++; // Increment length (low bits)
         } else {
           output.push(0x2000001 /* Whitespace, length: 1 */);
           tokenCount++;

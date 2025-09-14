@@ -17,11 +17,12 @@ export function isAsciiAlpha(ch) {
   );
 }
 
-export const PARSE_TOKENS = {
-  InlineText: 0x1000000,
-  Whitespace: 0x2000000,
-  NewLine: 0x1000000,
-  EntityNamed: 0x3000000,
-  EntityDecimal: 0x4000000,
-  EntityHex: 0x5000000
-};
+/** @param {import('./scan0.js').ProvisionalToken} token */
+export function getTokenLength(token) {
+  return token & 0xFFFFFF; // lower 24 bits
+}
+
+/** @param {import('./scan0.js').ProvisionalToken} token */
+export function getTokenKind(token) {
+  return token & 0x7F000000; // upper 7 bits
+}
