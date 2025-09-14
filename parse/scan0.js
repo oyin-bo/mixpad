@@ -1,8 +1,9 @@
 // @ts-check
 
+import { getTokenKind, getTokenLength } from './scan-core.js';
 import { scanEntity } from './scan-entity.js';
 import { scanInlineText } from './scan-inline-text.js';
-import { getTokenLength, getTokenKind } from './scan-core.js';
+import { NewLine, Whitespace } from './scan-tokens.js';
 
 /**
  * Bitwise OR: length: lower 24 bits, flags: upper 7 bits.
@@ -35,7 +36,7 @@ export function scan0({
     switch (ch) {
       case 10 /* \n */:
       case 0: {
-        output.push(0x1000001 /* NewLine, length: 1 */);
+        output.push(NewLine | 1 /* NewLine, length: 1 */);
         tokenCount++;
         break;
       }
@@ -43,9 +44,9 @@ export function scan0({
       case 13 /* \r */: {
         if (offset < endOffset && input.charCodeAt(offset) === 10 /* \n */) {
           offset++;
-          output.push(0x1000002 /* NewLine, length: 2 */);
+          output.push(NewLine | 2 /* NewLine, length: 2 */);
         } else {
-          output.push(0x1000001 /* NewLine, length: 1 */);
+          output.push(NewLine | 1 /* NewLine, length: 1 */);
         }
         tokenCount++;
         break;
@@ -65,20 +66,19 @@ export function scan0({
         }
         continue;
       }
- 
+
       case 9 /* \t */:
       case 32 /* space */: {
         // If latest token is exactly Whitespace, append to it, else emit new Whitespace token
-        const WHITESPACE_FLAG = 0x2000000;
-        if (output.length > 0 && getTokenKind(output[output.length - 1]) === WHITESPACE_FLAG) {
-          output[output.length - 1] ++; // Increment length (low bits)
+        if (output.length > 0 && getTokenKind(output[output.length - 1]) === Whitespace) {
+          output[output.length - 1]++; // Increment length (low bits)
         } else {
-          output.push(0x2000001 /* Whitespace, length: 1 */);
+          output.push(Whitespace | 1 /* Whitespace, length: 1 */);
           tokenCount++;
         }
         continue;
       }
- 
+
       default: {
         tokenCount += scanInlineText(input, offset - 1, endOffset, output);
       }
