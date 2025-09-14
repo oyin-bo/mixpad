@@ -24,7 +24,7 @@ The `start` position passed to the entity scanner is guaranteed to point at '&' 
 - For any emitted entity token the scanner provides the token kind and the consumed length in characters, n: the consumed length includes the leading "&" and the terminating ";" if present.
 
 5) On-disk encoding and generator notes
-- The generator parses a compact textual map (one- or two-letter buckets). Parsing of the map is independent of runtime matching; generator correctness is validated against the authoritative JSON. Ambiguous entries are resolved during generation (explicit offsets or two-letter buckets) so runtime lookup is an exact table lookup.
+- At start the code parses a compact textual map (one- or two-letter buckets). Parsing of the map is a preparation for runtime matching.
 
 ## Simple examples
 

@@ -1,44 +1,67 @@
 # MixPad
 
-**MixPad** is a name for a blazingly fast, editor-grade Markdown parser that treats HTML as a first-class citizen, and supports all major extensions out of the box: tables, front matter, maths and more. Built with no-allocation single-scanner architecture, it delivers incremental parsing and precise source positioning perfect for live editing and large documents alike.
+**MixPad** is a blazingly fast, editor-grade Markdown parser built on an impossible bet: text parsing could be allocation-free.
 
-## Testing Philosophy: Annotated Verification
+Zero allocations during the hot path (all the arrays, objects, slicing and dicing of strings). Every Markdown parser leans into it. MixPad works against the grain.
 
-Our testing infrastructure uses an innovative **annotated markdown format** that serves triple duty as documentation, verification, and implementation guide. Tests use position markers to specify exact token expectations:
+MixPad treats HTML as native, supports all major extensions (tables, front matter, math), and delivers editor-grade precision with incremental parsing perfect for live editing and massive documents.
 
-```typescript
-const tokenTest = `
-**bold text**
-1 2        3
-@1 AsteriskAsterisk CanOpen
-@2 StringLiteral "bold text"  
-@3 AsteriskAsterisk CanClose`;
-expect(verifyTokens(tokenTest)).toBe(tokenTest);
+## Annotated Markdown
+
+MixPad's tests are written as annotated Markdown files that double as documentation and executable specs. Tests live in `parse/tests/*.md` and use position markers plus token lines to assert lexer behavior directly in human-readable files.
+
+Consider that snippet from [HTML entities docs](parse/tests/2-entities.md):
+
+```markdown
+
+5) On-disk encoding and generator notes
+- At start the code parses a compact textual map (one- or two-letter buckets). Parsing of the map is a preparation for runtime matching.
+
+## Simple examples
+
+A simple named entity: &amp;
+1                      2
+@1 InlineText
+@2 EntityNamed
 ```
 
-Position markers (`1 2 3`) map to token assertions (`@1 @2 @3`) with expected token types and attributes. This creates tests that are simultaneously human-readable specifications, robust verification suites, and clear implementation roadmaps. When tests fail, errors are injected directly into the annotated format, making debugging immediate and contextual.
+Markers on the text line (`1 2`) map to `@` assertions that specify token kinds and attributes. The test runner reads these Markdown files, runs the scanner against them, and any failures are mapped back into the same format, highlighting exact positions and variations for easy debugging.
 
-Mixpad relies on tests as a cornerstone of its breakneck progress. We move ***fast*** because we stay on the ground. Every update and addition is verified with an aggressive test coverage of every little quirk.
+It serves both as an explainer for the tokens generated, and as an automated verification.
 
-## Architecture: Smart Scanner, Simple Parser
+## Architecture: Two-Phase Zero-Allocation
 
-Mixpad is full of innovations, like a **responsibility shift** moving complexity INTO the scanner through structured ambiguity resolution, making the parser elegantly simple. Unlike traditional approaches that create GC pressure with speculative token streams and rollbacks, our scanner resolves Markdown's structural ambiguities internally using typed state flags, emitting only definitive tokens.
+MixPad's architecture emerged from the zero-allocation constraint, creating six core principles:
 
-Fast editing requires constant re-parsing of modified documents. Markdown is one of the top-quality parsers supporting fast re-parsing of incremental changes.
+### HTML-Native Parsing
+Following TypeScript's JSX contextual tokenization, HTML becomes recursive syntax rather than foreign text. While micromark delegates HTML to external parsers and markdown-it renders it as literal strings, MixPad commits to native integration that cuts impedance mismatch.
 
-**Editing**: Most existing parsers descend from Markdown>HTML processors, struggling with precise positions and incremental updates that you need to edit Markdown as easily as any other language. Mixpad targets that goal with intentionality.
+### Two-Phase Processing
+Complexity demanded separation:
+- **Phase 1 - scan0**: Provisional scanning with minimal decisions. 31-bit integers store length and basic flags. No string allocations, no semantic resolution.
+- **Phase 2 - Semantic**: Span-level analysis over provisional records. Delimiter pairing, text materialization, structural recognition.
 
-**Performance**: Mixpad unlike other parsers is fundamentally designed for efficiency. By investing in zero-allocation scanner, we can parse basically with the speed of memory read. That allows us to deal with Markdown's inherent ambiguities by rollback and re-scan, all with linear time and not incurring any allocations.
+Hot path complexity stays constant while semantic richness grows independently.
 
-## Laser focus: Performance Excellence
+### Speculative Parsing
+Markdown ambiguities need decisions based on future context. TypeScript's `lookAhead()` checkpoint-rollback patterns let you backtrack through primitive parser state snapshots without allocation—state restoration uses primitive indices rather than object copying.
 
-🚀 **Industry-Leading Speed**: Match or exceed the performance of lower-level language parsers while maintaining JavaScript's flexibility and TypeScript's type safety.
+### Growing Number Buffer
+A buffer of 31-bit integers packs position, length, flags, and semantic hints—the bridge between lexical analysis and syntactic parsing. String comparisons become bitwise operations. Context queries drop from O(n) to O(1).
 
-⚡ **Zero-Allocation Operation**: Eliminate GC pressure through primitive-only state management and lazy text materialization, crucial for real-time editor performance.
+## Performance Excellence
 
-🎯 **Incremental Parsing Mastery**: Enable sub-millisecond updates to massive documents through intelligent rollback boundaries and minimal re-parsing.
+The absurd constraint pushes architectural innovation. Every design decision serves the zero-allocation goal:
 
-📐 **Editor-Grade Precision**: Deliver exact source positions, comprehensive error recovery, and seamless HTML/Markdown unification for the next generation of editing tools.
+🚀 **Zero-Allocation Operation**: Keep automaton state as primitives, speculate without heap allocation, use packed token flags instead of string comparisons. Parse at the speed of memory reads.
+
+⚡ **Industry-Leading Speed**: Match or exceed lower-level language parsers. Benchmarking shows scaling advantages on medium documents, clear superiority on large documents.
+
+🎯 **Incremental Precision**: Scanner statelessness keeps incremental capabilities while permissive recovery handles malformed input. Sub-millisecond updates to massive documents.
+
+📐 **Editor-Grade Features**: Exact source positions, comprehensive error recovery, seamless HTML/Markdown unification. Built for the next generation of editing tools.
+
+Performance comes from refusing to create problems rather than solving them efficiently.
 
 ## Contributing
 
