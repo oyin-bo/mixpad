@@ -3,20 +3,17 @@
 
 // TODO: implement annotated Markdown test harness here
 import fs from 'fs';
-import path from 'path';
 import assert from 'node:assert';
 import { test } from 'node:test';
+import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 
-// __dirname replacement for ESM
+import { PARSE_TOKENS } from '../scan-core.js';
+import { scan0 } from '../scan0.js';
+
+// __dirname replacement for ESM, to find annotated Markdown test files
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Load the scanner under test (relative path) via dynamic import
-const scanPath = path.join(__dirname, '..', 'scan0.js');
-const scanUrl = pathToFileURL(scanPath).href;
-const scanModule = await import(scanUrl);
-const { scan0, PARSE_TOKENS } = scanModule;
 
 /**
  * Find .md files recursively under a directory.
@@ -42,7 +39,6 @@ function findMarkdownFiles(dir) {
  * followed by one or more lines starting with '@'.
  * We'll accept markers with digits/letters and assertions like `@1 InlineText` or `@1 "text"`.
  * @param {string} text
- * @returns {Array<{startLine:number, content:string[], markerLine:string, assertions:string[]}>}
  */
 function parseAnnotatedBlocks(text) {
   const lines = text.replace(/\r\n/g, '\n').split('\n');
@@ -82,7 +78,13 @@ function parseAnnotatedBlocks(text) {
     }
 
     if (contentLines.length && assertions.length) {
-      blocks.push({ startLine: contentStart + 2, content: contentLines, markerLine: lines[markerLineIndex], assertions, after });
+      blocks.push({
+        startLine: contentStart + 2,
+        content: contentLines,
+        markerLine: lines[markerLineIndex],
+        assertions,
+        after
+      });
     }
 
     i = j + 0;
@@ -226,7 +228,7 @@ for (const md of mdFiles) {
         }
       }
 
-  // Map slots to token starts. Keep track of missing mappings and positional mismatches
+      // Map slots to token starts. Keep track of missing mappings and positional mismatches
       // (markers that don't point at token starts). Deduplicate multiple slots that map to
       // the same token start by keeping the first (canonicalization).
       const tokenStartToAssertionIndex = new Map();
@@ -253,32 +255,32 @@ for (const md of mdFiles) {
       // Debug logging removed; proceed to canonicalize and compare only on mismatch.
       // (orderedTokenStarts already computed above)
 
-  // Build canonical report lines: content, canonical position line and canonical @ lines.
-  const actualReportLines = [];
-  const expectedLines = [];
+      // Build canonical report lines: content, canonical position line and canonical @ lines.
+      const actualReportLines = [];
+      const expectedLines = [];
 
-  // If we detected a mismatch, the spec requires we show the first two markdown
-  // lines as the header in both actual and expected outputs. If the block only
-  // has one content line, insert an empty line above it so we still have two
-  // header lines.
-  // output to indicate it's the real run.
-  if (mismatchDetected || missingSlots.length) {
-    let headerLines = blk.content.slice(0, 2);
-    if (headerLines.length === 0) headerLines = ['', ''];
-    else if (headerLines.length === 1) headerLines = ['', headerLines[0]];
+      // If we detected a mismatch, the spec requires we show the first two markdown
+      // lines as the header in both actual and expected outputs. If the block only
+      // has one content line, insert an empty line above it so we still have two
+      // header lines.
+      // output to indicate it's the real run.
+      if (mismatchDetected || missingSlots.length) {
+        let headerLines = blk.content.slice(0, 2);
+        if (headerLines.length === 0) headerLines = ['', ''];
+        else if (headerLines.length === 1) headerLines = ['', headerLines[0]];
 
-    // Expected uses the header as-is
-    expectedLines.push(...headerLines);
+        // Expected uses the header as-is
+        expectedLines.push(...headerLines);
 
-    // Actual uses the header with the suffix on the second line
-    const actualHeader = [headerLines[0], headerLines[1]];
-    actualReportLines.push(...actualHeader);
-  } else {
-    for (const l of blk.content) {
-      actualReportLines.push(l);
-      expectedLines.push(l);
-    }
-  }
+        // Actual uses the header with the suffix on the second line
+        const actualHeader = [headerLines[0], headerLines[1]];
+        actualReportLines.push(...actualHeader);
+      } else {
+        for (const l of blk.content) {
+          actualReportLines.push(l);
+          expectedLines.push(l);
+        }
+      }
 
       let positionLine = '';
       const assertionReportLines = [];
@@ -350,17 +352,17 @@ for (const md of mdFiles) {
 
       const actualReport = actualReportLines.join('\n');
 
-  // Finish building expected block text: append marker and assertion lines.
-  expectedLines.push(blk.markerLine);
-  for (const a of blk.assertions) expectedLines.push(a);
-  // If mismatchDetected, append the same two post-context lines so both sides
-  // of the diff include extra context.
-  if (mismatchDetected || missingSlots.length) {
-    if (Array.isArray(blk.after)) {
-      for (const ln of blk.after) expectedLines.push(ln);
-    }
-  }
-  const expected = expectedLines.join('\n');
+      // Finish building expected block text: append marker and assertion lines.
+      expectedLines.push(blk.markerLine);
+      for (const a of blk.assertions) expectedLines.push(a);
+      // If mismatchDetected, append the same two post-context lines so both sides
+      // of the diff include extra context.
+      if (mismatchDetected || missingSlots.length) {
+        if (Array.isArray(blk.after)) {
+          for (const ln of blk.after) expectedLines.push(ln);
+        }
+      }
+      const expected = expectedLines.join('\n');
 
       // Only fall back to a strict string comparison when we detected any mismatch
       // (positional or assertion value) or when some markers couldn't be mapped.

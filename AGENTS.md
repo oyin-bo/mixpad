@@ -24,3 +24,7 @@ These are considered hard constraints set out as the policy.
 * No temporary scripts are allowed in the project at any time except in git-ignored locations.
 * This project relies on a test script in package.json for running tests.
 * The [older implementation](old-parser) of the parser in MixPad is deprecated and should not be used directly, only for historical reference and for comparison.
+* Align with coding conventions in the project, including types, file and JS entity naming, JSDoc usage, and modularity. Some points explicitly highlighted:
+  - No old-style Array<T> types, use T[] instead.
+  - Where multiple members of a type used, separate them with comma.
+  - No trailing comma in object or calls, or arrays.

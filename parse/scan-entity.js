@@ -1,8 +1,8 @@
 // @ts-check
 
+import { isAsciiAlpha } from './scan-core.js';
 
 import entityMap from './scan-entity-map.json' with { type: 'json' };
-import { isAsciiAlpha } from './scan0.js';
 
 /**
  * Build runtime buckets from the compact on-disk `scan-entity-map.json`.
