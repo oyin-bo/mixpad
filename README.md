@@ -15,7 +15,9 @@ Consider that snippet from [HTML entities docs](parse/tests/2-entities.md):
 ```markdown
 
 5) On-disk encoding and generator notes
-- At start the code parses a compact textual map (one- or two-letter buckets). Parsing of the map is a preparation for runtime matching.
+- At start the code parses a compact textual map
+(one- or two-letter buckets). Parsing of the map is
+a preparation for runtime matching.
 
 ## Simple examples
 
