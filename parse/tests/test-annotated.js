@@ -1,7 +1,6 @@
 // @ts-check
 /// <reference types="node" />
 
-// TODO: implement annotated Markdown test harness here
 import fs from 'fs';
 import assert from 'node:assert';
 import { test } from 'node:test';

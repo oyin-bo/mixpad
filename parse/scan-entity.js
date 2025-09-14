@@ -119,7 +119,7 @@ export function scanEntity(input, start, end) {
 
 /**
  * @param {{[k:string]: string}} raw
- * @returns {{[k:string]: Array<{k:string,v:string}>}}
+ * @returns {{[k:string]: {k:string,v:string}[]}}
  */
 function buildEntityBuckets(raw) {
   const buckets = Object.create(null);
@@ -127,7 +127,7 @@ function buildEntityBuckets(raw) {
   /**
    * Parse a compact bucket string into {k,v} entries.
    * @param {string} s
-   * @returns {Array<{k:string,v:string}>}
+   * @returns {{k:string,v:string}[]}
    */
   function parseBucketString(s) {
     const entries = [];
