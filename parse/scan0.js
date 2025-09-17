@@ -96,7 +96,7 @@ export function scan0({
 
         const openLen = getTokenLength(openBacktickTok);
         // 2) attempt to parse inline code content using opening run length
-        const inlineTok = scanInlineCode(input, offset - 1, openLen, endOffset);
+        const inlineTok = scanInlineCode(input, offset + openLen - 1, endOffset, openLen);
 
         if (getTokenFlags(inlineTok) & ErrorUnbalancedTokenFallback) {
           // unterminated fallback:
