@@ -1,5 +1,7 @@
 // @ts-check
 
+import { ErrorUnbalancedTokenFallback } from './scan-token-flags.js';
+
 /** @param {number} ch */
 export function isAsciiAlphaNum(ch) {
   return (
@@ -22,11 +24,16 @@ export function getTokenLength(token) {
   return token & 0xFFFF; // lower 16 bits
 }
 
-/**
- * @param {import('./scan0.js').ProvisionalToken} token
- */
+/** @param {import('./scan0.js').ProvisionalToken} token */
 export function getTokenKind(token) {
   return /** @type {import('./scan-tokens.js')[keyof import('./scan-tokens.js')]} */(
-    token & 0x7FFF0000
-  ); // upper 15 bits
+    token & 0x7FF00000
+  ); // upper 11 bits
+}
+
+/** @param {import('./scan0.js').ProvisionalToken} token */
+export function getTokenFlags(token) {
+  return /** @type {import('./scan-token-flags.js')[keyof import('./scan-token-flags.js')]} */(
+    token & 0xF0000
+  ); // 4 bits that are above the lower 16 bits
 }
