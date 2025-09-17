@@ -19,10 +19,10 @@ export function isAsciiAlpha(ch) {
 
 /** @param {import('./scan0.js').ProvisionalToken} token */
 export function getTokenLength(token) {
-  return token & 0xFFFFFF; // lower 24 bits
+  return token & 0xFFFF; // lower 16 bits
 }
 
 /** @param {import('./scan0.js').ProvisionalToken} token */
 export function getTokenKind(token) {
-  return token & 0x7F000000; // upper 7 bits
+  return token & 0x7FFF0000; // upper 15 bits
 }

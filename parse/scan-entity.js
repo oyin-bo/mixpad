@@ -1,6 +1,7 @@
 // @ts-check
 
 import { isAsciiAlpha } from './scan-core.js';
+import { EntityDecimal, EntityHex, EntityNamed } from './scan-tokens.js';
 
 import entityMap from './scan-entity-map.json' with { type: 'json' };
 
@@ -72,7 +73,7 @@ export function scanEntity(input, start, end) {
     // require terminating semicolon
     if (offset < end && input.charCodeAt(offset) === 59 /* ; */) {
       const length = offset - start + 1;
-      const kind = isHex ? 0x5000000 /* EntityHex */ : 0x4000000 /* EntityDecimal */;
+      const kind = isHex ? EntityHex : EntityDecimal;
       return length | kind;
     }
     return 0;
@@ -109,7 +110,7 @@ export function scanEntity(input, start, end) {
     if (matched && j === klen) {
       // Full candidate matched. Consumed length = '&' + first letter + klen
       const length = klen + 2;
-      const kind = 0x3000000; /* EntityNamed */
+      const kind = EntityNamed;
       return length | kind;
     }
   }

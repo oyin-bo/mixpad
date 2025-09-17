@@ -15,9 +15,6 @@ import { InlineText, Whitespace } from './scan-tokens.js';
  * @param {import('./scan0').ProvisionalToken[]} output
  */
 export function scanInlineText(input, offset, endOffset, output) {
-  const INLINE_FLAG = InlineText;
-  const WHITESPACE_FLAG = Whitespace;
-
   if (output.length > 1) {
     const last = output[output.length - 1];
     const lastFlags = getTokenKind(last);
@@ -26,7 +23,7 @@ export function scanInlineText(input, offset, endOffset, output) {
     const prevLen = getTokenLength(prev);
 
     // previous token is a single InlineText, followed by a single Whitespace
-    if (lastFlags === WHITESPACE_FLAG && prevFlags === INLINE_FLAG && prevLen === 1 && input.charCodeAt(offset - 2) === 32 /* space */) {
+    if (lastFlags === Whitespace && prevFlags === InlineText && prevLen === 1 && input.charCodeAt(offset - 2) === 32 /* space */) {
       output[output.length - 2]++; // Increment length of InlineText (low bits)
       output.pop(); // Remove Whitespace token
       // merge "word<space>word" into a single InlineText token
@@ -34,13 +31,13 @@ export function scanInlineText(input, offset, endOffset, output) {
     }
   }
 
-  if (output.length > 0 && getTokenKind(output[output.length - 1]) === INLINE_FLAG) {
+  if (output.length > 0 && getTokenKind(output[output.length - 1]) === InlineText) {
     // add to existing InlineText token
     output[output.length - 1]++; // Increment length
     return 0;
   } else {
     // emit new InlineText token
-    output.push(0x1000001 /* InlineText, length: 1 */);
+    output.push(InlineText | 1 /* InlineText, length: 1 */);
     return +1;
   }
 }
