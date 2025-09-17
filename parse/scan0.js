@@ -3,6 +3,7 @@
 import { getTokenKind, getTokenLength } from './scan-core.js';
 import { scanEntity } from './scan-entity.js';
 import { scanInlineText } from './scan-inline-text.js';
+import { scanEscaped } from './scan-escaped.js';
 import { NewLine, Whitespace } from './scan-tokens.js';
 
 /**
@@ -64,6 +65,21 @@ export function scan0({
         } else {
           tokenCount += scanInlineText(input, offset - 1, endOffset, output);
         }
+        continue;
+      }
+
+      case 92 /* backslash */: {
+        // Try to parse an escape: consume '\' + following char when present
+        const esc = scanEscaped(input, offset - 1, endOffset);
+        if (esc !== 0) {
+          const length = getTokenLength(esc);
+          output.push(esc);
+          tokenCount++;
+          offset += length - 1;
+          continue;
+        }
+        // fallthrough to inline text if not recognized
+        tokenCount += scanInlineText(input, offset - 1, endOffset, output);
         continue;
       }
 
