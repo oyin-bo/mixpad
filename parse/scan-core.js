@@ -22,7 +22,11 @@ export function getTokenLength(token) {
   return token & 0xFFFF; // lower 16 bits
 }
 
-/** @param {import('./scan0.js').ProvisionalToken} token */
+/**
+ * @param {import('./scan0.js').ProvisionalToken} token
+ */
 export function getTokenKind(token) {
-  return token & 0x7FFF0000; // upper 15 bits
+  return /** @type {import('./scan-tokens.js')[keyof import('./scan-tokens.js')]} */(
+    token & 0x7FFF0000
+  ); // upper 15 bits
 }
