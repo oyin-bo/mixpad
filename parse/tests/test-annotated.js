@@ -287,6 +287,14 @@ for (const md of mdFiles) {
         for (let k = 0; k < blk.content.length - 1; k++) lastLineOffset += blk.content[k].length + 1; // +1 for newline
       }
 
+      // Check if markers extend beyond the last content line - if so, use entire content as reference
+      const lastLineLength = blk.content[blk.content.length - 1].length;
+      const maxMarkerOffset = Math.max(...blk.markerLine.split('').map((ch, i) => /\s/.test(ch) ? -1 : i).filter(i => i >= 0));
+      if (maxMarkerOffset >= lastLineLength) {
+        // Markers extend beyond last line, so they reference the entire content
+        lastLineOffset = 0;
+      }
+
       // Build arrays of marker chars and their column offsets (left-to-right)
       /** @type {string[]} */
       const positionMarkerChars = [];

@@ -43,8 +43,8 @@ export function scanFencedBlock(input, startOffset, endOffset, output) {
     infoEnd++;
   }
 
-  // Skip the newline(s) after opener - but keep it as part of content
-  let contentStart = infoEnd;
+  // Content starts right after the fence characters (including info string and newlines)
+  let contentStart = pos;
 
   // Scan for closing fence
   const closeResult = findClosingFence(input, contentStart, endOffset, fenceChar, fenceLen);

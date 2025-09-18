@@ -1,5 +1,7 @@
 # Fenced Code Blocks with Backticks
 
+# Fenced Code Blocks with Backticks
+
 ## Basic triple backtick fence
 
 ```
@@ -7,7 +9,7 @@ hello world
 ```
 1  2            3
 @1 FencedOpen
-@2 FencedContent "hello world\n"
+@2 FencedContent "\nhello world\n"
 @3 FencedClose
 
 ## Triple backtick with language info
