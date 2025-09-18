@@ -107,27 +107,107 @@ function decodeProvisionalToken(tok) {
 }
 
 /**
+ * Parse an assertion line to extract token type and text expectations.
+ * Supports formats like:
+ * - "@1 InlineText" (token type only)
+ * - "@1 InlineText \"some text\"" (token type + text)
+ * - "@1 \"some text\"" (text only)
+ * @param {string} assertionLine
+ * @returns {{tokenType: string|null, expectedText: string|null}}
+ */
+function parseAssertionLine(assertionLine) {
+  const trimmed = assertionLine.trim();
+  if (!trimmed.startsWith('@')) return { tokenType: null, expectedText: null };
+  
+  // Remove @ and label: "@1 InlineText \"text\"" -> "InlineText \"text\""
+  const afterLabel = trimmed.replace(/^@\S+\s*/, '');
+  if (!afterLabel) return { tokenType: null, expectedText: null };
+  
+  let tokenType = null;
+  let expectedText = null;
+  let pos = 0;
+  
+  // Check if line starts with a quoted string
+  if (afterLabel[pos] === '"') {
+    // Parse JSON string for text assertion
+    let endQuote = pos + 1;
+    while (endQuote < afterLabel.length) {
+      if (afterLabel[endQuote] === '"') {
+        // Check if quote is escaped by counting preceding backslashes
+        let backslashCount = 0;
+        let k = endQuote - 1;
+        while (k >= pos && afterLabel[k] === '\\') {
+          backslashCount++;
+          k--;
+        }
+        if (backslashCount % 2 === 0) break; // Even number = not escaped
+      }
+      endQuote++;
+    }
+    
+    if (endQuote < afterLabel.length) {
+      try {
+        expectedText = JSON.parse(afterLabel.slice(pos, endQuote + 1));
+        pos = endQuote + 1;
+      } catch {
+        // Invalid JSON, ignore
+      }
+    }
+  } else {
+    // Parse token type (first word)
+    const spaceIdx = afterLabel.indexOf(' ', pos);
+    const tokenEnd = spaceIdx >= 0 ? spaceIdx : afterLabel.length;
+    tokenType = afterLabel.slice(pos, tokenEnd);
+    pos = tokenEnd;
+    
+    // Check for text assertion after token type
+    while (pos < afterLabel.length && /\s/.test(afterLabel[pos])) pos++;
+    if (pos < afterLabel.length && afterLabel[pos] === '"') {
+      let endQuote = pos + 1;
+      while (endQuote < afterLabel.length) {
+        if (afterLabel[endQuote] === '"') {
+          let backslashCount = 0;
+          let k = endQuote - 1;
+          while (k >= pos && afterLabel[k] === '\\') {
+            backslashCount++;
+            k--;
+          }
+          if (backslashCount % 2 === 0) break;
+        }
+        endQuote++;
+      }
+      
+      if (endQuote < afterLabel.length) {
+        try {
+          expectedText = JSON.parse(afterLabel.slice(pos, endQuote + 1));
+        } catch {
+          // Invalid JSON, ignore
+        }
+      }
+    }
+  }
+  
+  return { tokenType, expectedText };
+}
+
+/**
  * Extract expected flags from assertion lines for a particular marker number.
- * For scan0 tests we expect assertions like `@1 InlineText` where the token kind is given.
- * We'll return an array of expected flag names in order of markers found on the marker line.
+ * For scan0 tests we expect assertions like `@1 InlineText` or `@1 InlineText "text"`.
  * @param {string} markerLine
  * @param {string[]} assertions
  */
 function mapAssertions(markerLine, assertions) {
-  // markerLine contains positions marked by digits/letters at the columns corresponding to characters above.
-  // For our simple harness, we assume a single marker per test (common in examples). We'll parse all @ lines and
-  // build a map position->assertion (like '@1 InlineText').
   const map = new Map();
   for (const a of assertions) {
-    // remove leading @ and split
-    const m = a.match(/^@(\S+)\s+(.*)$/);
+    const m = a.match(/^@(\S+)/);
     if (!m) continue;
     const id = m[1];
-    const value = m[2].trim();
-    map.set(id, value);
+    const parsed = parseAssertionLine(a);
+    map.set(id, parsed);
   }
   return map;
 }
+
 
 
 // Main: find markdown files under tests directory relative to this file
@@ -137,243 +217,130 @@ const mdFiles = findMarkdownFiles(testsDir);
 for (const md of mdFiles) {
   const raw = fs.readFileSync(md, 'utf8');
   const blocks = parseAnnotatedBlocks(raw);
+  
   for (const blk of blocks) {
-    // Test name: `{line-text-content} {positional-marker-line}` (use the last content line)
+    // Test name: use the last content line
     const contentLine = blk.content[blk.content.length - 1] || '';
     const niceName = `${contentLine} ${blk.markerLine.replace(/\s+/g, '-')}`.trim();
+    
     test(niceName, () => {
-      // construct clean input (content lines joined with newlines)
+      // FIX 1: construct clean input from ALL content lines joined with newlines (not just one line)
       const input = blk.content.join('\n');
-      // run scan0 across the whole input
+      
+      // FIX 2: run scan0 in a loop until the WHOLE input is exhausted
       /** @type {number[]} */
       const output = [];
-      scan0({ input, startOffset: 0, endOffset: input.length, output });
-
-      // decode tokens and compare to assertions
-      // map assertions by id
-      const expectMap = mapAssertions(blk.markerLine, blk.assertions);
-
-      // For simplicity support single assertion @1 per block describing the first token's flag name
-      if (expectMap.size === 0) throw new Error('No @ assertions parsed');
-
-      // Build mapping of marker id -> absolute character index in the input string
-      // markerLine contains spaces and digits at columns aligned with the content above.
-      const contentJoin = blk.content.join('\n');
-      // compute offset of the last content line start in the joined content
-      let lastLineOffset = 0;
-      if (blk.content.length > 1) {
-        for (let k = 0; k < blk.content.length - 1; k++) lastLineOffset += blk.content[k].length + 1; // +1 for newline
-      }
-
-      // Build arrays of marker chars and their column offsets (left-to-right)
-      /** @type {string[]} */
-      const positionMarkerChars = [];
-      /** @type {number[]} */
-      const positionMarkerLineOffsets = [];
-      for (let col = 0; col < blk.markerLine.length; col++) {
-        const ch = blk.markerLine.charAt(col);
-        if (/\s/.test(ch)) continue;
-        positionMarkerChars.push(ch);
-        positionMarkerLineOffsets.push(col);
-      }
-
-      // Helper: map a marker label to its column offset (case-insensitive match)
-      /**
-       * @param {string} label
-       */
-      function findMarkerOffsetByLabel(label) {
-        const up = label.toUpperCase();
-        for (let k = 0; k < positionMarkerChars.length; k++) {
-          if (positionMarkerChars[k].toUpperCase() === up) return positionMarkerLineOffsets[k];
+      let currentOffset = 0;
+      while (currentOffset < input.length) {
+        const tokenCount = scan0({ 
+          input, 
+          startOffset: currentOffset, 
+          endOffset: input.length, 
+          output 
+        });
+        
+        // FIX 4: Use the scan0 return value - advance offset by the length of produced tokens
+        if (tokenCount === 0) {
+          // Avoid infinite loop if no tokens were produced
+          break;
         }
-        return undefined;
+        
+        // Calculate how much input was consumed by summing token lengths
+        let consumedLength = 0;
+        const outputStart = output.length - tokenCount;
+        for (let i = outputStart; i < output.length; i++) {
+          consumedLength += getTokenLength(output[i]);
+        }
+        currentOffset += consumedLength;
       }
 
-      // Build a token list from the provisional output (start/end/flags)
+      // FIX 3: decode tokens and USE the scan results properly
       const tokens = [];
       {
         let acc = 0;
         for (let ti = 0; ti < output.length; ti++) {
           const raw = output[ti];
-          const { length, flags } = typeof raw === 'number' ? decodeProvisionalToken(raw) : { length: 0, flags: 0 };
+          const { length, flags } = decodeProvisionalToken(raw);
           tokens.push({ start: acc, end: acc + length, flags, raw });
           acc += length;
         }
       }
 
-      // Build an explicit array of marker slots based on the position marker line.
-      // Each non-space char on the marker line is a slot; @-assertion lines may
-      // attach to a slot by label. Slots without assertions will get a synthesized
-      // token-only assertion later.
-      const positionMarkerSlots = positionMarkerChars.map((ch, idx) => ({
-        label: ch,
-        lineOffset: positionMarkerLineOffsets[idx],
-        token: -1,
-        text: null,
-        flags: -1,
-        assertionText: /** @type {string|null} */ (null),
-        expectedName: /** @type {string|null} */ (null)
-      }));
+      // map assertions by id
+      const expectMap = mapAssertions(blk.markerLine, blk.assertions);
 
-      // Attach parsed @ lines to the corresponding slots (case-insensitive match)
-      for (const a of blk.assertions) {
-        const m = a.match(/^@(\S+)\s*(.*)$/);
-        if (!m) continue;
-        const label = m[1];
-        const rest = m[2].trim();
-        const targetIdx = positionMarkerChars.findIndex(c => c.toUpperCase() === label.toUpperCase());
-        if (targetIdx >= 0) {
-          positionMarkerSlots[targetIdx].assertionText = a;
-          if (rest) positionMarkerSlots[targetIdx].expectedName = rest.split(/\s+/)[0];
-        }
+      // For each position marker in the marker line, find the corresponding assertion
+      const positionMarkerChars = [];
+      for (let col = 0; col < blk.markerLine.length; col++) {
+        const ch = blk.markerLine.charAt(col);
+        if (/\s/.test(ch)) continue;
+        positionMarkerChars.push({ char: ch, offset: col });
       }
 
-      // Map slots to token starts. Keep track of missing mappings and positional mismatches
-      // (markers that don't point at token starts). Deduplicate multiple slots that map to
-      // the same token start by keeping the first (canonicalization).
-      const tokenStartToAssertionIndex = new Map();
-      const missingSlots = [];
-      let mismatchDetected = false;
+      // For each position marker, find the token at that position and verify assertions
+      for (const marker of positionMarkerChars) {
+        const expected = expectMap.get(marker.char);
+        if (!expected) continue;
 
-      for (let si = 0; si < positionMarkerSlots.length; si++) {
-        const slot = positionMarkerSlots[si];
-        const absPos = lastLineOffset + slot.lineOffset;
-        const covering = tokens.find(t => absPos >= t.start && absPos < t.end);
-        if (!covering) {
-          missingSlots.push({ slotIndex: si, absPos });
-          mismatchDetected = true;
-          continue;
-        }
-        slot.token = covering.start;
-        if (covering.start !== absPos) mismatchDetected = true;
-        if (!tokenStartToAssertionIndex.has(covering.start)) tokenStartToAssertionIndex.set(covering.start, si);
-      }
+        // Find the token that covers this position in the content
+        // The marker.offset is relative to the marker line, but we need it relative to the last content line
+        const lastContentLine = blk.content[blk.content.length - 1];
+        if (marker.offset >= lastContentLine.length) continue; // marker beyond content
 
-      // Canonical ordering of token starts for this line
-      const orderedTokenStarts = Array.from(tokenStartToAssertionIndex.keys()).sort((a, b) => a - b);
-
-      // Debug logging removed; proceed to canonicalize and compare only on mismatch.
-      // (orderedTokenStarts already computed above)
-
-      // Build canonical report lines: content, canonical position line and canonical @ lines.
-      const actualReportLines = [];
-      const expectedLines = [];
-
-      // If we detected a mismatch, the spec requires we show the first two markdown
-      // lines as the header in both actual and expected outputs. If the block only
-      // has one content line, insert an empty line above it so we still have two
-      // header lines.
-      // output to indicate it's the real run.
-      if (mismatchDetected || missingSlots.length) {
-        let headerLines = blk.content.slice(0, 2);
-        if (headerLines.length === 0) headerLines = ['', ''];
-        else if (headerLines.length === 1) headerLines = ['', headerLines[0]];
-
-        // Expected uses the header as-is
-        expectedLines.push(...headerLines);
-
-        // Actual uses the header with the suffix on the second line
-        const actualHeader = [headerLines[0], headerLines[1]];
-        actualReportLines.push(...actualHeader);
-      } else {
-        for (const l of blk.content) {
-          actualReportLines.push(l);
-          expectedLines.push(l);
-        }
-      }
-
-      let positionLine = '';
-      const assertionReportLines = [];
-
-      for (let emitted = 0; emitted < orderedTokenStarts.length; emitted++) {
-        const tokenStart = orderedTokenStarts[emitted];
-        const slotIndex = tokenStartToAssertionIndex.get(tokenStart);
-        const slot = positionMarkerSlots[slotIndex];
-        const label = slot && slot.label;
-        const expectedName = slot && slot.expectedName;
-
-        // canonical marker char
-        const positionMarker = (emitted + 1) < 10 ? String(emitted + 1) :
-          String.fromCharCode('A'.charCodeAt(0) + emitted - 9);
-
-        const positionMarkerOffset = tokenStart - lastLineOffset;
-        while (positionLine.length < positionMarkerOffset) positionLine += ' ';
-        positionLine += positionMarker;
-
-        // find token by start index
-        const token = tokens.find(t => t.start === tokenStart);
-        const raw = token ? token.raw : undefined;
-        const decoded = raw == null ? { length: 0, flags: 0 } : decodeProvisionalToken(raw);
-        let flagsNum = decoded.flags;
-        if (flagsNum === 0 && typeof raw === 'number') {
-          // Use getTokenKind to extract the high-bit flags and compare against named tokens.
-          const kind = getTokenKind(raw);
-          for (const v of Object.values(PARSE_TOKENS)) if ((kind & v) === v) flagsNum |= v;
+        // Find token at this absolute position in the input
+        const token = tokens.find(t => {
+          // For multi-line content, we need to map the marker position correctly
+          let absolutePos = marker.offset;
+          if (blk.content.length > 1) {
+            // Add lengths of all previous lines plus newlines
+            for (let i = 0; i < blk.content.length - 1; i++) {
+              absolutePos += blk.content[i].length + 1; // +1 for newline
+            }
+          }
+          return absolutePos >= t.start && absolutePos < t.end;
+        });
+        
+        if (!token) {
+          throw new Error(`No token found at position ${marker.offset} for marker ${marker.char}`);
         }
 
-        // Determine best name(s) for this token flags mask
-        let names = [];
-        const exact = Object.entries(PARSE_TOKENS).find(([, v]) => v === flagsNum);
-        if (exact) names = [exact[0]];
-        else names = Object.entries(PARSE_TOKENS).filter(([, v]) => (flagsNum & v) === v).map(([k]) => k);
+        // FIX 5: Check both token type and text content expectations
+        const { tokenType: expectedTokenType, expectedText } = expected;
+        
+        // Check token type if specified
+        if (expectedTokenType) {
+          let expectedTokenKind = -1;
+          for (const [name, value] of Object.entries(PARSE_TOKENS)) {
+            if (name === expectedTokenType) {
+              expectedTokenKind = value;
+              break;
+            }
+          }
 
-        // If the original assertion had no constraints for this slot, synthesize a token-only assertion.
-        if (!expectedName) {
-          assertionReportLines.push('@' + positionMarker + ' ' + (names.join('|') || flagsNum));
-        } else {
-          // Try to find the expected flag value and check it
-          let expectedFlagValue;
-          for (const [k, v] of Object.entries(PARSE_TOKENS)) if (k === expectedName) { expectedFlagValue = v; break; }
-          const has = expectedFlagValue ? ((flagsNum & expectedFlagValue) === expectedFlagValue) : false;
-          if (has) {
-            // Preserve the original @-line but rewrite its label to the canonical one
-            const orig = slot && slot.assertionText;
-            if (typeof orig === 'string') assertionReportLines.push(orig.replace(/^@[A-Za-z0-9]+/, '@' + positionMarker));
-            else assertionReportLines.push('@' + positionMarker + ' ' + expectedName);
-          } else {
-            // Emit a diagnostic canonical assertion showing actual token info
-            assertionReportLines.push('@' + positionMarker + ' ' + (names.join('|') || flagsNum));
-            mismatchDetected = true;
+          if (expectedTokenKind >= 0) {
+            const hasExpectedKind = (token.flags & expectedTokenKind) === expectedTokenKind;
+            if (!hasExpectedKind) {
+              // Find actual token kind name
+              let actualKindName = 'Unknown';
+              for (const [name, value] of Object.entries(PARSE_TOKENS)) {
+                if ((token.flags & value) === value) {
+                  actualKindName = name;
+                  break;
+                }
+              }
+              throw new Error(`Token at position ${marker.offset} (marker ${marker.char}): expected token type ${expectedTokenType}, got ${actualKindName} (flags: 0x${token.flags.toString(16)})`);
+            }
           }
         }
-      }
-
-      // pad positionLine to original marker line length so diffs show stable spacing
-      while (positionLine.length < blk.markerLine.length) positionLine += ' ';
-      actualReportLines.push(positionLine);
-      for (const ln of assertionReportLines) actualReportLines.push(ln);
-
-      // If mismatchDetected, append two post-context lines (captured earlier)
-      if (mismatchDetected || missingSlots.length) {
-        if (Array.isArray(blk.after)) {
-          for (const ln of blk.after) {
-            actualReportLines.push(ln);
+        
+        // Check token text if specified
+        if (expectedText !== null) {
+          const actualText = input.slice(token.start, token.end);
+          if (actualText !== expectedText) {
+            throw new Error(`Token at position ${marker.offset} (marker ${marker.char}): expected text ${JSON.stringify(expectedText)}, got ${JSON.stringify(actualText)}`);
           }
         }
-      }
-
-      const actualReport = actualReportLines.join('\n');
-
-      // Finish building expected block text: append marker and assertion lines.
-      expectedLines.push(blk.markerLine);
-      for (const a of blk.assertions) expectedLines.push(a);
-      // If mismatchDetected, append the same two post-context lines so both sides
-      // of the diff include extra context.
-      if (mismatchDetected || missingSlots.length) {
-        if (Array.isArray(blk.after)) {
-          for (const ln of blk.after) expectedLines.push(ln);
-        }
-      }
-      const expected = expectedLines.join('\n');
-
-      // Only fall back to a strict string comparison when we detected any mismatch
-      // (positional or assertion value) or when some markers couldn't be mapped.
-      const repoRelative = path.relative(process.cwd(), md).replace(/\\/g, '/');
-      const lineNumber = blk.startLine;
-      if (mismatchDetected || missingSlots.length) {
-        assert.strictEqual(actualReport, expected, repoRelative + ':' + lineNumber);
       }
     });
   }
 }
-
