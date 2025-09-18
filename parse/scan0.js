@@ -4,7 +4,7 @@ import { getTokenFlags, getTokenKind, getTokenLength } from './scan-core.js';
 import { scanEntity } from './scan-entity.js';
 import { scanInlineText } from './scan-inline-text.js';
 import { scanEscaped } from './scan-escaped.js';
-import { scanBacktickOpen, scanInlineCode, scanBacktickClose } from './scan-backtick-inline.js';
+import { scanBacktickInline } from './scan-backtick-inline.js';
 import { NewLine, Whitespace, BacktickBoundary, InlineCode } from './scan-tokens.js';
 import { ErrorUnbalancedTokenFallback } from './scan-token-flags.js';
 
@@ -86,69 +86,18 @@ export function scan0({
       }
 
       case 96 /* ` backtick */: {
-        // 1) scanBacktickOpen -> BacktickBoundary token (or 0)
-        const openBacktickTok = scanBacktickOpen(input, offset - 1, endOffset);
-        if (!openBacktickTok) {
-          // fall back to inline text handling
+        // delegate all backtick orchestration to scanBacktickInline which will
+        // emit the provisional tokens (if any) and return how many were added.
+        const added = scanBacktickInline(input, offset - 1, endOffset, output);
+        if (added === 0) {
+          // nothing recognized; fall back to inline text handling
           tokenCount += scanInlineText(input, offset - 1, endOffset, output);
           continue;
         }
 
-        const openLen = getTokenLength(openBacktickTok);
-        // 2) attempt to parse inline code content using opening run length
-        const inlineTok = scanInlineCode(input, offset + openLen - 1, endOffset, openLen);
-
-        if (getTokenFlags(inlineTok) & ErrorUnbalancedTokenFallback) {
-          // unterminated fallback:
-          // - either followed by unbalanced backtick closure,
-          // - or it's just an unclosed backtick run
-
-          const closingBacktickTok = scanBacktickOpen(
-            input,
-            offset - 1 + getTokenLength(openBacktickTok) + getTokenLength(inlineTok),
-            endOffset
-          );
-
-          if (closingBacktickTok) {
-            // found a closing run, but it's unbalanced
-
-            // produce tokens in order: BacktickBoundary (open), InlineCode, BacktickBoundary (close)
-            output.push(openBacktickTok | ErrorUnbalancedTokenFallback);
-            tokenCount++;
-
-            output.push(inlineTok);
-            tokenCount++;
-            
-            output.push(closingBacktickTok | ErrorUnbalancedTokenFallback);
-            tokenCount++;
-          } else {
-            // produce tokens in order: BacktickBoundary (open), InlineCode
-            // (no closing BacktickBoundary)
-
-            output.push(openBacktickTok | ErrorUnbalancedTokenFallback);
-            tokenCount++;
-            
-            output.push(inlineTok);
-            tokenCount++;
-          }
-
-          // end of unbalanced handling
-          return tokenCount;
-        }
-
-        // balanced case
-        // 3) produce tokens in order: BacktickBoundary (open), InlineCode, BacktickBoundary (close)
-        output.push(openBacktickTok);
-        tokenCount++;
-
-        output.push(inlineTok);
-        tokenCount++;
-
-        // closing run length is same as opening
-        output.push(BacktickBoundary | openLen);
-        tokenCount++;
-        
-        return tokenCount;
+        // scanBacktickInline added tokens and in previous logic we returned
+        // early after handling a backtick span. Mirror that: return tokenCount + added
+        return tokenCount + added;
       }
 
       case 9 /* \t */:

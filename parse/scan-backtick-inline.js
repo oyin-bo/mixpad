@@ -13,7 +13,7 @@ import { InlineCode, BacktickBoundary } from './scan-tokens.js';
  * @param {number} end
  * @returns {number} BacktickBoundary|0
  */
-export function scanBacktickOpen(input, start, end) {
+function scanBacktickOpen(input, start, end) {
   if (start < 0 || start >= end) return 0;
   if (input.charCodeAt(start) !== 96 /* ` */) return 0;
 
@@ -43,7 +43,7 @@ export function scanBacktickOpen(input, start, end) {
  * @param {number} openN  length of opening run
  * @returns {number} InlineCode token (length | InlineCode) or 0 on failure
  */
-export function scanInlineCode(input, start, end, openN) {
+function scanInlineCode(input, start, end, openN) {
 
   // carry collected backtick run length to avoid scanning ahead
   let currentBacktickRunLength = 0;
@@ -80,12 +80,68 @@ export function scanInlineCode(input, start, end, openN) {
 
 
 /**
- * scanBacktickClose: produce a BacktickBoundary token representing the closing
- * run. This mirrors scanBacktickOpen and simply encodes the run length as a token.
+ * scanBacktickInline: integrated orchestration that encapsulates the
+ * sequence of calls (scanBacktickOpen -> scanInlineCode -> scanBacktickClose)
+ * and emits the appropriate provisional tokens into `output`.
  *
- * @param {number} runLength
- * @returns {number}
+ * This mirrors the logic previously embedded in `scan0` but centralized
+ * here so `scan0` only needs to delegate when it sees a backtick.
+ *
+ * @param {string} input
+ * @param {number} startOffset  index where input[startOffset] === '`'
+ * @param {number} endOffset
+ * @param {import('./scan0.js').ProvisionalToken[]} output
+ * @returns {number} number of tokens pushed into `output` (or token count delta)
  */
-export function scanBacktickClose(runLength) {
-  return BacktickBoundary | runLength;
+export function scanBacktickInline(input, startOffset, endOffset, output) {
+  // call scanBacktickOpen at the startOffset
+  const openBacktickTok = scanBacktickOpen(input, startOffset, endOffset);
+  if (!openBacktickTok) {
+    // nothing recognized; let caller fall back to inline text
+    return 0;
+  }
+
+  const { /* using helpers from scan-core via callers */ } = {};
+
+  const openLen = openBacktickTok & 0xFFFF; // lower 16 bits encode length
+
+  // attempt to parse inline code following the opening run. The scanInlineCode
+  // in this module expects the `start` parameter to be the index immediately
+  // after the opening run. In the previous `scan0` call site this was
+  // `offset + openLen - 1` because `offset` held the post-incremented index.
+  const inlineTok = scanInlineCode(input, startOffset + openLen, endOffset, openLen);
+
+  // If inlineTok carries ErrorUnbalancedTokenFallback, we must perform the
+  // fallback/unbalanced handling: check whether there exists a closing run
+  // after the inlineTok's fallback length.
+  if (inlineTok && (inlineTok & 0xF0000) & ErrorUnbalancedTokenFallback) {
+    // compute position where a closing backtick run might be found. The
+    // original calculation used: offset - 1 + getTokenLength(openBacktickTok) + getTokenLength(inlineTok)
+    // Here offset corresponds to startOffset + 1 in the original flow; simplifying:
+    const openTokLen = openLen;
+    const inlineLen = inlineTok & 0xFFFF;
+
+    const closingTryStart = startOffset + openTokLen + inlineLen;
+
+    const closingBacktickTok = scanBacktickOpen(input, closingTryStart, endOffset);
+
+    if (closingBacktickTok) {
+      // found a closing run but it's unbalanced: emit open(with flag), inline, closing(with flag)
+      output.push(openBacktickTok | ErrorUnbalancedTokenFallback);
+      output.push(inlineTok);
+      output.push(closingBacktickTok | ErrorUnbalancedTokenFallback);
+      return 3;
+    } else {
+      // emit open(with flag) and inline
+      output.push(openBacktickTok | ErrorUnbalancedTokenFallback);
+      output.push(inlineTok);
+      return 2;
+    }
+  }
+
+  // balanced case: emit open, inline, and closing BacktickBoundary with same length
+  output.push(openBacktickTok);
+  output.push(inlineTok);
+  output.push(BacktickBoundary | openLen);
+  return 3;
 }

@@ -117,3 +117,18 @@ Calling sequence in `scan0` (high level):
 
 This orchestration keeps `scan0`'s loop readable, centralizes backtick/inline-code complexity in a small dedicated module, and lets unit tests target each piece independently.
 
+# Updated integrated logic
+
+```javascript
+function scanBacktickInline(input, startOffset, endOffset, output) {
+  // move the logic from scan0 here
+}
+```
+
+The complex logic of orchestrating scanBacktickOpen, scanInlineCode and scanBacktickClose is currently in scan0, making it complex and hard to support.
+
+Instead it should move into this new function scanBacktickInline that will be called from scan0 when a backtick is seen in inline context.
+
+The invocations of the existing three "primitives" should move into this function, retaining all the logic and handling.
+
+The tests need to be rerun to verify everything still works as before.
