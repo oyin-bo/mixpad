@@ -5,6 +5,7 @@ import { scanEntity } from './scan-entity.js';
 import { scanInlineText } from './scan-inline-text.js';
 import { scanEscaped } from './scan-escaped.js';
 import { scanBacktickInline } from './scan-backtick-inline.js';
+import { scanFencedBlock } from './scan-fences.js';
 import { NewLine, Whitespace, BacktickBoundary, InlineCode } from './scan-tokens.js';
 import { ErrorUnbalancedTokenFallback } from './scan-token-flags.js';
 
@@ -30,10 +31,10 @@ export function scan0({
   startOffset, endOffset,
   output
 }) {
-  // mock implementation for now
-
   let tokenCount = 0;
   let offset = startOffset;
+  let atLineStart = true; // Track whether we're at the start of a line
+  
   while (offset < endOffset) {
     const ch = input.charCodeAt(offset++);
     switch (ch) {
@@ -41,6 +42,7 @@ export function scan0({
       case 0: {
         output.push(NewLine | 1 /* NewLine, length: 1 */);
         tokenCount++;
+        atLineStart = true;
         break;
       }
 
@@ -52,6 +54,7 @@ export function scan0({
           output.push(NewLine | 1 /* NewLine, length: 1 */);
         }
         tokenCount++;
+        atLineStart = true;
         break;
       }
 
@@ -67,6 +70,7 @@ export function scan0({
         } else {
           tokenCount += scanInlineText(input, offset - 1, endOffset, output);
         }
+        atLineStart = false;
         continue;
       }
 
@@ -78,26 +82,65 @@ export function scan0({
           output.push(esc);
           tokenCount++;
           offset += length - 1;
+          atLineStart = false;
           continue;
         }
         // fallthrough to inline text if not recognized
         tokenCount += scanInlineText(input, offset - 1, endOffset, output);
+        atLineStart = false;
         continue;
       }
 
       case 96 /* ` backtick */: {
-        // delegate all backtick orchestration to scanBacktickInline which will
-        // emit the provisional tokens (if any) and return how many were added.
+        // Check if we should try block fence first
+        if (atLineStart || isAfterIndentation(output)) {
+          const fenceTokens = scanFencedBlock(input, offset - 1, endOffset, output);
+          if (fenceTokens > 0) {
+            // Calculate how much input was consumed by the fence
+            let fenceLength = 0;
+            const fenceStart = output.length - fenceTokens;
+            for (let i = fenceStart; i < output.length; i++) {
+              fenceLength += getTokenLength(output[i]);
+            }
+            // We consumed the entire fence, so we're done scanning this input
+            return tokenCount + fenceTokens;
+          }
+        }
+        
+        // Fall back to inline backtick handling
         const added = scanBacktickInline(input, offset - 1, endOffset, output);
         if (added === 0) {
           // nothing recognized; fall back to inline text handling
           tokenCount += scanInlineText(input, offset - 1, endOffset, output);
+          atLineStart = false;
           continue;
         }
 
         // scanBacktickInline added tokens and in previous logic we returned
         // early after handling a backtick span. Mirror that: return tokenCount + added
         return tokenCount + added;
+      }
+
+      case 126 /* ~ tilde */: {
+        // Check if we should try block fence
+        if (atLineStart || isAfterIndentation(output)) {
+          const fenceTokens = scanFencedBlock(input, offset - 1, endOffset, output);
+          if (fenceTokens > 0) {
+            // Calculate how much input was consumed by the fence
+            let fenceLength = 0;
+            const fenceStart = output.length - fenceTokens;
+            for (let i = fenceStart; i < output.length; i++) {
+              fenceLength += getTokenLength(output[i]);
+            }
+            // We consumed the entire fence, so we're done scanning this input
+            return tokenCount + fenceTokens;
+          }
+        }
+        
+        // Fall back to inline text
+        tokenCount += scanInlineText(input, offset - 1, endOffset, output);
+        atLineStart = false;
+        continue;
       }
 
       case 9 /* \t */:
@@ -109,14 +152,36 @@ export function scan0({
           output.push(Whitespace | 1 /* Whitespace, length: 1 */);
           tokenCount++;
         }
+        // Don't change atLineStart - whitespace at line start is still line start
         continue;
       }
 
       default: {
         tokenCount += scanInlineText(input, offset - 1, endOffset, output);
+        atLineStart = false;
       }
     }
   }
 
   return tokenCount;
+
+  /**
+   * Check if we're after acceptable indentation for a block fence
+   * @param {import('./scan0.js').ProvisionalToken[]} tokens
+   */
+  function isAfterIndentation(tokens) {
+    if (tokens.length === 0) return true;
+    
+    const lastToken = tokens[tokens.length - 1];
+    const kind = getTokenKind(lastToken);
+    
+    // Allow up to 3 spaces of indentation
+    if (kind === Whitespace) {
+      const length = getTokenLength(lastToken);
+      return length <= 3;
+    }
+    
+    // If last token was newline, we're at line start
+    return kind === NewLine;
+  }
 }
