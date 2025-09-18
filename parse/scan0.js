@@ -5,6 +5,7 @@ import { scanEntity } from './scan-entity.js';
 import { scanInlineText } from './scan-inline-text.js';
 import { scanEscaped } from './scan-escaped.js';
 import { scanBacktickInline } from './scan-backtick-inline.js';
+import { scanFencedBlock } from './scan-fences.js';
 import { NewLine, Whitespace, BacktickBoundary, InlineCode } from './scan-tokens.js';
 import { ErrorUnbalancedTokenFallback } from './scan-token-flags.js';
 
@@ -86,6 +87,13 @@ export function scan0({
       }
 
       case 96 /* ` backtick */: {
+        // Try fenced block first if we could be at line start
+        const fencedAdded = scanFencedBlock(input, offset - 1, endOffset, output);
+        if (fencedAdded > 0) {
+          tokenCount += fencedAdded;
+          return tokenCount; // Return after handling block fence
+        }
+
         // delegate all backtick orchestration to scanBacktickInline which will
         // emit the provisional tokens (if any) and return how many were added.
         const added = scanBacktickInline(input, offset - 1, endOffset, output);
@@ -98,6 +106,19 @@ export function scan0({
         // scanBacktickInline added tokens and in previous logic we returned
         // early after handling a backtick span. Mirror that: return tokenCount + added
         return tokenCount + added;
+      }
+
+      case 126 /* ~ tilde */: {
+        // Try fenced block
+        const fencedAdded = scanFencedBlock(input, offset - 1, endOffset, output);
+        if (fencedAdded > 0) {
+          tokenCount += fencedAdded;
+          return tokenCount; // Return after handling block fence
+        }
+
+        // Tilde doesn't have inline behavior like backticks, fall back to inline text
+        tokenCount += scanInlineText(input, offset - 1, endOffset, output);
+        continue;
       }
 
       case 9 /* \t */:
