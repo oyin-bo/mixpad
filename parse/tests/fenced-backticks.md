@@ -1,9 +1,13 @@
 # Fenced Code Blocks - Backticks
 
-```js
-console.log('hello')
 ```
-1     2                     3
+1
 @1 FencedOpen
-@2 FencedContent  
-@3 FencedClose
+
+```js
+1     
+@1 FencedOpen
+
+````
+1   
+@1 FencedOpen
