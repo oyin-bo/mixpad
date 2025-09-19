@@ -72,8 +72,6 @@ nested ```code``` here
 1
 @1 BacktickBoundary
 hello
-1
-@1 InlineCode "hello"
 ``
 1
 @1 BacktickBoundary
