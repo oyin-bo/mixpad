@@ -39,8 +39,9 @@ function findMarkdownFiles(dir) {
  * followed by one or more lines starting with '@'.
  * We'll accept markers with digits/letters and assertions like `@1 InlineText` or `@1 "text"`.
  * @param {string} text
+ * @param {string} testPath
  */
-function parseAnnotatedBlocks(text) {
+function parseAnnotatedBlocks(text, testPath) {
   const lines = text.replace(/\r\n/g, '\n').split('\n');
   const blocks = [];
   let i = 0;
@@ -56,11 +57,12 @@ function parseAnnotatedBlocks(text) {
     let contentStart = markerLineIndex - 1;
     if (contentStart < 0) { i = markerLineIndex + 1; continue; }
     const contentLines = [];
-    // collect lines above until blank line or start of file
-    while (contentStart >= 0 && lines[contentStart].trim() !== '') {
+    // collect lines above until enough or start of file
+    while (contentStart >= 0 && contentLines.join('\n').length < 70) {
       contentLines.unshift(lines[contentStart]);
       contentStart--;
     }
+    contentLines.unshift('at ' + testPath + ':' + (markerLineIndex + 1));
 
     // collect assertions lines starting at markerLineIndex+1 while they start with @
     const assertions = [];
@@ -215,15 +217,16 @@ const testsDir = __dirname; // parse/tests
 const mdFiles = findMarkdownFiles(testsDir);
 
 for (const md of mdFiles) {
+  const repoBase = path.resolve(__dirname, '..', '..'); // assuming repo root is two levels up
+  const repoRelative = path.relative(repoBase, md).replace(/\\/g, '/');
+
   const raw = fs.readFileSync(md, 'utf8');
-  const blocks = parseAnnotatedBlocks(raw);
+  const blocks = parseAnnotatedBlocks(raw, repoRelative);
 
   for (const blk of blocks) {
     // Test name: use the last content line
     const contentLine = blk.content[blk.content.length - 1] || '';
 
-    const repoBase = path.resolve(__dirname, '..', '..'); // assuming repo root is two levels up
-    const repoRelative = path.relative(repoBase, md).replace(/\\/g, '/');
     const lineNumber = blk.startLine;
 
     const niceName =
