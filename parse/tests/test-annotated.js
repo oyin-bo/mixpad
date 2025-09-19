@@ -118,15 +118,15 @@ function decodeProvisionalToken(tok) {
 function parseAssertionLine(assertionLine) {
   const trimmed = assertionLine.trim();
   if (!trimmed.startsWith('@')) return { tokenType: null, expectedText: null };
-  
+
   // Remove @ and label: "@1 InlineText \"text\"" -> "InlineText \"text\""
   const afterLabel = trimmed.replace(/^@\S+\s*/, '');
   if (!afterLabel) return { tokenType: null, expectedText: null };
-  
+
   let tokenType = null;
   let expectedText = null;
   let pos = 0;
-  
+
   // Check if line starts with a quoted string
   if (afterLabel[pos] === '"') {
     // Parse JSON string for text assertion
@@ -144,7 +144,7 @@ function parseAssertionLine(assertionLine) {
       }
       endQuote++;
     }
-    
+
     if (endQuote < afterLabel.length) {
       try {
         expectedText = JSON.parse(afterLabel.slice(pos, endQuote + 1));
@@ -159,7 +159,7 @@ function parseAssertionLine(assertionLine) {
     const tokenEnd = spaceIdx >= 0 ? spaceIdx : afterLabel.length;
     tokenType = afterLabel.slice(pos, tokenEnd);
     pos = tokenEnd;
-    
+
     // Check for text assertion after token type
     while (pos < afterLabel.length && /\s/.test(afterLabel[pos])) pos++;
     if (pos < afterLabel.length && afterLabel[pos] === '"') {
@@ -176,7 +176,7 @@ function parseAssertionLine(assertionLine) {
         }
         endQuote++;
       }
-      
+
       if (endQuote < afterLabel.length) {
         try {
           expectedText = JSON.parse(afterLabel.slice(pos, endQuote + 1));
@@ -186,7 +186,7 @@ function parseAssertionLine(assertionLine) {
       }
     }
   }
-  
+
   return { tokenType, expectedText };
 }
 
@@ -217,7 +217,7 @@ const mdFiles = findMarkdownFiles(testsDir);
 for (const md of mdFiles) {
   const raw = fs.readFileSync(md, 'utf8');
   const blocks = parseAnnotatedBlocks(raw);
-  
+
   for (const blk of blocks) {
     // Test name: use the last content line
     const contentLine = blk.content[blk.content.length - 1] || '';
@@ -229,29 +229,29 @@ for (const md of mdFiles) {
     const niceName =
       `${contentLine} ${blk.markerLine.replace(/\s+/g, '-')}`.trim() + ' ' +
       repoRelative + ':' + lineNumber;
-    
+
     test(niceName, () => {
       // FIX 1: construct clean input from ALL content lines joined with newlines (not just one line)
       const input = blk.content.join('\n');
-      
+
       // FIX 2: run scan0 in a loop until the WHOLE input is exhausted
       /** @type {number[]} */
       const output = [];
       let currentOffset = 0;
       while (currentOffset < input.length) {
-        const tokenCount = scan0({ 
-          input, 
-          startOffset: currentOffset, 
-          endOffset: input.length, 
-          output 
+        const tokenCount = scan0({
+          input,
+          startOffset: currentOffset,
+          endOffset: input.length,
+          output
         });
-        
+
         // FIX 4: Use the scan0 return value - advance offset by the length of produced tokens
         if (tokenCount === 0) {
           // Avoid infinite loop if no tokens were produced
           break;
         }
-        
+
         // Calculate how much input was consumed by summing token lengths
         let consumedLength = 0;
         const outputStart = output.length - tokenCount;
@@ -278,7 +278,7 @@ for (const md of mdFiles) {
 
       // Build proper assertions following the original format with strictEqual reporting
       // This is the foundation cornerstone of the parser testing system
-      
+
       // Build mapping of marker id -> absolute character index in the input string
       const contentJoin = blk.content.join('\n');
       // Compute offset of the last content line start in the joined content
@@ -448,7 +448,6 @@ for (const md of mdFiles) {
       }
       const expected = expectedLines.join('\n');
 
-      // CRITICAL: Use strictEqual with repository-relative path and line number as third parameter
       // This is the foundation cornerstone of the parser testing system
       if (mismatchDetected || missingSlots.length) {
         assert.strictEqual(actualReport, expected);
