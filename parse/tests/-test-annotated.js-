@@ -58,7 +58,7 @@ function parseAnnotatedBlocks(text, testPath) {
     if (contentStart < 0) { i = markerLineIndex + 1; continue; }
     const contentLines = [];
     // collect lines above until enough or start of file
-    while (contentStart >= 0 && contentLines.join('\n').length < 70) {
+    while (contentStart >= 0 && contentLines.join('\n').length < 10) {
       contentLines.unshift(lines[contentStart]);
       contentStart--;
     }
