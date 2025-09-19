@@ -7,7 +7,7 @@
 @1 FencedOpen
 hello world
 1
-@1 FencedContent "hello world"
+@1 FencedContent "hello world\n"
 ~~~
 1
 @1 FencedClose
@@ -19,7 +19,7 @@ hello world
 @1 FencedOpen
 print("hello")
 1
-@1 FencedContent "print(\"hello\")"
+@1 FencedContent "print(\"hello\")\n"
 ~~~
 1
 @1 FencedClose
@@ -33,7 +33,7 @@ print("hello")
 @1 FencedOpen
 hello world
 1
-@1 FencedContent "hello world"
+@1 FencedContent "hello world\n"
 ```
 1
 @1 FencedClose
@@ -45,7 +45,7 @@ hello world
 @1 FencedOpen
 console.log('hello')
 1
-@1 FencedContent "console.log('hello')123"
+@1 FencedContent "console.log('hello')\n"
 ```
 1
 @1 FencedClose
@@ -57,7 +57,7 @@ console.log('hello')
 @1 FencedOpen
 nested ```code``` here
 1
-@1 FencedContent "nested ```code``` here"
+@1 FencedContent "nested ```code``` here\n"
 ````
 1
 @1 FencedClose
