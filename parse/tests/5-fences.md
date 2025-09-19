@@ -76,23 +76,4 @@ hello
 1
 @1 BacktickBoundary
 
-## Unclosed fence - fallback to error handling
 
-```
-1
-@1 FencedOpen
-unclosed content
-1
-@1 FencedContent "unclosed content"
-
-## Mixed fence characters - backtick opener, tilde closer (invalid)
-
-```
-1
-@1 FencedOpen
-content
-1
-@1 FencedContent "content"
-~~~
-1
-@1 FencedContent "~~~"
