@@ -45,7 +45,7 @@ hello world
 @1 FencedOpen
 console.log('hello')
 1
-@1 FencedContent "console.log('hello')"
+@1 FencedContent "console.log('hello')123"
 ```
 1
 @1 FencedClose

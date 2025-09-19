@@ -51,8 +51,21 @@ export function scanFencedBlock(input, startOffset, endOffset, output) {
     infoPos++;
   }
 
-  // contentStart is immediately after the fence run (includes info line)
-  const contentStart = pos;
+  // contentStart should be immediately after the info line's newline so the
+  // FencedContent token contains only the actual fenced code (tests expect
+  // the info string to be excluded from the content token).
+  let contentStart = pos;
+  if (infoPos < endOffset) {
+    const ch = input.charCodeAt(infoPos);
+    if (ch === 13 /* \r */ && infoPos + 1 < endOffset && input.charCodeAt(infoPos + 1) === 10 /* \n */) {
+      contentStart = infoPos + 2;
+    } else if (ch === 10 /* \n */ || ch === 13 /* \r */) {
+      contentStart = infoPos + 1;
+    } else {
+      // No newline after info (EOF), contentStart remains as pos (will lead to empty content)
+      contentStart = pos;
+    }
+  }
 
   // Now scan forward line-by-line looking for a valid closing fence. This
   // follows the same strategy as the previous implementation: find the next
@@ -113,13 +126,27 @@ export function scanFencedBlock(input, startOffset, endOffset, output) {
         }
 
         if (validCloser) {
-          if (fenceChar === 126 /* ~ */) {
-          // valid closer found
-          }
+          // compute token lengths that cover the entire consumed input region
+          // open token should span from the fence start to the start of content
+          const openTokenLen = contentStart - startOffset;
+          // content length: up to the newline that precedes the closing fence
           const contentLength = newlinePos + 1 - contentStart;
-          output.push(FencedOpen | openLen);
+
+          // determine end of closing line (include newline if present)
+          let closeLineEnd = checkPos;
+          if (checkPos < endOffset) {
+            const nc = input.charCodeAt(checkPos);
+            if (nc === 13 /* \r */ && checkPos + 1 < endOffset && input.charCodeAt(checkPos + 1) === 10 /* \n */) {
+              closeLineEnd = checkPos + 2;
+            } else if (nc === 10 /* \n */ || nc === 13 /* \r */) {
+              closeLineEnd = checkPos + 1;
+            }
+          }
+          const closeTokenLen = closeLineEnd - linePos;
+
+          output.push(FencedOpen | openTokenLen);
           if (contentLength > 0) output.push(FencedContent | contentLength);
-          output.push(FencedClose | closeLen);
+          output.push(FencedClose | closeTokenLen);
           return contentLength > 0 ? 3 : 2;
         }
       }
