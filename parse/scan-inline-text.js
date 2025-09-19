@@ -18,13 +18,13 @@ export function scanInlineText(input, offset, endOffset, output) {
   if (output.length > 1) {
     const last = output[output.length - 1];
     const lastFlags = getTokenKind(last);
+    const lastLen = getTokenLength(last);
     const prev = output[output.length - 2];
     const prevFlags = getTokenKind(prev);
-    const prevLen = getTokenLength(prev);
 
     // previous token is a single InlineText, followed by a single Whitespace
-    if (lastFlags === Whitespace && prevFlags === InlineText && prevLen === 1 && input.charCodeAt(offset - 2) === 32 /* space */) {
-      output[output.length - 2]++; // Increment length of InlineText (low bits)
+    if (lastFlags === Whitespace && prevFlags === InlineText && lastLen === 1 && input.charCodeAt(offset - 1) === 32 /* space */) {
+      output[output.length - 2] += 2; // Increment length of InlineText (low bits)
       output.pop(); // Remove Whitespace token
       // merge "word<space>word" into a single InlineText token
       return -1;

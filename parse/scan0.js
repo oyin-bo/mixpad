@@ -35,7 +35,13 @@ export function scan0({
   let tokenCount = 0;
   let offset = startOffset;
   while (offset < endOffset) {
+    // const dmp = output.map((t, i) => {
+    //   const pre = !i ? 0 : output.slice(0, i).reduce((sum, a) => sum + getTokenLength(a), 0);
+    //   return input.slice(pre, pre + getTokenLength(t)) + ':' + getTokenKind(t) + (getTokenFlags(t) !== 0 ? ' (' + getTokenFlags(t) + ')' : '');
+    // }).concat(['<' + input.charAt(offset) + '>']);
+
     const ch = input.charCodeAt(offset++);
+
     switch (ch) {
       case 10 /* \n */:
       case 0: {

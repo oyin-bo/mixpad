@@ -21,15 +21,16 @@ const repoBase = path.resolve(__dirname, '..', '..'); // assuming repo root is t
 for (const mdFilePath of findMarkdownFiles(__dirname)) {
   const relativePath = path.relative(repoBase, mdFilePath).replace(/\\/g, '/');
 
-  test(relativePath, () => {
+  test(relativePath, async t => {
     const parsedTestCases = parseScannedAnnotatedBlocks(fs.readFileSync(mdFilePath, 'utf8'));
     const markdownContentText = parsedTestCases.markdownLines.join('');
     const tokens = parseAndGetTokens(markdownContentText);
 
     for (const testCase of parsedTestCases.tests) {
-      test(parsedTestCases.markdownLines[testCase.lineIndex].trimEnd() + ' ' + testCase.positionalMarkerLine.trimEnd().replace(/\s+/g, '-'), () => {
+      await t.test(parsedTestCases.markdownLines[testCase.lineIndex].trimEnd() + ' ' + testCase.positionalMarkerLine.trimEnd().replace(/\s+/g, '-'), () => {
 
         let manufacturedPositionalMarkerLine = '';
+        markdownContentText.charCodeAt(0);
 
         let anyAssertionFailed = 0;
         /** @type {number[]} */
@@ -63,22 +64,19 @@ for (const mdFilePath of findMarkdownFiles(__dirname)) {
           manufacturedPositionalMarkerLine += validMarker;
 
           let assertionResult = '@' + validMarker + ' ';
-          const tokenText = markdownContentText.slice(
-            matchingToken.offset,
-            matchingToken.offset + matchingToken.length);
 
           if (assertion.unparseable) {
             assertionResult +=
               tokenKindToString(matchingToken.kind) +
               ' ' +
-              JSON.stringify(tokenText) + ' ??';
+            JSON.stringify(matchingToken.text) + ' ??';
             anyAssertionFailed++;
             return assertionResult;
           }
 
           const assertionTextFailed =
             typeof assertion.text === 'string' &&
-            assertion.text !== tokenText;
+            assertion.text !== matchingToken.text;
 
           const assertionKindFailed =
             typeof assertion.tokenKind === 'number' &&
@@ -95,7 +93,7 @@ for (const mdFilePath of findMarkdownFiles(__dirname)) {
             assertionResult += [
               typeof assertion.tokenKind === 'number' ? tokenKindToString(matchingToken.kind) : '',
               typeof assertion.tokenFlags === 'number' ? tokenFlagsToString(matchingToken.flags) : '',
-              typeof assertion.text !== 'string' ? '' : JSON.stringify(tokenText)
+              typeof assertion.text !== 'string' ? '' : JSON.stringify(matchingToken.text)
             ].filter(Boolean).join(' ');
             return assertionResult;
           }
@@ -202,7 +200,6 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
   const markdownLines = [];
   const tests = [];
   let pos = 0;
-  let prevLineStart = 0;
   const NEWLINE_REGEX = /\r\n|\n|\r/g;
   while (pos < annotatedMarkdown.length) {
     const lineStartOffset = pos;
@@ -213,7 +210,6 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
     if (newlinePos === pos) {
       markdownLines.push('' + (newlineMatch ? newlineMatch[0] : ''));
       pos = nextLineStart;
-      prevLineStart = lineStartOffset;
       continue;
     }
 
@@ -225,7 +221,6 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
     const isPositionalMarkerLine = line.trimStart().startsWith('1') && annotatedMarkdown.charAt(pos) === '@';
     if (!isPositionalMarkerLine) {
       markdownLines.push(line);
-      prevLineStart = lineStartOffset;
       continue;
     }
 
@@ -271,7 +266,7 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
       const quoteStart = rest.indexOf('"');
       if (quoteStart >= 0) {
         // Text assertion
-        const quoteEnd = rest.lastIndexOf('"', 1);
+        const quoteEnd = rest.lastIndexOf('"');
         if (quoteEnd < 0) {
           assertions[iAssertionLine].unparseable = true;
           continue;
@@ -313,7 +308,9 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
     }
 
     tests.push({
-      lineStartOffset: prevLineStart,
+      markdownLine: markdownLines[markdownLines.length - 1],
+      lineStartOffset:
+        markdownLines.slice(0, Math.max(0, markdownLines.length - 1)).reduce((a, b) => a + b.length, 0),
       lineIndex: markdownLines.length - 1,
       positionalMarkerLine: line,
       assertions
