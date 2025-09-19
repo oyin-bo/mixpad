@@ -9,3 +9,6 @@ export const EntityHex = 0x600000;
 export const Escaped = 0x700000;
 export const BacktickBoundary = 0x800000;
 export const InlineCode = 0x900000;
+export const FencedOpen = 0xA00000;
+export const FencedContent = 0xB00000;
+export const FencedClose = 0xC00000;
