@@ -30,8 +30,8 @@ export function getTokenLength(token) {
 /** @param {import('./scan0.js').ProvisionalToken} token */
 export function getTokenKind(token) {
   return /** @type {TokenKind} */(
-    token & 0x7FF00000
-  ); // upper 11 bits
+    token & 0x00F00000
+  ); // token kind lives in bits 20-23 (mask 0x00F00000)
 }
 
 /** @param {import('./scan0.js').ProvisionalToken} token */

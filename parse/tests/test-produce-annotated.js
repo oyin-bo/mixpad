@@ -106,7 +106,7 @@ for (const mdFilePath of findMarkdownFiles(__dirname)) {
         }
 
         const leadLines = [
-          'at ' + relativePath + ':' + (testCase.lineIndex + 1) + '\n'
+          'at ' + relativePath + ':' + (testCase.rawLineIndex + 1) + '\n'
         ];
         for (let i = Math.max(0, testCase.lineIndex - 3); i <= testCase.lineIndex; i++) {
           leadLines.push(parsedTestCases.markdownLines[i]);
@@ -201,8 +201,8 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
   const tests = [];
   let pos = 0;
   const NEWLINE_REGEX = /\r\n|\n|\r/g;
+  let rawLineIndex = 0;
   while (pos < annotatedMarkdown.length) {
-    const lineStartOffset = pos;
     NEWLINE_REGEX.lastIndex = pos;
     const newlineMatch = NEWLINE_REGEX.exec(annotatedMarkdown);
     const newlinePos = newlineMatch ? newlineMatch.index : annotatedMarkdown.length;
@@ -210,6 +210,7 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
     if (newlinePos === pos) {
       markdownLines.push('' + (newlineMatch ? newlineMatch[0] : ''));
       pos = nextLineStart;
+      rawLineIndex++;
       continue;
     }
 
@@ -221,8 +222,12 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
     const isPositionalMarkerLine = line.trimStart().startsWith('1') && annotatedMarkdown.charAt(pos) === '@';
     if (!isPositionalMarkerLine) {
       markdownLines.push(line);
+      rawLineIndex++;
       continue;
     }
+
+    const testRawLineIndex = rawLineIndex;
+    rawLineIndex++;
 
     /**
      * @type {{
@@ -250,6 +255,7 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
 
       const assertionLine = annotatedMarkdown.slice(pos, assertionLineEndPos).trim();
       pos = assertionLineEndPos + (assertionLineEndMatch ? assertionLineEndMatch[0].length : 0);
+      rawLineIndex++;
 
       assertions[iAssertionLine].assertionSource = assertionLine;
 
@@ -312,6 +318,7 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
       lineStartOffset:
         markdownLines.slice(0, Math.max(0, markdownLines.length - 1)).reduce((a, b) => a + b.length, 0),
       lineIndex: markdownLines.length - 1,
+      rawLineIndex: testRawLineIndex, 
       positionalMarkerLine: line,
       assertions
     });
