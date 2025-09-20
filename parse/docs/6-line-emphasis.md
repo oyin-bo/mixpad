@@ -4,7 +4,7 @@ Purpose: a small, precise scanner-facing plan for surfacing emphasis-like delimi
 The scanner will only emit provisional tokens that represent delimiter runs and minimal contextual flags. Pairing and pairing rules are explicitly out of scope for this phase — the semantic scanner will be responsible for matching/open/close logic.
 
 Goals (concise)
-- Emit tokens for runs of: asterisk `*`, underscore `_`, tilde `~` (double-tilde `~~`), and dollar `$` (single/double).
+- Emit tokens for runs of: asterisk `*`, underscore `_`, tilde `~` (double-tilde `~~`).
 - Avoid pairing, nesting, or any structural decisions at this stage.
 - Provide minimal flanking/context flags that the semantic scanner needs to decide open/close later.
 - Keep the implementation streaming, low-allocation, and defend against pathological runs.
