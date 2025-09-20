@@ -6,6 +6,7 @@ import { scanInlineText } from './scan-inline-text.js';
 import { scanEscaped } from './scan-escaped.js';
 import { scanBacktickInline } from './scan-backtick-inline.js';
 import { scanFencedBlock } from './scan-fences.js';
+import { scanEmphasis } from './scan-emphasis.js';
 import { NewLine, Whitespace, BacktickBoundary, InlineCode } from './scan-tokens.js';
 
 /**
@@ -109,14 +110,56 @@ export function scan0({
       }
 
       case 126 /* ~ tilde */: {
-        // Try fenced block
+        // Try fenced block first
         const fencedAdded = scanFencedBlock(input, offset - 1, endOffset, output);
         if (fencedAdded > 0) {
           tokenCount += fencedAdded;
           return tokenCount; // Return after handling block fence
         }
 
-        // Tilde doesn't have inline behavior like backticks, fall back to inline text
+        // Try emphasis delimiter
+        const emphasisToken = scanEmphasis(input, offset - 1, endOffset);
+        if (emphasisToken !== 0) {
+          const length = getTokenLength(emphasisToken);
+          output.push(emphasisToken);
+          tokenCount++;
+          offset += length - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        tokenCount += scanInlineText(input, offset - 1, endOffset, output);
+        continue;
+      }
+
+      case 42 /* * asterisk */: {
+        // Try emphasis delimiter
+        const emphasisToken = scanEmphasis(input, offset - 1, endOffset);
+        if (emphasisToken !== 0) {
+          const length = getTokenLength(emphasisToken);
+          output.push(emphasisToken);
+          tokenCount++;
+          offset += length - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        tokenCount += scanInlineText(input, offset - 1, endOffset, output);
+        continue;
+      }
+
+      case 95 /* _ underscore */: {
+        // Try emphasis delimiter
+        const emphasisToken = scanEmphasis(input, offset - 1, endOffset);
+        if (emphasisToken !== 0) {
+          const length = getTokenLength(emphasisToken);
+          output.push(emphasisToken);
+          tokenCount++;
+          offset += length - 1;
+          continue;
+        }
+
+        // Fall back to inline text
         tokenCount += scanInlineText(input, offset - 1, endOffset, output);
         continue;
       }
