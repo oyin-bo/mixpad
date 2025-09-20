@@ -7,7 +7,6 @@ import { scanEscaped } from './scan-escaped.js';
 import { scanBacktickInline } from './scan-backtick-inline.js';
 import { scanFencedBlock } from './scan-fences.js';
 import { NewLine, Whitespace, BacktickBoundary, InlineCode } from './scan-tokens.js';
-import { ErrorUnbalancedTokenFallback } from './scan-token-flags.js';
 
 /**
  * Bitwise OR: length: lower 24 bits, flags: upper 7 bits.
@@ -36,11 +35,6 @@ export function scan0({
   let tokenCount = 0;
   let offset = startOffset;
   while (offset < endOffset) {
-    // const dmp = output.map((t, i) => {
-    //   const pre = !i ? 0 : output.slice(0, i).reduce((sum, a) => sum + getTokenLength(a), 0);
-    //   return input.slice(pre, pre + getTokenLength(t)) + ':' + getTokenKind(t) + (getTokenFlags(t) !== 0 ? ' (' + getTokenFlags(t) + ')' : '');
-    // }).concat(['<' + input.charAt(offset) + '>']);
-
     const ch = input.charCodeAt(offset++);
 
     switch (ch) {
@@ -146,4 +140,22 @@ export function scan0({
   }
 
   return tokenCount;
+}
+
+/**
+ * Facility useful to be used in 'Watch' expressions for step-by-step debugging.
+ * @param {{
+ *  input: string,
+ *  offset: number,
+ *  output: ProvisionalToken[],
+ *  tokenCount: number
+ * }} _
+ */
+function debugDumpTokens({ input, offset, output, tokenCount }) {
+  const dmp = output.slice(0, tokenCount).map((t, i) => {
+    const pre = !i ? 0 : output.slice(0, i).reduce((sum, a) => sum + getTokenLength(a), 0);
+    return input.slice(pre, pre + getTokenLength(t)) + ':' + getTokenKind(t) + (getTokenFlags(t) !== 0 ? ' (' + getTokenFlags(t) + ')' : '');
+  }).concat(['<' + input.charAt(offset) + '>']);
+
+  return dmp;
 }
