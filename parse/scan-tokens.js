@@ -12,3 +12,6 @@ export const InlineCode = 0x900000;
 export const FencedOpen = 0xA00000;
 export const FencedContent = 0xB00000;
 export const FencedClose = 0xC00000;
+export const AsteriskDelimiter = 0xD00000;
+export const UnderscoreDelimiter = 0xE00000;
+export const TildeDelimiter = 0xF00000;
