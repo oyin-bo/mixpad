@@ -1,4 +1,3 @@
-````markdown
 # Line emphasis scanning plan
 
 Purpose: a small, precise scanner-facing plan for surfacing emphasis-like delimiter tokens from `scan0`.
@@ -16,8 +15,6 @@ Token kinds to add / emit
 - `UnderscoreToken` (single `_`)
 - `UnderscoreUnderscore` (pair `__`, consume 2 chars when run >= 2)
 - `TildeTilde` (only emit for double-tilde `~~` runs)
-- `MathInlineDelimiter` (single `$`)
-- `MathBlockDelimiter` (double `$$`)
 
 Minimal flags to encode in provisional token payload
 - CanOpen (boolean): likely can serve as an opener. Use existing token-flag bits.
@@ -37,11 +34,6 @@ Scanner behaviour rules (streaming and small)
   - Consume exactly 2 characters for the emitted token. If there are more (e.g. `~~~`), emit one `TildeTilde` and leave the remainder to be re-scanned.
   - Set `CanOpen`/`CanClose` using same flanking heuristics.
 
-- For dollar signs:
-  - If runLength === 2, emit `MathBlockDelimiter` consuming exactly 2 characters.
-  - If runLength === 1, emit `MathInlineDelimiter` consuming 1 character.
-  - If runLength > 2, prefer to emit `MathBlockDelimiter` for the first two chars and leave the remainder (consistent, simple policy).
-  - Compute `CanOpen`/`CanClose` flags if useful for semantic math scanner.
 
 Edge-case and safety rules
 - Cap run-length scanning at a safe limit (e.g. 1024 or a practical cap) to avoid pathological input cost; beyond the cap, treat as repeated tokens by emitting fixed-size tokens repeatedly instead of huge counters.
@@ -57,11 +49,10 @@ Tests to add (annotated markdown brief cases)
 - `**x**` expecting `AsteriskAsterisk` tokens consuming 2 chars each side.
 - `a_b` and `_a_` to verify `CanOpen`/`CanClose` differences.
 - `~~x~~` expecting `TildeTilde` tokens.
-- `$x$` and `$$x$$` for math delimiters.
 - Mixed runs `***x***` to verify emission policy (one double + one single on remainder).
 
 Implementation notes (developer-friendly)
-- Implement as a small module `parse/scan-emphasis.js` exporting functions used by `scan0` (e.g. `scanAsterisk`, `scanUnderscore`, `scanTildeOrStrikethrough`, `scanDollar`).
+ - Implement as a small module `parse/scan-emphasis.js` exporting functions used by `scan0` (e.g. `scanAsterisk`, `scanUnderscore`, `scanTildeOrStrikethrough`).
 - Keep flanking helper functions in `parse/scan-core.js` to reuse `isAsciiAlphaNum`.
 - Add token constants in `parse/scan-tokens.js` for the new token kinds.
 - Keep logic deterministic and streaming: use integer counters, no substring allocations during scanning.
@@ -69,4 +60,3 @@ Implementation notes (developer-friendly)
 Ownership and scope
 - This file only prescribes scanner behaviour; pairing and structural parsing is for the semantic scanner.
 
-````
