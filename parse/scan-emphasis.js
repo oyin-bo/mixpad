@@ -36,8 +36,11 @@ export function scanEmphasis(input, start, end) {
   const beforeChar = start > 0 ? input.charCodeAt(start - 1) : 0;
   const afterChar = start + runLength < end ? input.charCodeAt(start + runLength) : 0;
 
-  // Check flanking conditions
-  const { isLeftFlanking, isRightFlanking } = checkFlanking(beforeChar, afterChar);
+  // Check flanking conditions. Use a bitmask to avoid allocating an object.
+  // bit 1 => left-flanking, bit 2 => right-flanking
+  const flanking = checkFlanking(beforeChar, afterChar);
+  const isLeftFlanking = !!(flanking & 1);
+  const isRightFlanking = !!(flanking & 2);
 
   // Determine CanOpen/CanClose flags based on delimiter type and flanking
   let flags = 0;
@@ -77,7 +80,7 @@ export function scanEmphasis(input, start, end) {
  * 
  * @param {number} beforeChar - Character code before the run (0 if at start)
  * @param {number} afterChar - Character code after the run (0 if at end)
- * @returns {{isLeftFlanking: boolean, isRightFlanking: boolean}}
+ * @returns {number} bitmask: bit 1 => isLeftFlanking, bit 2 => isRightFlanking
  */
 function checkFlanking(beforeChar, afterChar) {
   const beforeIsWhitespace = isWhitespace(beforeChar);
@@ -87,7 +90,7 @@ function checkFlanking(beforeChar, afterChar) {
 
   // Left-flanking: not followed by whitespace AND 
   // (not followed by punctuation OR followed by punctuation and preceded by whitespace or punctuation)
-  const isLeftFlanking = !afterIsWhitespace && 
+  const isLeftFlanking = !afterIsWhitespace &&
     (!afterIsPunctuation || (afterIsPunctuation && (beforeIsWhitespace || beforeIsPunctuation)));
 
   // Right-flanking: not preceded by whitespace AND
@@ -95,7 +98,8 @@ function checkFlanking(beforeChar, afterChar) {
   const isRightFlanking = !beforeIsWhitespace &&
     (!beforeIsPunctuation || (beforeIsPunctuation && (afterIsWhitespace || afterIsPunctuation)));
 
-  return { isLeftFlanking, isRightFlanking };
+  // bit 1 = left, bit 2 = right
+  return (isLeftFlanking ? 1 : 0) | (isRightFlanking ? 2 : 0);
 }
 
 /**
