@@ -1,42 +1,16 @@
 # Line emphasis delimiters
 
-Characters `*`, `_`, `~` can be emphasis delimiters, or just a part of inline text. Scan0 parser will identify cases where these can be treated as delimiters and emit tokens accordingly.
+Characters `*`, `_`, `~` may form delimiter runs that can later be resolved into emphasis tokens. The scanner (`scan0` / `scanEmphasis`) now focuses on emitting provisional delimiter tokens and performing only character-level demotions that are provably unambiguous from the raw input. Demotions mean characters like asterisk that are guaranteed not to be delimiters are interpreted as part of inline text (for example an asterisk flanked by spaces on both sides). Higher-level decisions (pairing, nesting, final promotion or demotion) are deferred to a later semantic resolver.
 
-The "can" part means that the semantic scanner will need to apply mutual-pairing/nesting rules and in some cases **demote** such provisional tokens back to plain text. In other (most) cases the scanner will **promoted** provisional to real emphasis tokens and will attach precise nesting span information when processed by the semantic scanner.
+## Delimiter tokens: AsteriskDelimiter, UnderscoreDelimiter, TildeDelimiter
 
-## CanOpen/CanClose flags
+- Delimiter token for a contiguous run of the same delimiter character (`*`, `_`, or `~`). As any token it encodes its length.
+- For `~` (tilde) runs, the scanner treats single tildes as plain text and only emits a provisional **TildeDelimiter** when the run length is at least 2.
+- Runs that are whitespace-flanked on both sides are definitely not delimiters and are treated as plain text.
+- Underscore runs that are somewhat stricter examples of intraword (ASCII alphanumeric immediately before and after the run) are demoted, but conditional on prior token being inline text. This conservative rule important to avoid escape sequences or legacy HTML entities that can in fact be whitespace: consider `\n_big_` being a valid emphasis.
 
-These authoritatively specify that a delimiter token can serve as an opener or closer, if paired.
+No flags are captured, such as in regards of flanking provisional delimiter tokens.
 
-**At least one of those** will always be set for any emitted delimiter token. Tokens that can neither open or close become plain text and merge with adjacent text by the rules of plain text.
+## Delimiter-resolution later
 
-## Delimiter runs
-
-**Tilde:** Runs less than 2 are plain text. Runs of 2 or more emit one `TildeDelimiter` token of whatever the run length is, with appropriate flags (or plain text in positions where they cannot be delimiters).
-
-**Asterisk/Underscore:** Runs of 1 and more emit one `AsteriskDelimiter` or `UnderscoreDelimiter` respectively, with appropriate flags (or plain text in positions where they cannot be delimiters).
-
-The breakdown of these runs into single/double tokens is deferred to the semantic scanner.
-
-For **tildes**, only double tildes are valid delimiters. "Leftover" single tildes will be "demoted" to plain text in the semantic scanner.
-
-
-## Flanking rules
-
-**Note:** punctuation below = Unicode P category.
-
-A delimiter run is **left-flanking** if:
-- It is not followed by whitespace
-- AND either not followed by punctuation, OR followed by punctuation and preceded by whitespace or punctuation
-
-A delimiter run is **right-flanking** if:
-- It is not preceded by whitespace  
-- AND either not preceded by punctuation, OR preceded by punctuation and followed by whitespace or punctuation
-
-**CanOpen flags:**
-- `*` and `~`: Can open if left-flanking
-- `_`: Can open if left-flanking AND (not right-flanking OR preceded by punctuation)
-
-**CanClose flags:**
-- `*` and `~`: Can close if right-flanking
-- `_`: Can close if right-flanking AND (not left-flanking OR followed by punctuation)
+The semantic resolver processes the provisional delimiter tokens, applying the complete flanking rules, pairing rules, and nesting constraints to promote some provisional tokens into real emphasis tokens (openers/closers) and to demote others back into plain text. This pass can be more rigorous and intuitive than CommonMark's rules because it can afford to consider the broader context of paragraph with little cost.
