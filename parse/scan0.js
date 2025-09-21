@@ -1,12 +1,13 @@
 // @ts-check
 
-import { getTokenFlags, getTokenKind, getTokenLength } from './scan-core.js';
-import { scanEntity } from './scan-entity.js';
-import { scanInlineText } from './scan-inline-text.js';
-import { scanEscaped } from './scan-escaped.js';
 import { scanBacktickInline } from './scan-backtick-inline.js';
+import { getTokenFlags, getTokenKind, getTokenLength, isAsciiAlphaNum } from './scan-core.js';
+import { scanEmphasis } from './scan-emphasis.js';
+import { scanEntity } from './scan-entity.js';
+import { scanEscaped } from './scan-escaped.js';
 import { scanFencedBlock } from './scan-fences.js';
-import { NewLine, Whitespace, BacktickBoundary, InlineCode } from './scan-tokens.js';
+import { scanInlineText } from './scan-inline-text.js';
+import { BacktickBoundary, InlineCode, InlineText, NewLine, Whitespace } from './scan-tokens.js';
 
 /**
  * Bitwise OR: length: lower 24 bits, flags: upper 7 bits.
@@ -109,14 +110,54 @@ export function scan0({
       }
 
       case 126 /* ~ tilde */: {
-        // Try fenced block
+        // Try fenced block first
         const fencedAdded = scanFencedBlock(input, offset - 1, endOffset, output);
         if (fencedAdded > 0) {
           tokenCount += fencedAdded;
           return tokenCount; // Return after handling block fence
         }
 
-        // Tilde doesn't have inline behavior like backticks, fall back to inline text
+        // Try emphasis delimiter (new API: may push tokens into output)
+        const addedEmphasis = scanEmphasis(input, offset - 1, endOffset, output);
+        if (addedEmphasis > 0) {
+          tokenCount += addedEmphasis;
+          // advance offset by length of the last token pushed
+          const lastToken = output[output.length - 1];
+          offset += getTokenLength(lastToken) - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        tokenCount += scanInlineText(input, offset - 1, endOffset, output);
+        continue;
+      }
+
+      case 42 /* * asterisk */: {
+        // Try emphasis delimiter (new API: may push tokens into output)
+        {
+          const addedEmphasis = scanEmphasis(input, offset - 1, endOffset, output);
+          if (addedEmphasis > 0) {
+            tokenCount += addedEmphasis;
+            const lastToken = output[output.length - 1];
+            offset += getTokenLength(lastToken) - 1;
+            continue;
+          }
+        }
+
+        // Fall back to inline text
+        tokenCount += scanInlineText(input, offset - 1, endOffset, output);
+        continue;
+      }
+
+      case 95 /* _ underscore */: {
+        const addedEmphasis = scanEmphasis(input, offset - 1, endOffset, output);
+        if (addedEmphasis > 0) {
+          tokenCount += addedEmphasis;
+          const lastToken = output[output.length - 1];
+          offset += getTokenLength(lastToken) - 1;
+          continue;
+        }
+
         tokenCount += scanInlineText(input, offset - 1, endOffset, output);
         continue;
       }
