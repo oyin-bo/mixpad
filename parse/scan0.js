@@ -25,7 +25,6 @@ import { BacktickBoundary, InlineCode, InlineText, NewLine, Whitespace } from '.
  * }} _
  * @return {number} The count of tokens pushed into output.
  */
-
 export function scan0({
   input,
   startOffset, endOffset,
