@@ -88,41 +88,54 @@ export function scan0({
 
       case 96 /* ` backtick */: {
         // Try fenced block first if we could be at line start
-        const fencedAdded = scanFencedBlock(input, offset - 1, endOffset, output);
+        const tokensBefore = output.length;
+        scanFencedBlock(input, offset - 1, endOffset, output);
+        const fencedAdded = output.length - tokensBefore;
+
         if (fencedAdded > 0) {
+          // no need to update offset, we return immediately
           tokenCount += fencedAdded;
           return tokenCount; // Return after handling block fence
         }
 
         // delegate all backtick orchestration to scanBacktickInline which will
         // emit the provisional tokens (if any) and return how many were added.
-        const added = scanBacktickInline(input, offset - 1, endOffset, output);
+        const tokensBeforeBacktick = output.length;
+        scanBacktickInline(input, offset - 1, endOffset, output);
+        const added = output.length - tokensBeforeBacktick;
+
         if (added === 0) {
           // nothing recognized; fall back to inline text handling
           tokenCount += scanInlineText(input, offset - 1, endOffset, output);
           continue;
         }
 
-        // scanBacktickInline added tokens and in previous logic we returned
-        // early after handling a backtick span. Mirror that: return tokenCount + added
-        return tokenCount + added;
+        // no need to update offset, we return immediately
+        tokenCount += added;
+        return tokenCount;
       }
 
       case 126 /* ~ tilde */: {
         // Try fenced block first
-        const fencedAdded = scanFencedBlock(input, offset - 1, endOffset, output);
+        const tokensBeforeFence = output.length;
+        scanFencedBlock(input, offset - 1, endOffset, output);
+        const fencedAdded = output.length - tokensBeforeFence;
         if (fencedAdded > 0) {
           tokenCount += fencedAdded;
           return tokenCount; // Return after handling block fence
         }
 
-        // Try emphasis delimiter (new API: may push tokens into output)
-        const addedEmphasis = scanEmphasis(input, offset - 1, endOffset, output);
+        // Try emphasis delimiter
+        const tokensBeforeEmphasis = output.length;
+        scanEmphasis(input, offset - 1, endOffset, output);
+        const addedEmphasis = output.length - tokensBeforeEmphasis;
         if (addedEmphasis > 0) {
           tokenCount += addedEmphasis;
-          // advance offset by length of the last token pushed
-          const lastToken = output[output.length - 1];
-          offset += getTokenLength(lastToken) - 1;
+          let consumedLength = 0;
+          for (let i = tokensBeforeEmphasis; i < output.length; i++) {
+            consumedLength += getTokenLength(output[i]);
+          }
+          offset += consumedLength - 1;
           continue;
         }
 
