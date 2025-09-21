@@ -1,8 +1,8 @@
 // @ts-check
 
-import { isAsciiAlphaNum } from './scan-core.js';
-import { AsteriskDelimiter, UnderscoreDelimiter, TildeDelimiter } from './scan-tokens.js';
-import { CanOpen, CanClose } from './scan-token-flags.js';
+import { isPunctuation, isWhitespace } from './scan-core.js';
+import { CanClose, CanOpen } from './scan-token-flags.js';
+import { AsteriskDelimiter, TildeDelimiter, UnderscoreDelimiter } from './scan-tokens.js';
 
 /**
  * Scan emphasis delimiters (*, _, ~) starting at `start`.
@@ -15,7 +15,7 @@ import { CanOpen, CanClose } from './scan-token-flags.js';
  */
 export function scanEmphasis(input, start, end) {
   if (start < 0 || start >= end) return 0;
-  
+
   const firstChar = input.charCodeAt(start);
   if (firstChar !== 42 /* * */ && firstChar !== 95 /* _ */ && firstChar !== 126 /* ~ */) {
     return 0;
@@ -44,7 +44,7 @@ export function scanEmphasis(input, start, end) {
 
   // Determine CanOpen/CanClose flags based on delimiter type and flanking
   let flags = 0;
-  
+
   if (firstChar === 42 /* * */ || firstChar === 126 /* ~ */) {
     // * and ~: Can open if left-flanking, can close if right-flanking
     if (isLeftFlanking) flags |= CanOpen;
@@ -100,29 +100,4 @@ function checkFlanking(beforeChar, afterChar) {
 
   // bit 1 = left, bit 2 = right
   return (isLeftFlanking ? 1 : 0) | (isRightFlanking ? 2 : 0);
-}
-
-/**
- * Check if a character is whitespace.
- * @param {number} ch - Character code (0 if at boundary)
- * @returns {boolean}
- */
-function isWhitespace(ch) {
-  if (ch === 0) return true; // Treat boundaries as whitespace for flanking
-  return ch === 32 /* space */ || ch === 9 /* tab */ || ch === 10 /* \n */ || ch === 13 /* \r */;
-}
-
-/**
- * Check if a character is punctuation (Unicode P category - simplified implementation).
- * @param {number} ch - Character code (0 if at boundary)
- * @returns {boolean}
- */
-function isPunctuation(ch) {
-  if (ch === 0) return false; // Boundaries are not punctuation
-  
-  // ASCII punctuation characters
-  return (ch >= 33 && ch <= 47) ||   // ! " # $ % & ' ( ) * + , - . /
-         (ch >= 58 && ch <= 64) ||   // : ; < = > ? @
-         (ch >= 91 && ch <= 96) ||   // [ \ ] ^ _ `
-         (ch >= 123 && ch <= 126);   // { | } ~
 }
