@@ -20,33 +20,39 @@ import { getTokenLength } from './scan-core.js';
  * @param {string} input
  * @param {number} start - Index after the opening tag's '>'
  * @param {number} end - Exclusive end
- * @param {string} tagName - lowercase tag name (script, style, or textarea)
+ * @param {number} tagNameStart - Start position of tag name in input
+ * @param {number} tagNameLength - Length of tag name
  * @param {ProvisionalToken[]} output
  * @returns {number} characters consumed or 0
  */
-export function scanHTMLRawText(input, start, end, tagName, output) {
-  const closingTag = '</' + tagName;
-  const closingTagLower = closingTag.toLowerCase();
-  
+export function scanHTMLRawText(input, start, end, tagNameStart, tagNameLength, output) {
   let offset = start;
   let segmentStart = start;
 
   while (offset < end) {
-    // Check for closing tag (case-insensitive)
+    // Check for closing tag (case-insensitive): '</', then tag name, then '>' or whitespace
     if (input.charCodeAt(offset) === 60 /* < */) {
-      let match = true;
-      let tempOffset = offset;
+      if (offset + 1 >= end || input.charCodeAt(offset + 1) !== 47 /* / */) {
+        offset++;
+        continue;
+      }
       
-      for (let i = 0; i < closingTag.length; i++) {
+      // Check tag name match (case-insensitive)
+      let tempOffset = offset + 2;
+      let match = true;
+      
+      for (let i = 0; i < tagNameLength; i++) {
         if (tempOffset >= end) {
           match = false;
           break;
         }
         const ch = input.charCodeAt(tempOffset);
-        const expectedLower = closingTagLower.charCodeAt(i);
-        const expectedUpper = expectedLower - 32; // Convert to uppercase
+        const expectedCh = input.charCodeAt(tagNameStart + i);
+        // Case-insensitive comparison
+        const chLower = (ch >= 65 && ch <= 90) ? ch + 32 : ch;
+        const expLower = (expectedCh >= 65 && expectedCh <= 90) ? expectedCh + 32 : expectedCh;
         
-        if (ch !== expectedLower && ch !== expectedUpper) {
+        if (chLower !== expLower) {
           match = false;
           break;
         }

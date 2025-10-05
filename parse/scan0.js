@@ -238,13 +238,12 @@ export function scan0({
                 }
                 
                 const tagNameLength = getTokenLength(tagNameToken);
-                const tagName = input.slice(actualOffset, actualOffset + tagNameLength).toLowerCase();
                 
-                // Check if it's a raw text element
-                if (isRawTextElement(tagName)) {
+                // Check if it's a raw text element (no allocation!)
+                if (isRawTextElement(input, actualOffset, tagNameLength)) {
                   // Scan raw text content
                   const rawTextStart = offset - 1 + htmlConsumed;
-                  const rawTextConsumed = scanHTMLRawText(input, rawTextStart, endOffset, tagName, output);
+                  const rawTextConsumed = scanHTMLRawText(input, rawTextStart, endOffset, actualOffset, tagNameLength, output);
                   htmlConsumed += rawTextConsumed;
                 }
               }

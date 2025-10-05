@@ -17,14 +17,24 @@ import {
  * @typedef {number} ProvisionalToken
  */
 
-/** Set of void elements that never have closing tags */
-const voidElements = new Set([
-  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
-  'link', 'meta', 'param', 'source', 'track', 'wbr'
-]);
-
-/** Set of raw text elements that require special content parsing */
-const rawTextElements = new Set(['script', 'style', 'textarea']);
+/**
+ * Check if tag name matches a specific string (case-insensitive, lowercase expected).
+ * @param {string} input
+ * @param {number} start - Start position of tag name
+ * @param {number} length - Length of tag name
+ * @param {string} expected - Lowercase expected tag name
+ * @returns {boolean}
+ */
+function matchesTagName(input, start, length, expected) {
+  if (length !== expected.length) return false;
+  for (let i = 0; i < length; i++) {
+    const ch = input.charCodeAt(start + i);
+    const exp = expected.charCodeAt(i);
+    // Case-insensitive: ch should match exp or exp-32 (uppercase)
+    if (ch !== exp && ch !== (exp - 32)) return false;
+  }
+  return true;
+}
 
 /**
  * Scan HTML tag (opening, closing, or self-closing).
@@ -85,7 +95,6 @@ export function scanHTMLTag(input, start, end, output) {
   }
 
   // Emit tag name
-  const tagName = input.slice(tagNameStart, offset).toLowerCase();
   output.push(tagNameLength | HTMLTagName);
 
   // For closing tags, just look for '>'
@@ -303,19 +312,56 @@ export function scanHTMLTag(input, start, end, output) {
 }
 
 /**
- * Check if a tag name is a void element.
- * @param {string} tagName - lowercase tag name
+ * Check if a tag name is a void element (no allocation).
+ * @param {string} input
+ * @param {number} start - Start position of tag name
+ * @param {number} length - Length of tag name
  * @returns {boolean}
  */
-export function isVoidElement(tagName) {
-  return voidElements.has(tagName);
+export function isVoidElement(input, start, length) {
+  // Check against: area, base, br, col, embed, hr, img, input, link, meta, param, source, track, wbr
+  switch (length) {
+    case 2:
+      return matchesTagName(input, start, length, 'br') ||
+             matchesTagName(input, start, length, 'hr');
+    case 3:
+      return matchesTagName(input, start, length, 'col') ||
+             matchesTagName(input, start, length, 'img') ||
+             matchesTagName(input, start, length, 'wbr');
+    case 4:
+      return matchesTagName(input, start, length, 'area') ||
+             matchesTagName(input, start, length, 'base') ||
+             matchesTagName(input, start, length, 'link') ||
+             matchesTagName(input, start, length, 'meta');
+    case 5:
+      return matchesTagName(input, start, length, 'embed') ||
+             matchesTagName(input, start, length, 'input') ||
+             matchesTagName(input, start, length, 'param') ||
+             matchesTagName(input, start, length, 'track');
+    case 6:
+      return matchesTagName(input, start, length, 'source');
+    default:
+      return false;
+  }
 }
 
 /**
- * Check if a tag name is a raw text element.
- * @param {string} tagName - lowercase tag name
+ * Check if a tag name is a raw text element (no allocation).
+ * @param {string} input
+ * @param {number} start - Start position of tag name
+ * @param {number} length - Length of tag name
  * @returns {boolean}
  */
-export function isRawTextElement(tagName) {
-  return rawTextElements.has(tagName);
+export function isRawTextElement(input, start, length) {
+  // Check against: script, style, textarea
+  switch (length) {
+    case 5:
+      return matchesTagName(input, start, length, 'style');
+    case 6:
+      return matchesTagName(input, start, length, 'script');
+    case 8:
+      return matchesTagName(input, start, length, 'textarea');
+    default:
+      return false;
+  }
 }
