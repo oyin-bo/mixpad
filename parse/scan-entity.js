@@ -28,6 +28,7 @@ const ENTITY_BUCKETS = buildEntityBuckets(entityMap);
  *
  * Note: This is a conservative parser that requires the terminating ';'.
  *
+ * @pattern primitive - returns token directly (Pattern A)
  * @param {string} input
  * @param {number} start  Index of '&'
  * @param {number} end  Exclusive end index to not read past buffer

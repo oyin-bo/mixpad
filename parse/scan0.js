@@ -66,7 +66,11 @@ export function scan0({
           tokenCount++;
           offset += length - 1;
         } else {
-          tokenCount += scanInlineText(input, offset - 1, endOffset, output);
+          const consumed = scanInlineText(input, offset - 1, endOffset, output);
+          if (consumed > 0) {
+            tokenCount = output.length;
+            offset += consumed - 1;
+          }
         }
         continue;
       }
@@ -82,95 +86,96 @@ export function scan0({
           continue;
         }
         // fallthrough to inline text if not recognized
-        tokenCount += scanInlineText(input, offset - 1, endOffset, output);
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
         continue;
       }
 
       case 96 /* ` backtick */: {
         // Try fenced block first if we could be at line start
-        const tokensBefore = output.length;
-        scanFencedBlock(input, offset - 1, endOffset, output);
-        const fencedAdded = output.length - tokensBefore;
-
-        if (fencedAdded > 0) {
-          // no need to update offset, we return immediately
-          tokenCount += fencedAdded;
+        const consumed = scanFencedBlock(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          tokenCount = output.length;
           return tokenCount; // Return after handling block fence
         }
 
         // delegate all backtick orchestration to scanBacktickInline which will
-        // emit the provisional tokens (if any) and return how many were added.
-        const tokensBeforeBacktick = output.length;
-        scanBacktickInline(input, offset - 1, endOffset, output);
-        const added = output.length - tokensBeforeBacktick;
-
-        if (added === 0) {
+        // emit the provisional tokens (if any) and return consumed length.
+        const consumedBacktick = scanBacktickInline(input, offset - 1, endOffset, output);
+        if (consumedBacktick === 0) {
           // nothing recognized; fall back to inline text handling
-          tokenCount += scanInlineText(input, offset - 1, endOffset, output);
+          const consumed = scanInlineText(input, offset - 1, endOffset, output);
+          if (consumed > 0) {
+            tokenCount = output.length;
+            offset += consumed - 1;
+          }
           continue;
         }
 
         // no need to update offset, we return immediately
-        tokenCount += added;
+        tokenCount = output.length;
         return tokenCount;
       }
 
       case 126 /* ~ tilde */: {
         // Try fenced block first
-        const tokensBeforeFence = output.length;
-        scanFencedBlock(input, offset - 1, endOffset, output);
-        const fencedAdded = output.length - tokensBeforeFence;
-        if (fencedAdded > 0) {
-          tokenCount += fencedAdded;
+        const consumedFence = scanFencedBlock(input, offset - 1, endOffset, output);
+        if (consumedFence > 0) {
+          tokenCount = output.length;
           return tokenCount; // Return after handling block fence
         }
 
         // Try emphasis delimiter
-        const tokensBeforeEmphasis = output.length;
-        scanEmphasis(input, offset - 1, endOffset, output);
-        const addedEmphasis = output.length - tokensBeforeEmphasis;
-        if (addedEmphasis > 0) {
-          tokenCount += addedEmphasis;
-          let consumedLength = 0;
-          for (let i = tokensBeforeEmphasis; i < output.length; i++) {
-            consumedLength += getTokenLength(output[i]);
-          }
-          offset += consumedLength - 1;
+        const consumedEmphasis = scanEmphasis(input, offset - 1, endOffset, output);
+        if (consumedEmphasis > 0) {
+          tokenCount = output.length;
+          offset += consumedEmphasis - 1;
           continue;
         }
 
         // Fall back to inline text
-        tokenCount += scanInlineText(input, offset - 1, endOffset, output);
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
         continue;
       }
 
       case 42 /* * asterisk */: {
-        // Try emphasis delimiter (new API: may push tokens into output)
-        {
-          const addedEmphasis = scanEmphasis(input, offset - 1, endOffset, output);
-          if (addedEmphasis > 0) {
-            tokenCount += addedEmphasis;
-            const lastToken = output[output.length - 1];
-            offset += getTokenLength(lastToken) - 1;
-            continue;
-          }
+        // Try emphasis delimiter (Pattern B: returns consumed length)
+        const consumedEmphasis = scanEmphasis(input, offset - 1, endOffset, output);
+        if (consumedEmphasis > 0) {
+          tokenCount = output.length;
+          offset += consumedEmphasis - 1;
+          continue;
         }
 
         // Fall back to inline text
-        tokenCount += scanInlineText(input, offset - 1, endOffset, output);
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
         continue;
       }
 
       case 95 /* _ underscore */: {
-        const addedEmphasis = scanEmphasis(input, offset - 1, endOffset, output);
-        if (addedEmphasis > 0) {
-          tokenCount += addedEmphasis;
-          const lastToken = output[output.length - 1];
-          offset += getTokenLength(lastToken) - 1;
+        const consumedEmphasis = scanEmphasis(input, offset - 1, endOffset, output);
+        if (consumedEmphasis > 0) {
+          tokenCount = output.length;
+          offset += consumedEmphasis - 1;
           continue;
         }
 
-        tokenCount += scanInlineText(input, offset - 1, endOffset, output);
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
         continue;
       }
 
@@ -187,7 +192,11 @@ export function scan0({
       }
 
       default: {
-        tokenCount += scanInlineText(input, offset - 1, endOffset, output);
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
       }
     }
   }

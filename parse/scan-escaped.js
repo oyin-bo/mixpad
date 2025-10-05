@@ -12,6 +12,7 @@ import { Escaped } from './scan-tokens.js';
  *  - If backslash is followed by any character, consume both (length 2)
  *  - Never allocate; only return numeric token encoding
  *
+ * @pattern primitive - returns token directly (Pattern A)
  * @param {string} input
  * @param {number} start
  * @param {number} end

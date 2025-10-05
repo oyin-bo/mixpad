@@ -14,11 +14,12 @@ import { ErrorUnbalancedTokenFallback } from './scan-token-flags.js';
  * This implementation is intentionally straightforward: advance indices only,
  * avoid allocations, and never re-scan the same region twice.
  *
+ * @pattern complex - pushes tokens and returns consumed length (Pattern B)
  * @param {string} input
  * @param {number} startOffset  index where input[startOffset] is fence char
  * @param {number} endOffset
  * @param {import('./scan0.js').ProvisionalToken[]} output
- * @returns {number} count of tokens added to output
+ * @returns {number} characters consumed or 0 if no match
  */
 export function scanFencedBlock(input, startOffset, endOffset, output) {
   if (startOffset >= endOffset) return 0;
@@ -147,7 +148,7 @@ export function scanFencedBlock(input, startOffset, endOffset, output) {
           output.push(FencedOpen | openTokenLen);
           if (contentLength > 0) output.push(FencedContent | contentLength);
           output.push(FencedClose | closeTokenLen);
-          return contentLength > 0 ? 3 : 2;
+          return closeLineEnd - startOffset;
         }
       }
     }
@@ -157,7 +158,7 @@ export function scanFencedBlock(input, startOffset, endOffset, output) {
   const contentLength = endOffset - contentStart;
   output.push(FencedOpen | ErrorUnbalancedTokenFallback | openLen);
   if (contentLength > 0) output.push(FencedContent | ErrorUnbalancedTokenFallback | contentLength);
-  return contentLength > 0 ? 2 : 1;
+  return endOffset - startOffset;
 }
 
 /**

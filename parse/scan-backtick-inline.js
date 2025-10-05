@@ -87,11 +87,12 @@ function scanInlineCode(input, start, end, openN) {
  * This mirrors the logic previously embedded in `scan0` but centralized
  * here so `scan0` only needs to delegate when it sees a backtick.
  *
+ * @pattern complex - pushes tokens and returns consumed length (Pattern B)
  * @param {string} input
  * @param {number} startOffset  index where input[startOffset] === '`'
  * @param {number} endOffset
  * @param {import('./scan0.js').ProvisionalToken[]} output
- * @returns {number} number of tokens pushed into `output` (or token count delta)
+ * @returns {number} characters consumed or 0 if no match
  */
 export function scanBacktickInline(input, startOffset, endOffset, output) {
   // call scanBacktickOpen at the startOffset
@@ -130,12 +131,13 @@ export function scanBacktickInline(input, startOffset, endOffset, output) {
       output.push(openBacktickTok | ErrorUnbalancedTokenFallback);
       output.push(inlineTok);
       output.push(closingBacktickTok | ErrorUnbalancedTokenFallback);
-      return 3;
+      const closingLen = closingBacktickTok & 0xFFFF;
+      return openLen + inlineLen + closingLen;
     } else {
       // emit open(with flag) and inline
       output.push(openBacktickTok | ErrorUnbalancedTokenFallback);
       output.push(inlineTok);
-      return 2;
+      return openLen + inlineLen;
     }
   }
 
@@ -143,5 +145,6 @@ export function scanBacktickInline(input, startOffset, endOffset, output) {
   output.push(openBacktickTok);
   output.push(inlineTok);
   output.push(BacktickBoundary | openLen);
-  return 3;
+  const inlineLen = inlineTok & 0xFFFF;
+  return openLen + inlineLen + openLen;
 }

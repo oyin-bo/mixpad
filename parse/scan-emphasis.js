@@ -13,14 +13,15 @@ import { AsteriskDelimiter, InlineText, TildeDelimiter, UnderscoreDelimiter } fr
  * @returns {number} provisional token (length | kind | flags) or 0
  */
 /**
- * New API: scanEmphasis now mirrors scanFencedBlock: it may push one or more
- * provisional tokens into `output` and returns the number of tokens added.
- *
+ * Scan emphasis delimiters (*, _, ~) starting at `start`.
+ * Implements flanking rules as described in docs/6-line-emphasis.md.
+ * 
+ * @pattern complex - pushes tokens and returns consumed length (Pattern B)
  * @param {string} input
  * @param {number} start - Index of the first delimiter character
  * @param {number} end - Exclusive end index
- * @param {number[]} output - optional array to push provisional tokens into
- * @returns {number} number of tokens pushed into output (0 when none)
+ * @param {number[]} output - Array to push provisional tokens into
+ * @returns {number} characters consumed or 0 if no match
  */
 export function scanEmphasis(input, start, end, output) {
   if (start < 0 || start >= end) return 0;
@@ -71,7 +72,7 @@ export function scanEmphasis(input, start, end, output) {
   }
 
   output.push(runLength | tokenKind);
-  return 1;
+  return runLength;
 }
 
 /**

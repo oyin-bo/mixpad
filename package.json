@@ -1,7 +1,7 @@
 {
   "name": "mixpad",
-  "description": "Mockdown document parser and management",
-  "version": "0.0.5",
+  "description": "Mixpad document parser and management",
+  "version": "0.0.6",
   "type": "module",
   "main": "index.js",
   "directories": {
@@ -14,13 +14,9 @@
     "test": "node --test"
   },
   "keywords": [
-    "Mockdown",
+    "Mixpad",
     "Markdown"
   ],
   "author": "Oleg Mihailik",
-  "license": "MIT",
-  "devDependencies": {
-    "esbuild": "^0.25.9",
-    "vitest": "^3.2.4"
-  }
+  "license": "MIT"
 }
