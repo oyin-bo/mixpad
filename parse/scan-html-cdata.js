@@ -1,0 +1,67 @@
+// @ts-check
+
+import { ErrorUnbalancedTokenFallback } from './scan-token-flags.js';
+import { HTMLCDataClose, HTMLCDataContent, HTMLCDataOpen } from './scan-tokens.js';
+
+/**
+ * Bitwise OR: length: lower 24 bits, flags: upper 7 bits.
+ * @typedef {number} ProvisionalToken
+ */
+
+/**
+ * Scan CDATA section.
+ * @pattern complex - pushes tokens and returns consumed length (Pattern B)
+ * @param {string} input
+ * @param {number} start - Index of '<'
+ * @param {number} end - Exclusive end
+ * @param {ProvisionalToken[]} output
+ * @returns {number} characters consumed or 0
+ */
+export function scanHTMLCData(input, start, end, output) {
+  // Must start with '<![CDATA['
+  if (start + 9 > end) return 0;
+  if (input.charCodeAt(start) !== 60 /* < */ ||
+      input.charCodeAt(start + 1) !== 33 /* ! */ ||
+      input.charCodeAt(start + 2) !== 91 /* [ */ ||
+      input.charCodeAt(start + 3) !== 67 /* C */ ||
+      input.charCodeAt(start + 4) !== 68 /* D */ ||
+      input.charCodeAt(start + 5) !== 65 /* A */ ||
+      input.charCodeAt(start + 6) !== 84 /* T */ ||
+      input.charCodeAt(start + 7) !== 65 /* A */ ||
+      input.charCodeAt(start + 8) !== 91 /* [ */) {
+    return 0;
+  }
+
+  // Emit opening token
+  output.push(9 | HTMLCDataOpen);
+
+  let offset = start + 9;
+  const contentStart = offset;
+
+  // Scan for ']]>' (greedy matching - first occurrence closes)
+  while (offset < end) {
+    const ch = input.charCodeAt(offset);
+
+    if (ch === 93 /* ] */ && offset + 2 < end &&
+        input.charCodeAt(offset + 1) === 93 /* ] */ &&
+        input.charCodeAt(offset + 2) === 62 /* > */) {
+      // Found proper close
+      const contentLength = offset - contentStart;
+      if (contentLength > 0) {
+        output.push(contentLength | HTMLCDataContent);
+      }
+      output.push(3 | HTMLCDataClose);
+      return offset - start + 3;
+    }
+
+    offset++;
+  }
+
+  // EOF without finding close
+  const contentLength = offset - contentStart;
+  if (contentLength > 0) {
+    output.push(contentLength | HTMLCDataContent | ErrorUnbalancedTokenFallback);
+  }
+  output.push(0 | HTMLCDataClose | ErrorUnbalancedTokenFallback);
+  return offset - start;
+}

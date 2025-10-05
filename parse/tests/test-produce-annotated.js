@@ -60,7 +60,7 @@ for (const mdFilePath of findMarkdownFiles(__dirname)) {
 
           const validMarker =
             validMarkerIndex + 1 <= 9 ? (validMarkerIndex + 1).toString() :
-              (validMarkerIndex + 1 - 10 + 'A'.charCodeAt(0)).toString();
+              String.fromCharCode(validMarkerIndex + 1 - 10 + 'A'.charCodeAt(0));
           manufacturedPositionalMarkerLine += validMarker;
 
           let assertionResult = '@' + validMarker + ' ';

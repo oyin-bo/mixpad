@@ -7,7 +7,13 @@ import { scanEntity } from './scan-entity.js';
 import { scanEscaped } from './scan-escaped.js';
 import { scanFencedBlock } from './scan-fences.js';
 import { scanInlineText } from './scan-inline-text.js';
-import { BacktickBoundary, InlineCode, InlineText, NewLine, Whitespace } from './scan-tokens.js';
+import { scanHTMLCData } from './scan-html-cdata.js';
+import { scanHTMLComment } from './scan-html-comment.js';
+import { scanHTMLDocType } from './scan-html-doctype.js';
+import { scanHTMLRawText } from './scan-html-raw-text.js';
+import { scanHTMLTag, isRawTextElement } from './scan-html-tag.js';
+import { scanXMLProcessingInstruction } from './scan-xml-pi.js';
+import { BacktickBoundary, InlineCode, InlineText, NewLine, Whitespace, HTMLTagName, HTMLTagClose, HTMLTagOpen } from './scan-tokens.js';
 
 /**
  * Bitwise OR: length: lower 24 bits, flags: upper 7 bits.
@@ -171,6 +177,88 @@ export function scan0({
           continue;
         }
 
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 60 /* < less-than */: {
+        // Try HTML/XML constructs with lookahead
+        let htmlConsumed = 0;
+
+        // Try comment: <!--
+        if (offset < endOffset && input.charCodeAt(offset) === 33 /* ! */) {
+          if (offset + 1 < endOffset && input.charCodeAt(offset + 1) === 45 /* - */ &&
+              offset + 2 < endOffset && input.charCodeAt(offset + 2) === 45 /* - */) {
+            htmlConsumed = scanHTMLComment(input, offset - 1, endOffset, output);
+          } else if (offset + 1 < endOffset && input.charCodeAt(offset + 1) === 91 /* [ */) {
+            // Try CDATA: <![CDATA[
+            htmlConsumed = scanHTMLCData(input, offset - 1, endOffset, output);
+          } else {
+            // Try DOCTYPE: <!DOCTYPE
+            htmlConsumed = scanHTMLDocType(input, offset - 1, endOffset, output);
+          }
+        } else if (offset < endOffset && input.charCodeAt(offset) === 63 /* ? */) {
+          // Try XML PI: <?
+          htmlConsumed = scanXMLProcessingInstruction(input, offset - 1, endOffset, output);
+        } else {
+          // Try HTML tag: < or </
+          const outputLengthBefore = output.length;
+          htmlConsumed = scanHTMLTag(input, offset - 1, endOffset, output);
+          
+          // Check if we just parsed an opening tag for a raw text element
+          if (htmlConsumed > 0 && output.length > outputLengthBefore) {
+            // Look for HTMLTagOpen token to check if this is an opening tag (not closing tag)
+            let tagOpenToken = -1;
+            let tagNameToken = -1;
+            let tagNameIndex = -1;
+            for (let i = outputLengthBefore; i < output.length; i++) {
+              if (getTokenKind(output[i]) === HTMLTagOpen) {
+                tagOpenToken = output[i];
+              }
+              if (getTokenKind(output[i]) === HTMLTagName) {
+                tagNameToken = output[i];
+                tagNameIndex = i;
+              }
+            }
+            
+            // Check if this is an opening tag (HTMLTagOpen length 1 for '<', not 2 for '</')
+            // and ends with HTMLTagClose (not self-closing)
+            if (tagOpenToken >= 0 && getTokenLength(tagOpenToken) === 1 && 
+                tagNameToken >= 0 && output.length > 0) {
+              const lastToken = output[output.length - 1];
+              if (getTokenKind(lastToken) === HTMLTagClose) {
+                // Calculate actual position of tag name
+                let actualOffset = offset - 1;
+                for (let i = outputLengthBefore; i < tagNameIndex; i++) {
+                  actualOffset += getTokenLength(output[i]);
+                }
+                
+                const tagNameLength = getTokenLength(tagNameToken);
+                const tagName = input.slice(actualOffset, actualOffset + tagNameLength).toLowerCase();
+                
+                // Check if it's a raw text element
+                if (isRawTextElement(tagName)) {
+                  // Scan raw text content
+                  const rawTextStart = offset - 1 + htmlConsumed;
+                  const rawTextConsumed = scanHTMLRawText(input, rawTextStart, endOffset, tagName, output);
+                  htmlConsumed += rawTextConsumed;
+                }
+              }
+            }
+          }
+        }
+
+        if (htmlConsumed > 0) {
+          tokenCount = output.length;
+          offset += htmlConsumed - 1;
+          continue;
+        }
+
+        // Fall back to inline text
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
           tokenCount = output.length;
