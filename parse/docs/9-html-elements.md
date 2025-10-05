@@ -64,57 +64,38 @@ Even more text...
 
 ### HTML Tag Tokens
 
-```javascript
-// scan-tokens.js additions
+The parser will need to produce a variety of token types to represent the different parts of HTML syntax. These include, but are not limited to:
 
-// HTML tags and attributes
-export const HTMLTagOpen = 0x1000000;           // '<' or '</' starting a tag
-export const HTMLTagName = 0x1100000;           // tag name (div, span, script, etc.)
-export const HTMLAttributeName = 0x1200000;     // attribute name
-export const HTMLAttributeEquals = 0x1300000;  // '=' between attribute name and value
-export const HTMLAttributeValue = 0x1400000;    // attribute value (quoted or unquoted)
-export const HTMLTagClose = 0x1500000;          // '>' or '/>' closing a tag
-export const HTMLTagSelfClosing = 0x1600000;    // '/>' specifically
-
-// HTML special content modes
-export const HTMLCommentOpen = 0x1700000;       // '<!--'
-export const HTMLCommentContent = 0x1800000;    // comment text
-export const HTMLCommentClose = 0x1900000;      // '-->'
-export const HTMLCDataOpen = 0x1A00000;         // '<![CDATA['
-export const HTMLCDataContent = 0x1B00000;      // CDATA content
-export const HTMLCDataClose = 0x1C00000;        // ']]>'
-export const HTMLDocTypeOpen = 0x1D00000;       // '<!DOCTYPE'
-export const HTMLDocTypeContent = 0x1E00000;    // DOCTYPE declaration content
-export const HTMLDocTypeClose = 0x1F00000;      // '>' closing DOCTYPE
-export const HTMLRawTextContent = 0x2000000;    // Content of script/style elements (not parsed)
-export const XMLProcessingInstructionOpen = 0x2100000;  // '<?'
-export const XMLProcessingInstructionTarget = 0x2200000; // 'xml', 'xml-stylesheet', etc.
-export const XMLProcessingInstructionContent = 0x2300000; // PI content/attributes
-export const XMLProcessingInstructionClose = 0x2400000;  // '?>'
-```
+- **Tag Markers:** Tokens for the opening and closing parts of a tag, such as `<`, `</`, `>`, and `/>`.
+- **Tag Names:** A token for the name of an HTML element (e.g., `div`, `span`).
+- **Attributes:** Tokens for attribute names, the equals sign, and attribute values.
+- **Special Content Modes:**
+  - **Comments:** Tokens for the comment delimiters (`<!--`, `-->`) and the content within.
+  - **CDATA:** Tokens for CDATA section delimiters (`<![CDATA[`, `]]>`) and the content.
+  - **DOCTYPE:** Tokens for the `<!DOCTYPE` declaration and its content.
+  - **Raw Text:** A token for the raw, unparsed content of elements like `<script>`, `<style>`, and `<textarea>`.
+  - **XML Processing Instructions:** Tokens for the target and content of PIs like `<?xml ... ?>`.
 
 ### Token Flags
 
-```javascript
-// scan-token-flags.js additions
+To handle errors gracefully, we will use a minimal set of flags. For now, we will rely on the existing `ErrorUnbalancedTokenFallback` flag to mark tokens that are part of a malformed or unclosed structure. If more specific error flags become necessary during implementation, they can be added at that time. The goal is to be frugal with flags and let demonstrated needs drive their creation.
 
-export const ErrorUnbalancedHTMLTag = 0x20000;      // Unclosed opening tag
-export const ErrorMalformedHTMLTag = 0x40000;       // Invalid tag syntax
-export const WarningDeprecatedHTMLTag = 0x80000;    // Deprecated tag (font, center, etc.)
-```
 
 ## Scanning Architecture
 
 ### Scanner Modules
 
-Following the established pattern from doc 8 (scanner invocation patterns):
+The parsing logic for different HTML constructs will be encapsulated in separate scanner modules, following the project's established architecture. Each module will be responsible for a specific part of the syntax.
 
-1. **scan-html-tag.js** - Parse opening/closing tags with attributes (Pattern B - complex)
-2. **scan-html-comment.js** - Parse HTML comments (Pattern B - complex)
-3. **scan-html-cdata.js** - Parse CDATA sections (Pattern B - complex)
-4. **scan-html-doctype.js** - Parse DOCTYPE declarations (Pattern B - complex)
-5. **scan-html-raw-text.js** - Parse script/style content (Pattern B - complex)
-6. **scan-xml-processing-instruction.js** - Parse XML PIs like `<?xml?>` (Pattern B - complex)
+- A module for parsing standard HTML tags, including their names and attributes.
+- A module for handling HTML comments.
+- A module for CDATA sections.
+- A module for DOCTYPE declarations.
+- A module for raw text content inside elements like `<script>`, `<style>`, and `<textarea>`.
+- A module for XML Processing Instructions.
+
+These modules will be invoked from the main `scan0` loop when a `<` character is encountered. The main loop will use minimal lookahead to determine which specialized scanner to call.
+
 
 ### Pattern Classification
 
@@ -128,67 +109,8 @@ Following the decision criteria from doc 8:
 
 ### Integration with scan0
 
-```javascript
-// In scan0.js main loop:
+The main `scan0` loop will delegate to the appropriate HTML scanning module upon encountering a `<` character. A small amount of lookahead will determine which construct is present (e.g., `<!--` for a comment, `<?` for a PI, `</` for a closing tag, etc.). If no specific HTML construct is identified, the scanner will fall back to treating the `<` as a literal character within inline text.
 
-case 60 /* < */: {
-  // Lookahead to determine HTML construct type
-  const next = offset < endOffset ? input.charCodeAt(offset) : 0;
-  
-  // HTML comment: <!--
-  if (next === 33 /* ! */ && input.charCodeAt(offset + 1) === 45 /* - */ 
-      && input.charCodeAt(offset + 2) === 45 /* - */) {
-    const consumed = scanHTMLComment(input, offset - 1, endOffset, output);
-    if (consumed > 0) {
-      tokenCount = output.length;
-      offset += consumed - 1;
-      continue;
-    }
-  }
-  
-  // HTML CDATA: <![CDATA[
-  if (next === 33 /* ! */ && input.startsWith('[CDATA[', offset + 1)) {
-    const consumed = scanHTMLCData(input, offset - 1, endOffset, output);
-    if (consumed > 0) {
-      tokenCount = output.length;
-      offset += consumed - 1;
-      continue;
-    }
-  }
-  
-  // XML Processing Instruction: <?xml?>
-  if (next === 63 /* ? */) {
-    const consumed = scanXMLProcessingInstruction(input, offset - 1, endOffset, output);
-    if (consumed > 0) {
-      tokenCount = output.length;
-      offset += consumed - 1;
-      continue;
-    }
-  }
-  
-  // HTML DOCTYPE: <!DOCTYPE
-  if (next === 33 /* ! */ && input.substr(offset + 1, 7).toLowerCase() === 'doctype') {
-    const consumed = scanHTMLDocType(input, offset - 1, endOffset, output);
-    if (consumed > 0) {
-      tokenCount = output.length;
-      offset += consumed - 1;
-      continue;
-    }
-  }
-  
-  // HTML tag (opening or closing): <tag> or </tag>
-  const consumed = scanHTMLTag(input, offset - 1, endOffset, output);
-  if (consumed > 0) {
-    tokenCount = output.length;
-    offset += consumed - 1;
-    continue;
-  }
-  
-  // Fallback: treat as literal '<' in Markdown
-  // (could be less-than sign, or malformed tag)
-  // Continue to scanInlineText
-}
-```
 
 ## HTML Tag Parsing (scan-html-tag.js)
 
@@ -227,10 +149,11 @@ open     close
 - These never have closing tags
 - Flag opening tag with metadata indicating void element
 
-**Raw text elements** (content not parsed):
-- `script`, `style`
-- After closing `>` of opening tag, invoke `scanHTMLRawText` which consumes until `</script>` or `</style>`
-- Return special `HTMLRawTextContent` token for entire content
+**Raw text elements** (content not parsed as a whole, but may contain sub-tokens):
+- `script`, `style`, `textarea`
+- After closing `>` of opening tag, invoke a raw text scanner which consumes until the corresponding closing tag (e.g., `</script>`).
+- The content of these elements will be tokenized for entities or other relevant syntax, rather than being treated as a single opaque block.
+
 
 **Deprecated elements** (flag with warning):
 - `font`, `center`, `strike`, `big`, `small`, `marquee`, `blink`, `basefont`
@@ -329,11 +252,11 @@ open                                                close
 
 More document content
 ```
-**Strategy:** Close at EOF
-**Tokens:**
-1. `HTMLCommentOpen` with `ErrorUnbalancedHTMLTag` flag
-2. `HTMLCommentContent` (everything until EOF)
-3. Artificial `HTMLCommentClose` at EOF with `ErrorUnbalancedTokenFallback` flag
+**Strategy:** An unclosed comment should not consume the rest of the file. Instead, a restorative strategy will be used. The parser will look for the next occurrence of `-->` or a standalone `<` on a new line.
+- If `-->` is found, the comment will be closed there, and the closing token will be marked with `ErrorUnbalancedTokenFallback`.
+- If a new tag start `<` is found, the comment will be artificially closed before it, with the missing closing delimiter also marked as a fallback.
+This prevents catastrophic parsing failures during editing.
+
 
 ### Conditional Comments (IE legacy)
 
@@ -489,101 +412,30 @@ export function scanHTMLDocType(input, start, end, output) {
 }
 ```
 
-## Raw Text Content (scan-html-raw-text.js)
+## Raw Text Content (for script, style, textarea)
 
 ### Context
 
-After parsing opening tags for `<script>` or `<style>`, the content until the closing tag is NOT parsed as Markdown or HTML.
+After parsing opening tags for `<script>`, `<style>`, or `<textarea>`, the content until the closing tag is handled specially. It is not parsed for Markdown or HTML tags, but it *is* parsed for other syntax like HTML entities.
 
 **Example:**
 ```html
-<script>
-  if (x < 5 && y > 10) {
-    console.log("This < is not an HTML tag");
-  }
-</script>
-
-<style>
-  div > p { color: red; }
-  /* These > and < are CSS selectors */
-</style>
+<textarea>
+  This is some text &amp; more text.
+</textarea>
 ```
+The `&amp;` inside the textarea should be recognized as an entity token.
 
 ### Token Sequence
 
-After `HTMLTagClose` of opening `<script>` or `<style>` tag:
-
-1. `HTMLRawTextContent` - entire content until closing tag (length N)
-2. Then parse closing tag normally:
-   - `HTMLTagOpen` (close variant)
-   - `HTMLTagName`
-   - `HTMLTagClose`
+After the `HTMLTagClose` token of an opening `<script>`, `<style>`, or `<textarea>` tag, the scanner will:
+1. Tokenize the content for applicable sub-syntaxes (like entities) until it finds the corresponding closing tag.
+2. Parse the closing tag normally.
 
 ### Scanning Strategy
 
-```javascript
-/**
- * Scan raw text content (script/style).
- * @pattern complex - pushes tokens and returns consumed length (Pattern B)
- * @param {string} input
- * @param {number} start - Index after closing '>' of opening tag
- * @param {number} end - Exclusive end
- * @param {string} tagName - 'script' or 'style' (lowercase)
- * @param {ProvisionalToken[]} output
- * @returns {number} characters consumed or 0
- */
-export function scanHTMLRawText(input, start, end, tagName, output) {
-  // Search for closing tag: </script> or </style>
-  // Case-insensitive search
-  const closingTag = '</' + tagName;
-  let offset = start;
-  
-  while (offset < end) {
-    const idx = input.indexOf('</', offset);
-    if (idx === -1) {
-      // No closing tag found - consume until EOF
-      const length = end - start;
-      output.push(length | HTMLRawTextContent | ErrorUnbalancedHTMLTag);
-      return end - start;
-    }
-    
-    // Check if this is the matching closing tag
-    let matches = true;
-    for (let i = 0; i < tagName.length; i++) {
-      const ch = input.charCodeAt(idx + 2 + i);
-      const expected = tagName.charCodeAt(i);
-      if (ch !== expected && ch !== (expected - 32)) { // case-insensitive
-        matches = false;
-        break;
-      }
-    }
-    
-    // Check for '>' after tag name (or whitespace then '>')
-    const afterName = idx + 2 + tagName.length;
-    if (matches) {
-      const ch = input.charCodeAt(afterName);
-      if (ch === 62 /* > */ || ch === 32 || ch === 9 || ch === 10 || ch === 13) {
-        // Found it!
-        const length = idx - start;
-        if (length > 0) {
-          output.push(length | HTMLRawTextContent);
-        }
-        return idx - start; // Caller will parse closing tag
-      }
-    }
-    
-    // False alarm, keep searching
-    offset = idx + 2;
-  }
-  
-  // EOF reached without finding closer
-  const length = end - start;
-  if (length > 0) {
-    output.push(length | HTMLRawTextContent | ErrorUnbalancedHTMLTag);
-  }
-  return end - start;
-}
-```
+The scanner for raw text will search for the appropriate closing tag (e.g., `</script>`) in a case-insensitive manner. While scanning, it will invoke other primitive scanners, such as the one for HTML entities. If no closing tag is found by the end of the input, the content will be consumed to the end, and the structure will be marked with `ErrorUnbalancedTokenFallback`.
+
 
 ### Special Cases
 
@@ -791,366 +643,88 @@ export function scanXMLProcessingInstruction(input, start, end, output) {
 
 ### Block vs Inline HTML
 
-**Block-level HTML:**
-- Starts on its own line (possibly with leading whitespace)
-- Common tags: `div`, `section`, `article`, `aside`, `header`, `footer`, `nav`, `main`, `blockquote`, `ul`, `ol`, `li`, `table`, `p`, `h1-h6`
-- **Markdown inside:** Allowed (parsed recursively)
+The distinction between block and inline HTML elements is a concern for the semantic layer of the parser, not the initial `scan0` tokenizer. `scan0` will tokenize all HTML tags it encounters, regardless of whether they appear on their own line or within a line of text.
 
-**Inline HTML:**
-- Appears within Markdown text
-- Common tags: `span`, `a`, `strong`, `em`, `code`, `img`, `br`, `b`, `i`, `u`, `mark`
-- **Markdown inside:** Not allowed for most (except special cases like `<div>` used inline)
+**The core principle is that Markdown parsing is always active, even inside HTML elements.** The presence of an HTML tag does not turn off Markdown processing. This means that sequences like `<div>*emphasis*</div>` and `<span>*emphasis*</span>` are both valid and will be parsed accordingly. The `scan0` tokenizer simply produces a stream of tokens (HTML and Markdown mixed), and the semantic layer is responsible for constructing the correct syntax tree from this stream. No special context stack is needed in `scan0` to manage this.
 
-### Context Stack
-
-To handle nesting, the semantic scanner (not scan0!) maintains a context stack:
-
-```javascript
-// In semantic.js (future implementation)
-const contextStack = [
-  { type: 'document', allowMarkdown: true },
-  { type: 'html-div', allowMarkdown: true, tagName: 'div', openOffset: 42 },
-  { type: 'markdown-paragraph', allowMarkdown: true },
-  { type: 'html-span', allowMarkdown: false, tagName: 'span', openOffset: 156 }
-];
-```
-
-**Rules:**
-1. When `scan0` encounters opening HTML tag, emit tokens
-2. Semantic scanner processes tokens and pushes context
-3. Next paragraph-chunk from `scan0` respects `allowMarkdown` flag from context
-4. When closing tag found, pop context
-
-**Note:** This is semantic-layer concern, not scan0's job. Scan0 just tokenizes ALL tags uniformly.
 
 ## Error Handling and Restorative Strategies
 
+The parser's behavior is consistent and predictable at all times. There is no special "editing mode." The restorative parsing strategies are always active, ensuring that the input is handled gracefully whether the document is being viewed or actively edited. This provides a stable and unsurprising user experience.
+
 ### Summary Table
-
-| Construct | Unclosed Scenario | Close At | Flag |
+| Construct | Unclosed Scenario | Restorative Action | Flag |
 |-----------|------------------|----------|------|
-| Opening tag | `<div class="note\n` | Newline or next `<` | `ErrorUnbalancedHTMLTag` on open |
-| Closing tag | `</div\n` | Newline | `ErrorMalformedHTMLTag` |
-| Comment | `<!-- no close` | EOF | `ErrorUnbalancedHTMLTag` on open |
-| CDATA | `<![CDATA[ no close` | EOF | `ErrorUnbalancedHTMLTag` on open |
-| DOCTYPE | `<!DOCTYPE html` | EOF | `ErrorUnbalancedHTMLTag` on open |
-| DOCTYPE with DTD | `<!DOCTYPE root [\n<!ELEMENT...` | EOF (track `[]` nesting) | `ErrorUnbalancedHTMLTag` on open |
-| XML PI | `<?xml version="1.0"` | Newline or EOF | `ErrorUnbalancedHTMLTag` on open |
-| Script/style | `<script>` no close | EOF | `ErrorUnbalancedHTMLTag` on content |
-| Attribute value | `attr="no close` | Newline or `>` | `ErrorMalformedHTMLTag` on value |
+| Opening tag | `<div class="note` followed by newline | Close at newline or before next `<` | `ErrorUnbalancedTokenFallback` |
+| Closing tag | `</div` followed by newline | Close at newline | `ErrorUnbalancedTokenFallback` |
+| Comment | `<!-- no close` | Close at next `-->` or `<` | `ErrorUnbalancedTokenFallback` |
+| CDATA | `<![CDATA[ no close` | Close at EOF | `ErrorUnbalancedTokenFallback` |
+| DOCTYPE | `<!DOCTYPE html` | Close at EOF | `ErrorUnbalancedTokenFallback` |
+| XML PI | `<?xml version="1.0"` | Close at newline or EOF | `ErrorUnbalancedTokenFallback` |
+| Script/style/textarea | `<script>` with no closer | Close at EOF | `ErrorUnbalancedTokenFallback` |
+| Attribute value | `attr="no close` | Close at newline or `>` | `ErrorUnbalancedTokenFallback` |
 
-### User Experience During Editing
 
-**Scenario:** User types opening `<div>`:
+## Token Information
 
-```markdown
-Some text
+Tokens are represented as numbers, which is a highly efficient approach. These numbers are not just arbitrary values; they are packed with information. Through bitwise operations, a single number can encode the token's type, its length in the source text, and any relevant flags (like an error state). Because the scanner processes the input sequentially, the starting offset of a token is known. With the offset and the length encoded in the token itself, the exact source text for any token is implicitly available without needing to store it directly. This design is fundamental to the parser's performance and low memory footprint.
 
-<div class="note">
-```
-
-1. scan0 tokenizes: `HTMLTagOpen`, `HTMLTagName`, `HTMLAttributeName`, `HTMLAttributeValue`, `HTMLTagClose`
-2. Semantic scanner sees unclosed `<div>` (no matching `</div>` in paragraph)
-3. **During editing:** Leave it open, don't force artificial close yet
-4. **On render:** Render as if closed at end of paragraph or next block element
-5. **Syntax highlighting:** Show opening tag normally (user is still typing)
-
-**Scenario:** User presses Enter, starts typing heading:
-
-```markdown
-Some text
-
-<div class="note">
-
-## Heading
-```
-
-1. Blank line triggers paragraph boundary
-2. Semantic scanner sees unclosed `<div>` followed by new paragraph with heading
-3. **Restorative action:** Artificially close `<div>` before heading
-4. **Error flag:** `ErrorUnbalancedHTMLTag` on opening `<div>` token
-5. **Syntax highlighting:** Show error on `<div>` line
-
-**Scenario:** User types closing tag:
-
-```markdown
-Some text
-
-<div class="note">
-Content inside div
-</div>
-
-## Heading
-```
-
-1. scan0 tokenizes closing tag
-2. Semantic scanner matches it with opening tag
-3. **Error flag:** Removed (if present)
-4. **Syntax highlighting:** Normal rendering
-
-## Token Position Calculation
-
-Following existing provisional token format (doc 3):
-
-**Current format (will migrate to 16-bit length):**
-- Bits 0-23: Length (24 bits, max 16,777,215)
-- Bits 24-30: Token kind (7 bits, 128 kinds)
-- Bit 31: Error/flag bit
-
-**For HTML tokens:**
-
-```javascript
-// Example: <div class="note">
-// Tokens:
-output.push(1 | HTMLTagOpen);                          // '<'
-output.push(3 | HTMLTagName);                          // 'div'
-output.push(1 | Whitespace);                           // ' '
-output.push(5 | HTMLAttributeName);                    // 'class'
-output.push(1 | HTMLAttributeEquals);                  // '='
-output.push(6 | HTMLAttributeValue);                   // '"note"'
-output.push(1 | HTMLTagClose);                         // '>'
-
-// Position calculation (sum of lengths):
-// HTMLTagOpen: offset 0, length 1
-// HTMLTagName: offset 1, length 3
-// Whitespace: offset 4, length 1
-// HTMLAttributeName: offset 5, length 5
-// etc.
-```
-
-**Semantic scanner** will reconstruct positions by summing token lengths, as with other token types.
 
 ## Testing Strategy (Annotated Markdown)
 
-Following doc 1 (annotated markdown), create test files:
+The correctness of the HTML parser will be verified using the annotated markdown testing approach, as described in [the corresponding design document](./1-annotated-markdown.md). Specific test files will be created to cover the various aspects of HTML parsing.
 
-### parse/tests/7-html-tags.md
+For example, a test for a simple `<div>` tag would look something like this:
+The source line `<div>` would be followed by markers under the `<` and `div` parts, with assertions specifying that the tokens `HTMLTagOpen` and `HTMLTagName` are expected at those positions.
 
-```markdown
-<div>
-1----2
-@1 HTMLTagOpen "<"
-@2 HTMLTagName "div"
+Similarly, tests will be designed to cover:
+- Tags with attributes (quoted, unquoted, and standalone).
+- Closing tags and self-closing tags.
+- HTML comments, including unclosed scenarios.
+- CDATA sections.
+- DOCTYPE declarations, including complex ones with DTD subsets.
+- XML Processing Instructions.
+- Raw text elements like `<script>`, `<style>`, and `<textarea>`.
+- XML namespaces in tags and attributes.
+- All defined error recovery and fallback behaviors.
 
-<div class="note">
-1----2-3-4-5-6-7
-@1 HTMLTagOpen "<"
-@2 HTMLTagName "div"
-@3 Whitespace " "
-@4 HTMLAttributeName "class"
-@5 HTMLAttributeEquals "="
-@6 HTMLAttributeValue "\"note\""
-@7 HTMLTagClose ">"
+These tests will serve as a living specification for the parser's behavior.
 
-</div>
-1-2---3
-@1 HTMLTagOpen "</"
-@2 HTMLTagName "div"
-@3 HTMLTagClose ">"
-
-<br />
-1--2-3
-@1 HTMLTagOpen "<"
-@2 HTMLTagName "br"
-@3 HTMLTagSelfClosing "/>"
-```
-
-### parse/tests/8-html-comments.md
-
-```markdown
-<!-- comment -->
-1---------2-----3
-@1 HTMLCommentOpen "<!--"
-@2 HTMLCommentContent " comment "
-@3 HTMLCommentClose "-->"
-
-<!-- unclosed
-1---------2
-@1 HTMLCommentOpen "<!--" + ErrorUnbalancedHTMLTag
-@2 HTMLCommentContent " unclosed\n" + ErrorUnbalancedTokenFallback
-```
-
-### parse/tests/9-html-script-style.md
-
-```markdown
-<script>alert("hi")</script>
-1------2-3----------4------5
-@1 HTMLTagOpen "<"
-@2 HTMLTagName "script"
-@3 HTMLTagClose ">"
-@4 HTMLRawTextContent "alert(\"hi\")"
-@5 HTMLTagOpen "</"
-(and so on...)
-```
-
-### parse/tests/10-html-cdata.md
-
-```markdown
-<![CDATA[ <raw> ]]>
-1---------2-------3
-@1 HTMLCDataOpen "<![CDATA["
-@2 HTMLCDataContent " <raw> "
-@3 HTMLCDataClose "]]>"
-```
-
-### parse/tests/11-html-doctype.md
-
-```markdown
-<!DOCTYPE html>
-1---------2----3
-@1 HTMLDocTypeOpen "<!DOCTYPE"
-@2 HTMLDocTypeContent " html"
-@3 HTMLDocTypeClose ">"
-
-<!doctype html>
-1---------2----3
-@1 HTMLDocTypeOpen "<!doctype"
-@2 HTMLDocTypeContent " html"
-@3 HTMLDocTypeClose ">"
-
-<!DOCTYPE root [
-<!ELEMENT root (child)>
-]>
-1---------2---------------------3
-@1 HTMLDocTypeOpen "<!DOCTYPE"
-@2 HTMLDocTypeContent " root [\n<!ELEMENT root (child)>\n]"
-@3 HTMLDocTypeClose ">"
-```
-
-### parse/tests/12-xml-processing-instructions.md
-
-```markdown
-<?xml version="1.0"?>
-1-2---3--------------4
-@1 XMLProcessingInstructionOpen "<?"
-@2 XMLProcessingInstructionTarget "xml"
-@3 XMLProcessingInstructionContent " version=\"1.0\""
-@4 XMLProcessingInstructionClose "?>"
-
-<?xml-stylesheet type="text/css" href="style.css"?>
-1-2--------------3----------------------------------4
-@1 XMLProcessingInstructionOpen "<?"
-@2 XMLProcessingInstructionTarget "xml-stylesheet"
-@3 XMLProcessingInstructionContent " type=\"text/css\" href=\"style.css\""
-@4 XMLProcessingInstructionClose "?>"
-
-<?target?>
-1-2------3
-@1 XMLProcessingInstructionOpen "<?"
-@2 XMLProcessingInstructionTarget "target"
-@3 XMLProcessingInstructionClose "?>"
-```
-
-### parse/tests/13-xml-namespaces.md
-
-```markdown
-<svg xmlns="http://www.w3.org/2000/svg">
-1---2-3-4-----5-6---------------------------7
-@1 HTMLTagOpen "<"
-@2 HTMLTagName "svg"
-@3 Whitespace " "
-@4 HTMLAttributeName "xmlns"
-@5 HTMLAttributeEquals "="
-@6 HTMLAttributeValue "\"http://www.w3.org/2000/svg\""
-@7 HTMLTagClose ">"
-
-<svg:rect x="0" y="0" />
-1---2----3-4-5-6-7-8-9-10-11
-@1 HTMLTagOpen "<"
-@2 HTMLTagName "svg:rect"
-@3 Whitespace " "
-@4 HTMLAttributeName "x"
-@5 HTMLAttributeEquals "="
-@6 HTMLAttributeValue "\"0\""
-@7 Whitespace " "
-@8 HTMLAttributeName "y"
-@9 HTMLAttributeEquals "="
-@10 HTMLAttributeValue "\"0\""
-@11 HTMLTagSelfClosing "/>"
-
-<use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#icon" />
-1---2-3-4-----------5-6---------------------------7-8-----------9-10------11
-@1 HTMLTagOpen "<"
-@2 HTMLTagName "use"
-@3 Whitespace " "
-@4 HTMLAttributeName "xmlns:xlink"
-@5 HTMLAttributeEquals "="
-@6 HTMLAttributeValue "\"http://www.w3.org/1999/xlink\""
-@7 Whitespace " "
-@8 HTMLAttributeName "xlink:href"
-@9 HTMLAttributeEquals "="
-@10 HTMLAttributeValue "\"#icon\""
-@11 HTMLTagSelfClosing "/>"
-```
 
 ## Implementation Checklist
 
 ### Phase 1: Token Definitions
-- [ ] Add HTML token constants to `scan-tokens.js`
-- [ ] Add HTML error flags to `scan-token-flags.js`
-- [ ] Update helper functions (getTokenKind, getLength, etc.) if needed
+- Define the necessary HTML token types in the appropriate module.
+- Define any necessary error flags, starting with the existing `ErrorUnbalancedTokenFallback`.
 
 ### Phase 2: Basic Tag Scanning
-- [ ] Implement `scan-html-tag.js` with Pattern B
-  - [ ] Opening tags with attributes
-  - [ ] Closing tags
-  - [ ] Self-closing tags
-  - [ ] Void element detection
-  - [ ] XML namespace support (colons in tag/attribute names)
-- [ ] Add tests in `parse/tests/7-html-tags.md`
-- [ ] Add tests in `parse/tests/13-xml-namespaces.md`
-- [ ] Integrate into `scan0.js` at case 60 (`<`)
+- Implement the scanner for basic HTML tags (opening, closing, self-closing) and their attributes.
+- Ensure it supports XML namespaces (colons in names).
+- Add comprehensive tests for these features.
+- Integrate the new scanner into the main `scan0` loop.
 
 ### Phase 3: Special Content Modes
-- [ ] Implement `scan-html-comment.js` with Pattern B
-  - [ ] Normal comments
-  - [ ] Unclosed comment recovery
-- [ ] Add tests in `parse/tests/8-html-comments.md`
-- [ ] Implement `scan-html-cdata.js` with Pattern B
-  - [ ] Normal CDATA
-  - [ ] Unclosed CDATA recovery
-- [ ] Add tests in `parse/tests/10-html-cdata.md`
-- [ ] Implement `scan-html-doctype.js` with Pattern B
-  - [ ] Case-insensitive DOCTYPE
-  - [ ] Complex DOCTYPE declarations with DTD subsets
-  - [ ] Track square bracket nesting for embedded DTD
-- [ ] Add tests in `parse/tests/11-html-doctype.md`
-- [ ] Implement `scan-xml-processing-instruction.js` with Pattern B
-  - [ ] Parse PI target and content
-  - [ ] Handle xml, xml-stylesheet, and custom PIs
-  - [ ] Unclosed PI recovery
-- [ ] Add tests in `parse/tests/12-xml-processing-instructions.md`
+- Implement the scanners for comments, CDATA, DOCTYPEs, and XML PIs.
+- Each implementation should include robust error recovery for unclosed structures.
+- Add dedicated tests for each of these special modes.
 
 ### Phase 4: Raw Text Elements
-- [ ] Implement `scan-html-raw-text.js` with Pattern B
-  - [ ] Script element content
-  - [ ] Style element content
-  - [ ] Case-insensitive closing tag search
-  - [ ] Unclosed element recovery
-- [ ] Add tests in `parse/tests/9-html-script-style.md`
-- [ ] Integrate raw text scanning into `scan-html-tag.js` logic
-  - Detect script/style tag names
-  - Call `scanHTMLRawText` after closing `>`
+- Implement the scanner for raw text elements (`script`, `style`, `textarea`).
+- This scanner should correctly identify the closing tag and handle sub-tokenization (e.g., for entities) within the content.
+- Add tests for these elements, including unclosed scenarios.
 
 ### Phase 5: Error Handling
-- [ ] Implement malformed tag recovery in `scan-html-tag.js`
-  - [ ] Unclosed opening tags
-  - [ ] Invalid tag names
-  - [ ] Malformed attributes
-- [ ] Add error-case tests in each test file
-- [ ] Verify all error flags are set correctly
+- Systematically review and test all error handling and restorative strategies across all new scanner modules.
+- Ensure that the `ErrorUnbalancedTokenFallback` flag is applied correctly in all relevant cases.
 
 ### Phase 6: Integration and Performance
-- [ ] Run full test suite (`npm test`)
-- [ ] Fix any failing tests
-- [ ] Performance benchmark on HTML-heavy documents
-- [ ] Optimize hot paths if needed
+- Run the full test suite to ensure no regressions have been introduced.
+- Benchmark the performance on documents with heavy HTML usage to validate efficiency.
 
 ### Phase 7: Documentation
-- [ ] Add JSDoc comments to all new scanner functions
-- [ ] Update `scan0.js` comments to reference new scanners
-- [ ] Add examples to this document based on real test cases
-- [ ] Document any edge cases or limitations discovered
+- Add clear JSDoc comments to all new scanner functions.
+- Update any relevant design documents to reflect the final implementation.
+
 
 ## Future Work (Deferred to Semantic Layer)
 
