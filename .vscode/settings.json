@@ -1,6 +1,8 @@
 {
   "chat.tools.terminal.autoApprove": {
-
-  "/.*/": { "approve": true }
+    "del": true,
+  "/.*/": true,
+    "pass": true
   }
+
 }

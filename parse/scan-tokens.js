@@ -48,3 +48,8 @@ export const XMLProcessingInstructionClose = 0x2300000;
 
 // HTML Raw Text Token
 export const HTMLRawText = 0x2400000;
+
+// List Marker Tokens
+export const BulletListMarker = 0x2500000;
+export const OrderedListMarker = 0x2600000;
+export const TaskListMarker = 0x2700000;

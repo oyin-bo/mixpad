@@ -13,6 +13,9 @@ import { scanHTMLDocType } from './scan-html-doctype.js';
 import { scanHTMLRawText } from './scan-html-raw-text.js';
 import { scanHTMLTag, isRawTextElement } from './scan-html-tag.js';
 import { scanXMLProcessingInstruction } from './scan-xml-pi.js';
+import { scanBulletListMarker } from './scan-list-bullet.js';
+import { scanOrderedListMarker } from './scan-list-ordered.js';
+import { scanTaskListMarker } from './scan-list-task.js';
 import { BacktickBoundary, InlineCode, InlineText, NewLine, Whitespace, HTMLTagName, HTMLTagClose, HTMLTagOpen } from './scan-tokens.js';
 
 /**
@@ -152,6 +155,14 @@ export function scan0({
       }
 
       case 42 /* * asterisk */: {
+        // Try bullet list marker first
+        const listConsumed = scanBulletListMarker(input, offset - 1, endOffset, output);
+        if (listConsumed > 0) {
+          tokenCount = output.length;
+          offset += listConsumed - 1;
+          continue;
+        }
+        
         // Try emphasis delimiter (Pattern B: returns consumed length)
         const consumedEmphasis = scanEmphasis(input, offset - 1, endOffset, output);
         if (consumedEmphasis > 0) {
@@ -274,6 +285,87 @@ export function scan0({
         } else {
           output.push(Whitespace | 1 /* Whitespace, length: 1 */);
           tokenCount++;
+        }
+        continue;
+      }
+
+      case 45 /* - hyphen-minus */: {
+        // Try bullet list marker
+        const listConsumed = scanBulletListMarker(input, offset - 1, endOffset, output);
+        if (listConsumed > 0) {
+          tokenCount = output.length;
+          offset += listConsumed - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 43 /* + plus */: {
+        // Try bullet list marker
+        const listConsumed = scanBulletListMarker(input, offset - 1, endOffset, output);
+        if (listConsumed > 0) {
+          tokenCount = output.length;
+          offset += listConsumed - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 48: // 0
+      case 49: // 1
+      case 50: // 2
+      case 51: // 3
+      case 52: // 4
+      case 53: // 5
+      case 54: // 6
+      case 55: // 7
+      case 56: // 8
+      case 57: /* 9 */ {
+        // Try ordered list marker
+        const listConsumed = scanOrderedListMarker(input, offset - 1, endOffset, output);
+        if (listConsumed > 0) {
+          tokenCount = output.length;
+          offset += listConsumed - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 91 /* [ left square bracket */: {
+        // Try task list marker
+        const taskConsumed = scanTaskListMarker(input, offset - 1, endOffset, output);
+        if (taskConsumed > 0) {
+          tokenCount = output.length;
+          offset += taskConsumed - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          tokenCount = output.length;
+          offset += consumed - 1;
         }
         continue;
       }

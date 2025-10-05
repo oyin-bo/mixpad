@@ -112,3 +112,41 @@ export function getTokenFlags(token) {
     token & 0xF0000
   ); // 4 bits that are above the lower 16 bits
 }
+
+/**
+ * Find the start of the current line (scan backwards to previous newline or start of input)
+ * @param {string} input
+ * @param {number} pos
+ * @returns {number} position of line start
+ */
+export function findLineStart(input, pos) {
+  while (pos > 0) {
+    const ch = input.charCodeAt(pos - 1);
+    if (ch === 10 /* \n */ || ch === 13 /* \r */) return pos;
+    pos--;
+  }
+  return 0;
+}
+
+/**
+ * Count spaces and tabs from line start to given position
+ * @param {string} input
+ * @param {number} lineStart
+ * @param {number} pos
+ * @returns {number} number of space-equivalent characters (tabs count as moving to next multiple of 4)
+ */
+export function countIndentation(input, lineStart, pos) {
+  let indent = 0;
+  for (let i = lineStart; i < pos; i++) {
+    const ch = input.charCodeAt(i);
+    if (ch === 32) { // space
+      indent++;
+    } else if (ch === 9) { // tab
+      // Tab moves to next multiple of 4
+      indent = (indent + 4) & ~3;
+    } else {
+      break;
+    }
+  }
+  return indent;
+}
