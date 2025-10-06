@@ -38,9 +38,6 @@ Tag with single attribute
 @8 HTMLAttributeQuote
 @9 HTMLTagClose
 
-Tag with multiple attributes
-@9 HTMLTagClose
-
 Input tag
 <input type="text">
 12    34   567   89
@@ -97,7 +94,7 @@ SVG with namespace
 
 Namespaced tag name
 <svg:rect x="0" y="0"/>
-12       3456  78 9AB  CD E
+12       3456789ABCDEF
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -116,7 +113,7 @@ Namespaced tag name
 
 Namespaced attribute
 <use xlink:href="#icon"/>
-12  34    5    67 8   9A
+12  34    56   789    AB
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -341,11 +338,8 @@ Unclosed attribute value
 ## Nested Elements
 
 Simple nesting
-## Nested Elements
-
-Simple nesting
 <div><span>text</span></div>
-12  345   67   8 9   AB C  D
+12   34    56    7    89     A  BC   D
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -355,10 +349,14 @@ Simple nesting
 @7 InlineText
 @8 HTMLTagOpen
 @9 HTMLTagName
+@A HTMLTagClose
+@B HTMLTagOpen
+@C HTMLTagName
+@D HTMLTagClose
 
 Multiple levels of nesting
 <div><p><em>text</em></p></div>
-12  345678 9A   B C D
+12  345678 9A   B C DE FGH I  J
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -369,10 +367,19 @@ Multiple levels of nesting
 @8 HTMLTagName
 @9 HTMLTagClose
 @A InlineText
+@B HTMLTagOpen
+@C HTMLTagName
+@D HTMLTagClose
+@E HTMLTagOpen
+@F HTMLTagName
+@G HTMLTagClose
+@H HTMLTagOpen
+@I HTMLTagName
+@J HTMLTagClose
 
 Nesting with attributes
 <div class="outer"><span id="inner">text</span></div>
-12  34    56 7   89A    BC DE 6   7H    IJ
+12  34    567    89AB   CD EFG    HIJ   K L   MN O  P
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -392,6 +399,12 @@ Nesting with attributes
 @H HTMLAttributeQuote
 @I HTMLTagClose
 @J InlineText
+@K HTMLTagOpen
+@L HTMLTagName
+@M HTMLTagClose
+@N HTMLTagOpen
+@O HTMLTagName
+@P HTMLTagClose
 
 ## Markdown Inside HTML
 
@@ -407,6 +420,8 @@ Bold inside tag
 @7 Whitespace
 @8 InlineText
 @9 HTMLTagOpen
+@A HTMLTagName
+@B HTMLTagClose
 
 Emphasis with entity
 <div>&amp; *emphasis* text</div>
@@ -421,10 +436,13 @@ Emphasis with entity
 @8 AsteriskDelimiter
 @9 Whitespace
 @A InlineText
+@B HTMLTagOpen
+@C HTMLTagName
+@D HTMLTagClose
 
 Code inside HTML
 <p>`code` text</p>
-12345   6
+12345   678   9 AB
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -433,12 +451,15 @@ Code inside HTML
 @6 BacktickBoundary
 @7 Whitespace
 @8 InlineText
+@9 HTMLTagOpen
+@A HTMLTagName
+@B HTMLTagClose
 
 ## HTML Inside Markdown
 
 Tag inside emphasis
 **<span>text</span>**
-1 23   45   6 7   89 A
+1 23   45   6 7   89
 @1 AsteriskDelimiter
 @2 HTMLTagOpen
 @3 HTMLTagName
@@ -446,10 +467,12 @@ Tag inside emphasis
 @5 InlineText
 @6 HTMLTagOpen
 @7 HTMLTagName
+@8 HTMLTagClose
+@9 AsteriskDelimiter
 
 Tag inside strikethrough
 ~~<del>text</del>~~
-1 23  45   6 7  89 A
+1 23  45   6 7  89
 @1 TildeDelimiter
 @2 HTMLTagOpen
 @3 HTMLTagName
@@ -457,6 +480,8 @@ Tag inside strikethrough
 @5 InlineText
 @6 HTMLTagOpen
 @7 HTMLTagName
+@8 HTMLTagClose
+@9 TildeDelimiter
 
 ## Mixed Content
 
