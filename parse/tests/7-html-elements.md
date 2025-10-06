@@ -527,7 +527,7 @@ Multiple tags in sequence
 
 Entity in attribute value
 <a title="&copy; 2024">link</a>
-12 3    4567      8    9A    BC D E
+1234    567     8    9AB   C DE
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -535,16 +535,17 @@ Entity in attribute value
 @5 HTMLAttributeEquals
 @6 HTMLAttributeQuote
 @7 EntityNamed
-@8 HTMLAttributeQuote
-@9 HTMLTagClose
-@A InlineText
-@B HTMLTagOpen
-@C HTMLTagName
-@D HTMLTagClose
+@8 HTMLAttributeValue
+@9 HTMLAttributeQuote
+@A HTMLTagClose
+@B InlineText
+@C HTMLTagOpen
+@D HTMLTagName
+@E HTMLTagClose
 
 Percent encoding in URL
 <a href="page%20name.html">link</a>
-12 3   4567 89  AB    CD    EF G
+1234   567   8  9        ABC   D EF
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -699,7 +700,7 @@ Whitespace around equals
 
 Multiple spaces
 <div  class="note">text</div>
-12  3 4    56789  AB    C D  E
+12  3 4    567   89A   B C  D
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
