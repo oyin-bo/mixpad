@@ -2,15 +2,23 @@
 
 import { ErrorUnbalancedTokenFallback } from './scan-token-flags.js';
 import {
+  EntityDecimal,
+  EntityHex,
+  EntityNamed,
+  HTMLAttributeColon,
   HTMLAttributeEquals,
   HTMLAttributeName,
+  HTMLAttributeQuote,
   HTMLAttributeValue,
   HTMLTagClose,
   HTMLTagName,
   HTMLTagOpen,
   HTMLTagSelfClosing,
+  InlineText,
+  PercentEncoding,
   Whitespace
 } from './scan-tokens.js';
+import { scanEntity } from './scan-entity.js';
 
 /**
  * Bitwise OR: length: lower 24 bits, flags: upper 7 bits.
@@ -167,7 +175,7 @@ export function scanHTMLTag(input, start, end, output) {
       return offset - start + 2;
     }
 
-    // Parse attribute name
+    // Parse attribute name (potentially with namespace)
     const attrNameStart = offset;
     
     // Attribute name must start with letter, underscore, or colon
@@ -183,7 +191,8 @@ export function scanHTMLTag(input, start, end, output) {
 
     offset++;
 
-    // Continue parsing attribute name
+    // Continue parsing until colon or end of attribute name
+    let colonPos = -1;
     while (offset < end) {
       const attrCh = input.charCodeAt(offset);
       if ((attrCh >= 65 && attrCh <= 90) ||   // A-Z
@@ -191,16 +200,35 @@ export function scanHTMLTag(input, start, end, output) {
           (attrCh >= 48 && attrCh <= 57) ||   // 0-9
           attrCh === 45 /* - */ ||
           attrCh === 95 /* _ */ ||
-          attrCh === 46 /* . */ ||
-          attrCh === 58 /* : */) {
+          attrCh === 46 /* . */) {
+        offset++;
+      } else if (attrCh === 58 /* : */ && colonPos === -1) {
+        colonPos = offset;
         offset++;
       } else {
         break;
       }
     }
 
-    const attrNameLength = offset - attrNameStart;
-    output.push(attrNameLength | HTMLAttributeName);
+    // Emit attribute name tokens (split on colon if present)
+    if (colonPos !== -1) {
+      // Namespace prefix
+      const prefixLen = colonPos - attrNameStart;
+      if (prefixLen > 0) {
+        output.push(prefixLen | HTMLAttributeName);
+      }
+      // Colon
+      output.push(1 | HTMLAttributeColon);
+      // Local name
+      const localLen = offset - colonPos - 1;
+      if (localLen > 0) {
+        output.push(localLen | HTMLAttributeName);
+      }
+    } else {
+      // Single attribute name (no namespace)
+      const attrNameLength = offset - attrNameStart;
+      output.push(attrNameLength | HTMLAttributeName);
+    }
 
     // Skip whitespace after attribute name
     const wsStart2 = offset;
@@ -249,34 +277,68 @@ export function scanHTMLTag(input, start, end, output) {
     const quoteCh = input.charCodeAt(offset);
     
     if (quoteCh === 34 /* " */ || quoteCh === 39 /* ' */) {
-      // Quoted value
-      const valueStart = offset;
+      // Quoted value - emit opening quote as separate token
+      output.push(1 | HTMLAttributeQuote);
       offset++;
 
       while (offset < end) {
         const valCh = input.charCodeAt(offset);
+        
         if (valCh === quoteCh) {
+          // Closing quote as separate token
+          output.push(1 | HTMLAttributeQuote);
           offset++;
-          const valueLength = offset - valueStart;
-          output.push(valueLength | HTMLAttributeValue);
           break;
         }
+        
         if (valCh === 10 || valCh === 13) {
-          // Unclosed attribute value - close at newline
-          const valueLength = offset - valueStart;
-          output.push(valueLength | HTMLAttributeValue | ErrorUnbalancedTokenFallback);
+          // Unclosed attribute value - close at newline with error quote
+          output.push(1 | HTMLAttributeQuote | ErrorUnbalancedTokenFallback);
           hasError = true;
           break;
         }
-        offset++;
+        
+        if (valCh === 38 /* & */) {
+          // Try to parse entity
+          const entityToken = scanEntity(input, offset, end);
+          if (entityToken) {
+            output.push(entityToken);
+            offset += entityToken & 0xFFFFFF; // length is in lower 24 bits
+            continue;
+          }
+        }
+        
+        if (valCh === 37 /* % */ && offset + 2 < end) {
+          // Try to parse percent-encoding (%XX)
+          const hex1 = input.charCodeAt(offset + 1);
+          const hex2 = input.charCodeAt(offset + 2);
+          if (((hex1 >= 48 && hex1 <= 57) || (hex1 >= 65 && hex1 <= 70) || (hex1 >= 97 && hex1 <= 102)) &&
+              ((hex2 >= 48 && hex2 <= 57) || (hex2 >= 65 && hex2 <= 70) || (hex2 >= 97 && hex2 <= 102))) {
+            output.push(3 | PercentEncoding);
+            offset += 3;
+            continue;
+          }
+        }
+        
+        // Regular text - scan until next special char
+        const textStart = offset;
+        while (offset < end) {
+          const ch = input.charCodeAt(offset);
+          if (ch === quoteCh || ch === 38 /* & */ || ch === 37 /* % */ || ch === 10 || ch === 13) {
+            break;
+          }
+          offset++;
+        }
+        const textLen = offset - textStart;
+        if (textLen > 0) {
+          output.push(textLen | HTMLAttributeValue);
+        }
       }
 
       if (offset >= end && input.charCodeAt(offset - 1) !== quoteCh) {
-        // EOF without closing quote
-        const valueLength = offset - valueStart;
-        output.push(valueLength | HTMLAttributeValue | ErrorUnbalancedTokenFallback);
+        // EOF without closing quote - emit error quote
+        output.push(1 | HTMLAttributeQuote | ErrorUnbalancedTokenFallback);
         hasError = true;
-        break;
       }
     } else {
       // Unquoted value
