@@ -27,7 +27,7 @@ Self-closing tag
 
 Tag with single attribute
 <div class="note">
-12  34    56 7   89
+12  34    567   89
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -502,40 +502,56 @@ Multiple tags in sequence
 
 Entity in attribute value
 <a title="&copy; 2024">link</a>
-12 3    45            67   8
+12 3    4567      8    9A    BC D E
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
 @4 HTMLAttributeName
 @5 HTMLAttributeEquals
-@6 HTMLAttributeValue
-@7 HTMLTagClose
-@8 InlineText
+@6 HTMLAttributeQuote
+@7 EntityNamed
+@8 HTMLAttributeQuote
+@9 HTMLTagClose
+@A InlineText
+@B HTMLTagOpen
+@C HTMLTagName
+@D HTMLTagClose
 
 Percent encoding in URL
 <a href="page%20name.html">link</a>
-12 3   45                 67   8
+12 3   4567 89  AB    CD    EF G
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
 @4 HTMLAttributeName
 @5 HTMLAttributeEquals
-@6 HTMLAttributeValue
-@7 HTMLTagClose
-@8 InlineText
+@6 HTMLAttributeQuote
+@7 HTMLAttributeValue
+@8 PercentEncoding
+@9 HTMLAttributeValue
+@A HTMLAttributeQuote
+@B HTMLTagClose
+@C InlineText
+@D HTMLTagOpen
+@E HTMLTagName
+@F HTMLTagClose
 
 JavaScript in attribute
 <button onclick="alert('hi')">Click</button>
-12     34      56             78    9
+12     34      5678           9A    BC     D
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
 @4 HTMLAttributeName
 @5 HTMLAttributeEquals
-@6 HTMLAttributeValue
-@7 HTMLTagClose
-@8 InlineText
-@9 HTMLTagOpen
+@6 HTMLAttributeQuote
+@7 HTMLAttributeValue
+@8 HTMLAttributeQuote
+@9 HTMLTagClose
+@A InlineText
+@B HTMLTagOpen
+@C HTMLTagName
+@D HTMLTagClose
 
 Mixed quotes in attribute
 <div title='He said "hello"'>text</div>
@@ -552,28 +568,36 @@ Mixed quotes in attribute
 
 Empty attribute value
 <div class="">empty</div>
-12  34    56 78    9
+12  34    5678    9 A  B C
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
 @4 HTMLAttributeName
 @5 HTMLAttributeEquals
-@6 HTMLAttributeValue
-@7 HTMLTagClose
-@8 InlineText
-@9 HTMLTagOpen
+@6 HTMLAttributeQuote
+@7 HTMLAttributeQuote
+@8 HTMLTagClose
+@9 InlineText
+@A HTMLTagOpen
+@B HTMLTagName
+@C HTMLTagClose
 
 Equals with formula
 <a data-formula="x==y">link</a>
-12 3           45     67   8
+12 3           4567 89    AB C D
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
 @4 HTMLAttributeName
 @5 HTMLAttributeEquals
-@6 HTMLAttributeValue
-@7 HTMLTagClose
-@8 InlineText
+@6 HTMLAttributeQuote
+@7 HTMLAttributeValue
+@8 HTMLAttributeQuote
+@9 HTMLTagClose
+@A InlineText
+@B HTMLTagOpen
+@C HTMLTagName
+@D HTMLTagClose
 
 Special chars in unquoted value
 <div id=my_id-123>text</div>
@@ -631,7 +655,7 @@ Boolean with other attributes
 
 Whitespace around equals
 <div class = "note">text</div>
-12  34    5 67     89   A
+12  34    5 67 89    AB    CD E F
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -639,22 +663,31 @@ Whitespace around equals
 @5 Whitespace
 @6 HTMLAttributeEquals
 @7 Whitespace
-@8 HTMLAttributeValue
-@9 HTMLTagClose
-@A InlineText
+@8 HTMLAttributeQuote
+@9 HTMLAttributeValue
+@A HTMLAttributeQuote
+@B HTMLTagClose
+@C InlineText
+@D HTMLTagOpen
+@E HTMLTagName
+@F HTMLTagClose
 
 Multiple spaces
 <div  class="note">text</div>
-12  3 4    56     78   9
+12  3 4    56789  AB    C D  E
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
 @4 HTMLAttributeName
 @5 HTMLAttributeEquals
-@6 HTMLAttributeValue
-@7 HTMLTagClose
-@8 InlineText
-@9 HTMLTagOpen
+@6 HTMLAttributeQuote
+@7 HTMLAttributeValue
+@8 HTMLAttributeQuote
+@9 HTMLTagClose
+@A InlineText
+@B HTMLTagOpen
+@C HTMLTagName
+@D HTMLTagClose
 
 Trailing whitespace in tag
 <div class="note" >text</div>
@@ -787,17 +820,22 @@ Meta tag
 
 Link tag
 <link rel="stylesheet" href="style.css">
-12   34  56          78   9         A
+12   34  567        89A   B C       DE   F
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
 @4 HTMLAttributeName
 @5 HTMLAttributeEquals
-@6 HTMLAttributeValue
-@7 Whitespace
-@8 HTMLAttributeName
-@9 HTMLAttributeEquals
-@A HTMLAttributeValue
+@6 HTMLAttributeQuote
+@7 HTMLAttributeValue
+@8 HTMLAttributeQuote
+@9 Whitespace
+@A HTMLAttributeName
+@B HTMLAttributeEquals
+@C HTMLAttributeQuote
+@D HTMLAttributeValue
+@E HTMLAttributeQuote
+@F HTMLTagClose
 
 ## Comment Edge Cases
 
@@ -1804,7 +1842,7 @@ Complete link with title and class
 @G HTMLAttributeName
 Div with data attributes
 <div data-id="123" data-name="test">content</div>
-12  34      56 7 89  AB        CD E  FG      H
+12  34      567 89   AB        CD E  FG      HIJ
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -1822,14 +1860,11 @@ Div with data attributes
 @F HTMLTagClose
 @G InlineText
 @H HTMLTagOpen
-@8 HTMLAttributeName
-@9 HTMLAttributeEquals
-@A HTMLAttributeValue
-@B HTMLTagClose
-@C InlineText
+@I HTMLTagName
+@J HTMLTagClose
 Form with multiple input types
 <form><input type="text"><input type="submit"></form>
-12   34 5    6   78 9  AB     CD    EF G    HI      J
+12   345    67   89A   BCDE    FG   HIJ     KLM N   O
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -1852,6 +1887,8 @@ Form with multiple input types
 @K HTMLAttributeQuote
 @L HTMLTagClose
 @M HTMLTagOpen
+@N HTMLTagName
+@O HTMLTagClose
 
 ## Known Issues & Open Questions
 
