@@ -21,7 +21,8 @@ Successfully implemented comprehensive HTML element parsing for MixPad, followin
 
 2. **scan-html-comment.js** - HTML comment parsing
    - Normal comments: `<!-- comment -->`
-   - Restorative strategy for unclosed comments
+   - Multi-line support: Comments can span newlines
+   - Error recovery at EOF for unclosed comments
    - Handles double-dash inside content
 
 3. **scan-html-cdata.js** - CDATA section parsing
@@ -38,7 +39,8 @@ Successfully implemented comprehensive HTML element parsing for MixPad, followin
    - XML declarations: `<?xml version="1.0"?>`
    - Stylesheets: `<?xml-stylesheet ...?>`
    - PHP short tags: `<?...?>`
-   - Error recovery at newline for unclosed PIs
+   - Multi-line support: PIs can span newlines
+   - Error recovery at EOF for unclosed PIs
 
 6. **scan-html-raw-text.js** - Raw text element content
    - Script/style/textarea content parsing
@@ -87,16 +89,28 @@ Modified **scan0.js**:
 - Raw text content (script/style/textarea) with entity tokenization
 
 ### ✅ Error Recovery
-All unclosed structures use restorative strategies:
-- Tags: close at newline or before next `<`
-- Comments: close at `-->`, or `<` on new line, or EOF
-- CDATA: close at EOF
-- DOCTYPE: close at EOF
-- XML PI: close at newline or EOF
-- Attribute values: close at newline or `>`
-- Raw text: close at EOF
 
-All error cases flagged with `ErrorUnbalancedTokenFallback`
+**Important distinction:** HTML/XML constructs continue from opening to closing delimiter regardless of newlines. Error recovery ONLY occurs when reaching EOF without finding the closing delimiter.
+
+All unclosed structures use EOF-based error recovery:
+- Tags: Error flag if unclosed at EOF (no close token emitted)
+- Comments: Continue until `-->` found; error flag if EOF reached without close
+- CDATA: Continue until `]]>` found; error flag if EOF reached without close
+- DOCTYPE: Continue until `>` found; error flag if EOF reached without close
+- XML PI: Continue until `?>` found; error flag if EOF reached without close
+- Attribute values: Close at newline (special case - attributes don't span lines)
+- Raw text: Continue until closing tag found; error flag if EOF reached
+
+**Valid multi-line constructs (no errors):**
+- `<?xml version="1.0"\n?>` - Valid XML PI spanning lines
+- `<!-- Line 1\nLine 2 -->` - Valid comment spanning lines
+- `<div\n  class="note">` - Valid tag spanning lines
+
+**Error cases (only at EOF):**
+- `<?xml version="1.0"` + EOF - Unclosed PI (error flag on content)
+- `<!-- unclosed` + EOF - Unclosed comment (error flag on content)
+
+All error cases flagged with `ErrorUnbalancedTokenFallback`. Zero-length tokens are never emitted.
 
 ## Testing
 
