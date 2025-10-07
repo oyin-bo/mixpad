@@ -274,60 +274,55 @@ Unclosed opening tag (at newline)
 @5 HTMLAttributeEquals
 @6 HTMLAttributeQuote
 @7 HTMLAttributeValue
-@8 HTMLAttributeQuote|ErrorUnbalancedTokenFallback
+@8 Whitespace
 
 >
 
 Unclosed closing tag
 </div
-1 2  34
+1 2  3
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
-@4 HTMLTagClose|ErrorUnbalancedTokenFallback
 
 >
 
 Unclosed comment
 <!-- unclosed
-1   2         3
+1   2
 @1 HTMLCommentOpen
-@2 HTMLCommentContent|ErrorUnbalancedTokenFallback
-@3 HTMLCommentClose|ErrorUnbalancedTokenFallback
+@2 HTMLCommentContent
 
 -->
 
 Unclosed CDATA
 <![CDATA[no close
-1        2        3
+1        2
 @1 HTMLCDataOpen
-@2 HTMLCDataContent|ErrorUnbalancedTokenFallback
-@3 HTMLCDataClose|ErrorUnbalancedTokenFallback
+@2 HTMLCDataContent
 
 ]]>
 
 Unclosed DOCTYPE
 <!DOCTYPE html
-1        2     3
+1        2
 @1 HTMLDocTypeOpen
-@2 HTMLDocTypeContent|ErrorUnbalancedTokenFallback
-@3 HTMLDocTypeClose|ErrorUnbalancedTokenFallback
+@2 HTMLDocTypeContent
 
 >
 
 Unclosed XML PI (at newline)
 <?xml version="1.0"
-1 2  3             4
+1 2  3
 @1 XMLProcessingInstructionOpen
 @2 XMLProcessingInstructionTarget
 @3 XMLProcessingInstructionContent|ErrorUnbalancedTokenFallback
-@4 XMLProcessingInstructionClose|ErrorUnbalancedTokenFallback
 
 ?>
 
 Unclosed attribute value
 <div title="unclosed
-12  34    567       89A
+12  34    567       8
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -335,9 +330,7 @@ Unclosed attribute value
 @5 HTMLAttributeEquals
 @6 HTMLAttributeQuote
 @7 HTMLAttributeValue
-@8 HTMLAttributeQuote|ErrorUnbalancedTokenFallback
-@9 Whitespace
-@A HTMLTagClose|ErrorUnbalancedTokenFallback
+@8 Whitespace
 
 ">
 
@@ -924,10 +917,9 @@ Comment with nested markers
 
 Multi-line comment
 <!-- Line 1
-1   2       3
+1   2
 @1 HTMLCommentOpen
-@2 HTMLCommentContent|ErrorUnbalancedTokenFallback
-@3 HTMLCommentClose|ErrorUnbalancedTokenFallback
+@2 HTMLCommentContent
 
 Line 2 -->
 

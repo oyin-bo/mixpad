@@ -83,7 +83,7 @@ export function scanHTMLComment(input, start, end, output) {
         if (contentLength > 0) {
           output.push(contentLength | HTMLCommentContent | ErrorUnbalancedTokenFallback);
         }
-        output.push(0 | HTMLCommentClose | ErrorUnbalancedTokenFallback);
+        // Don't emit zero-length close token
         return offset - start;
       }
       
@@ -98,6 +98,6 @@ export function scanHTMLComment(input, start, end, output) {
   if (contentLength > 0) {
     output.push(contentLength | HTMLCommentContent | ErrorUnbalancedTokenFallback);
   }
-  output.push(0 | HTMLCommentClose | ErrorUnbalancedTokenFallback);
+  // Don't emit zero-length close token
   return offset - start;
 }

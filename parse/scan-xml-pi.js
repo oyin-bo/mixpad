@@ -94,7 +94,7 @@ export function scanXMLProcessingInstruction(input, start, end, output) {
       if (contentLength > 0) {
         output.push(contentLength | XMLProcessingInstructionContent | ErrorUnbalancedTokenFallback);
       }
-      output.push(0 | XMLProcessingInstructionClose | ErrorUnbalancedTokenFallback);
+      // Don't emit zero-length close token
       return offset - start;
     }
     
@@ -106,6 +106,6 @@ export function scanXMLProcessingInstruction(input, start, end, output) {
   if (contentLength > 0) {
     output.push(contentLength | XMLProcessingInstructionContent | ErrorUnbalancedTokenFallback);
   }
-  output.push(0 | XMLProcessingInstructionClose | ErrorUnbalancedTokenFallback);
+  // Don't emit zero-length close token
   return offset - start;
 }
