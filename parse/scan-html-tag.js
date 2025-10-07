@@ -292,8 +292,8 @@ export function scanHTMLTag(input, start, end, output) {
         }
         
         if (valCh === 10 || valCh === 13) {
-          // Unclosed attribute value - close at newline with error quote
-          output.push(1 | HTMLAttributeQuote | ErrorUnbalancedTokenFallback);
+          // Unclosed attribute value - close at newline with error quote (zero-length)
+          output.push(0 | HTMLAttributeQuote | ErrorUnbalancedTokenFallback);
           hasError = true;
           break;
         }
@@ -303,7 +303,7 @@ export function scanHTMLTag(input, start, end, output) {
           const entityToken = scanEntity(input, offset, end);
           if (entityToken) {
             output.push(entityToken);
-            offset += entityToken & 0xFFFFFF; // length is in lower 24 bits
+            offset += entityToken & 0xFFFF; // length is in lower 16 bits
             continue;
           }
         }

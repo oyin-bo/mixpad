@@ -66,7 +66,7 @@ Tag with unquoted attribute
 
 Tag with single-quoted attribute
 <div title='Hello'>
-12  34    56 7   89
+12  34    567    89
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -81,7 +81,7 @@ Tag with single-quoted attribute
 
 SVG with namespace
 <svg xmlns="http://www.w3.org/2000/svg">
-12  34    56 7                         89
+12  34    567                         89
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -266,7 +266,7 @@ Textarea
 
 Unclosed opening tag (at newline)
 <div class="note
-12  34    56 7   8
+12  34    567   8
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -280,34 +280,38 @@ Unclosed opening tag (at newline)
 
 Unclosed closing tag
 </div
-1 2  3
+1 2  34
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
+@4 HTMLTagClose|ErrorUnbalancedTokenFallback
 
 >
 
 Unclosed comment
 <!-- unclosed
-1   2
+1   2         3
 @1 HTMLCommentOpen
-@2 HTMLCommentContent
+@2 HTMLCommentContent|ErrorUnbalancedTokenFallback
+@3 HTMLCommentClose|ErrorUnbalancedTokenFallback
 
 -->
 
 Unclosed CDATA
 <![CDATA[no close
-1        2
+1        2        3
 @1 HTMLCDataOpen
-@2 HTMLCDataContent
+@2 HTMLCDataContent|ErrorUnbalancedTokenFallback
+@3 HTMLCDataClose|ErrorUnbalancedTokenFallback
 
 ]]>
 
 Unclosed DOCTYPE
 <!DOCTYPE html
-1        2
+1        2     3
 @1 HTMLDocTypeOpen
-@2 HTMLDocTypeContent
+@2 HTMLDocTypeContent|ErrorUnbalancedTokenFallback
+@3 HTMLDocTypeClose|ErrorUnbalancedTokenFallback
 
 >
 
@@ -316,14 +320,14 @@ Unclosed XML PI (at newline)
 1 2  3             4
 @1 XMLProcessingInstructionOpen
 @2 XMLProcessingInstructionTarget
-@3 XMLProcessingInstructionContent
-@4 NewLine
+@3 XMLProcessingInstructionContent|ErrorUnbalancedTokenFallback
+@4 XMLProcessingInstructionClose|ErrorUnbalancedTokenFallback
 
 ?>
 
 Unclosed attribute value
 <div title="unclosed
-12  34    56 7      8
+12  34    567       89A
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -332,6 +336,8 @@ Unclosed attribute value
 @6 HTMLAttributeQuote
 @7 HTMLAttributeValue
 @8 HTMLAttributeQuote|ErrorUnbalancedTokenFallback
+@9 Whitespace
+@A HTMLTagClose|ErrorUnbalancedTokenFallback
 
 ">
 
@@ -487,19 +493,22 @@ Tag inside strikethrough
 
 Text before and after tag
 Hello <span>world</span> there
-1     23    4    56    7    8
+1    234   56    7 8   9AB
 @1 InlineText
-@2 HTMLTagOpen
-@3 HTMLTagName
-@4 HTMLTagClose
-@5 InlineText
-@6 HTMLTagOpen
-@7 Whitespace
-@8 InlineText
+@2 Whitespace
+@3 HTMLTagOpen
+@4 HTMLTagName
+@5 HTMLTagClose
+@6 InlineText
+@7 HTMLTagOpen
+@8 HTMLTagName
+@9 HTMLTagClose
+@A Whitespace
+@B InlineText
 
 Adjacent tags
 <span>one</span><span>two</span>
-1    23   4    56    7  8
+12   34  5 6   789   AB  C D   E
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -507,21 +516,36 @@ Adjacent tags
 @5 HTMLTagOpen
 @6 HTMLTagName
 @7 HTMLTagClose
-@8 InlineText
+@8 HTMLTagOpen
+@9 HTMLTagName
+@A HTMLTagClose
+@B InlineText
+@C HTMLTagOpen
+@D HTMLTagName
+@E HTMLTagClose
 
 Multiple tags in sequence
 <b>bold</b> and <i>italic</i> text
-12 3   4    5   67 8     9    A
+1234   5 6789  ABCDE     F GHIJ
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
 @4 InlineText
-@5 Whitespace
-@6 InlineText
-@7 HTMLTagOpen
-@8 HTMLTagName
-@9 HTMLTagClose
-@A InlineText
+@5 HTMLTagOpen
+@6 HTMLTagName
+@7 HTMLTagClose
+@8 Whitespace
+@9 InlineText
+@A Whitespace
+@B HTMLTagOpen
+@C HTMLTagName
+@D HTMLTagClose
+@E InlineText
+@F HTMLTagOpen
+@G HTMLTagName
+@H HTMLTagClose
+@I Whitespace
+@J InlineText
 
 ## Attribute Value Edge Cases
 
@@ -564,7 +588,7 @@ Percent encoding in URL
 
 JavaScript in attribute
 <button onclick="alert('hi')">Click</button>
-12     34      5678           9A    BC     D
+12     34      567          89A    B C     D
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -581,20 +605,24 @@ JavaScript in attribute
 
 Mixed quotes in attribute
 <div title='He said "hello"'>text</div>
-12  34    56                78   9
+12  34    567              89A   B C  D
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
 @4 HTMLAttributeName
 @5 HTMLAttributeEquals
-@6 HTMLAttributeValue
-@7 HTMLTagClose
-@8 InlineText
-@9 HTMLTagOpen
+@6 HTMLAttributeQuote
+@7 HTMLAttributeValue
+@8 HTMLAttributeQuote
+@9 HTMLTagClose
+@A InlineText
+@B HTMLTagOpen
+@C HTMLTagName
+@D HTMLTagClose
 
 Empty attribute value
 <div class="">empty</div>
-12  34    5678    9 A  B C
+12  34    56789    A B  C
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -610,7 +638,7 @@ Empty attribute value
 
 Equals with formula
 <a data-formula="x==y">link</a>
-12 3           4567 89    AB C D
+1234           567   89A   B CD
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -627,7 +655,7 @@ Equals with formula
 
 Special chars in unquoted value
 <div id=my_id-123>text</div>
-12  34 56        78   9
+12  34 56        78   9 A  B
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -637,6 +665,8 @@ Special chars in unquoted value
 @7 HTMLTagClose
 @8 InlineText
 @9 HTMLTagOpen
+@A HTMLTagName
+@B HTMLTagClose
 
 ## Boolean and Valueless Attributes
 
@@ -664,24 +694,26 @@ Multiple boolean attributes
 
 Boolean with other attributes
 <input type="text" required disabled>
-12    34   56     78       9A       B
+12    34   567   89A       BC       D
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
 @4 HTMLAttributeName
 @5 HTMLAttributeEquals
-@6 HTMLAttributeValue
-@7 Whitespace
-@8 HTMLAttributeName
+@6 HTMLAttributeQuote
+@7 HTMLAttributeValue
+@8 HTMLAttributeQuote
 @9 Whitespace
 @A HTMLAttributeName
-@B HTMLTagClose
+@B Whitespace
+@C HTMLAttributeName
+@D HTMLTagClose
 
 ## Whitespace Variations
 
 Whitespace around equals
 <div class = "note">text</div>
-12  34    5 67 89    AB    CD E F
+12  34    56789   ABC   D E  F
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -717,17 +749,21 @@ Multiple spaces
 
 Trailing whitespace in tag
 <div class="note" >text</div>
-12  34    56     7 89   A
+12  34    567   89AB   C D  E
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
 @4 HTMLAttributeName
 @5 HTMLAttributeEquals
-@6 HTMLAttributeValue
-@7 Whitespace
-@8 HTMLTagClose
-@9 InlineText
-@A HTMLTagOpen
+@6 HTMLAttributeQuote
+@7 HTMLAttributeValue
+@8 HTMLAttributeQuote
+@9 Whitespace
+@A HTMLTagClose
+@B InlineText
+@C HTMLTagOpen
+@D HTMLTagName
+@E HTMLTagClose
 
 ## Self-Closing Variations
 
@@ -748,24 +784,29 @@ Self-closing div (XML-style)
 
 Self-closing with attributes
 <img src="pic.jpg" alt="Photo" />
-12  34  56        78   9       AB
+12  34  567      89A  BCD    EFG
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
 @4 HTMLAttributeName
 @5 HTMLAttributeEquals
-@6 HTMLAttributeValue
-@7 Whitespace
-@8 HTMLAttributeName
-@9 HTMLAttributeEquals
-@A Whitespace
-@B HTMLTagSelfClosing
+@6 HTMLAttributeQuote
+@7 HTMLAttributeValue
+@8 HTMLAttributeQuote
+@9 Whitespace
+@A HTMLAttributeName
+@B HTMLAttributeEquals
+@C HTMLAttributeQuote
+@D HTMLAttributeValue
+@E HTMLAttributeQuote
+@F Whitespace
+@G HTMLTagSelfClosing
 
 ## Tag Name Variations
 
 Uppercase tag
 <DIV>text</DIV>
-12  34   56   7
+12  34   5 6  7
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -776,7 +817,7 @@ Uppercase tag
 
 Custom element with hyphen
 <my-component>text</my-component>
-12           34   56           7
+12           34   5 6           7
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -787,7 +828,7 @@ Custom element with hyphen
 
 Heading tag with number
 <h1>Title</h1>
-12 34    56  7
+12 34    5 6 7
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -846,7 +887,7 @@ Meta tag
 
 Link tag
 <link rel="stylesheet" href="style.css">
-12   34  567        89A   B C       DE   F
+12   34  567         89A   BCD        EF
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -874,16 +915,19 @@ Comment with greater-than inside
 
 Comment with nested markers
 <!-- <!-- inner --> -->
-1   2                 3
+1   2           3  45
 @1 HTMLCommentOpen
 @2 HTMLCommentContent
 @3 HTMLCommentClose
+@4 Whitespace
+@5 InlineText
 
 Multi-line comment
 <!-- Line 1
-1   2
+1   2       3
 @1 HTMLCommentOpen
-@2 HTMLCommentContent
+@2 HTMLCommentContent|ErrorUnbalancedTokenFallback
+@3 HTMLCommentClose|ErrorUnbalancedTokenFallback
 
 Line 2 -->
 
@@ -907,7 +951,7 @@ CDATA with tags inside
 
 Comment and tag adjacent
 <!-- comment --><div>text</div>
-1   2         3 45   6    78
+1   2        3  45  67   8 9  A
 @1 HTMLCommentOpen
 @2 HTMLCommentContent
 @3 HTMLCommentClose
@@ -916,10 +960,12 @@ Comment and tag adjacent
 @6 HTMLTagClose
 @7 InlineText
 @8 HTMLTagOpen
+@9 HTMLTagName
+@A HTMLTagClose
 
 CDATA and tag
 <![CDATA[data]]><p>text</p>
-1        2     3 45 6   78
+1        2   3  4567   8 9A
 @1 HTMLCDataOpen
 @2 HTMLCDataContent
 @3 HTMLCDataClose
@@ -928,10 +974,12 @@ CDATA and tag
 @6 HTMLTagClose
 @7 InlineText
 @8 HTMLTagOpen
+@9 HTMLTagName
+@A HTMLTagClose
 
 DOCTYPE and tag
 <!DOCTYPE html><html>
-1        2    3 45   6
+1        2    345   6
 @1 HTMLDocTypeOpen
 @2 HTMLDocTypeContent
 @3 HTMLDocTypeClose
@@ -943,7 +991,7 @@ DOCTYPE and tag
 
 Script with nested script-like content
 <script>var s = "</script>";</script>
-12     34                  5 6     7
+12     34        5 6     78 9 A     B
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -951,10 +999,14 @@ Script with nested script-like content
 @5 HTMLTagOpen
 @6 HTMLTagName
 @7 HTMLTagClose
+@8 InlineText
+@9 HTMLTagOpen
+@A HTMLTagName
+@B HTMLTagClose
 
 Style with nested closing tag
 <style>content { } </style> ignored</style>
-12    34                            5 6    7
+12    34           5 6    789      A B    C
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -962,10 +1014,15 @@ Style with nested closing tag
 @5 HTMLTagOpen
 @6 HTMLTagName
 @7 HTMLTagClose
+@8 Whitespace
+@9 InlineText
+@A HTMLTagOpen
+@B HTMLTagName
+@C HTMLTagClose
 
 Multiple script tags
 <script>code1</script><script>code2</script>
-12     34    5 6     78      9    A B     C
+12     34    5 6     789     AB    C D     E
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -978,10 +1035,12 @@ Multiple script tags
 @A HTMLTagClose
 @B HTMLRawText
 @C HTMLTagOpen
+@D HTMLTagName
+@E HTMLTagClose
 
 Uppercase closing tag in raw text
 <script>code</SCRIPT>
-12     34   5 6      7
+12     34   5 6     7
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -994,7 +1053,7 @@ Uppercase closing tag in raw text
 
 Data URI in img
 <img src="data:image/png;base64,ABC123">
-12  34  567                          89
+12  34  567                           89
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -1045,7 +1104,7 @@ Protocol-relative URL
 
 Complete link with title and class
 <a href="page.html" title="Go to page" class="btn">Link</a>
-1234   567        89A    BCD         EFG    HIJ  KLM   NOP
+1234   567        89A    BCD         EFG    HIJ  KLM   N OP
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -1074,7 +1133,7 @@ Complete link with title and class
 
 Div with data attributes
 <div data-id="123" data-name="test">content</div>
-12  34      567  89A        BCD   EFG      HIJ
+12  34      567  89A        BCD   EFG      H I  J
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
