@@ -89,14 +89,14 @@ Modified **scan0.js**:
 ### ✅ Error Recovery
 All unclosed structures use restorative strategies:
 - Tags: close at newline or before next `<`
-- Comments: close at `-->`, or `<` on new line, or EOF
+- Comments: close at EOF only (comments can span multiple lines and contain any content including `<` characters)
 - CDATA: close at EOF
 - DOCTYPE: close at EOF
 - XML PI: close at newline or EOF
 - Attribute values: close at newline or `>`
 - Raw text: close at EOF
 
-All error cases flagged with `ErrorUnbalancedTokenFallback`
+Error cases flagged with `ErrorUnbalancedTokenFallback` only when reaching EOF without proper closing delimiter.
 
 ## Testing
 

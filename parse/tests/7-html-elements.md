@@ -287,13 +287,15 @@ Unclosed closing tag
 
 >
 
-Unclosed comment
+Multi-line comment (simple)
 <!-- unclosed
 1   2
 @1 HTMLCommentOpen
 @2 HTMLCommentContent
 
 -->
+3
+@3 HTMLCommentClose
 
 Unclosed CDATA
 <![CDATA[no close
@@ -916,13 +918,12 @@ Comment with nested markers
 @4 Whitespace
 @5 InlineText
 
-Multi-line comment
-<!-- Line 1
-1   2
+Multi-line comment with tag-like content
+<!-- <div>not a tag</div> -->
+1   2                     3
 @1 HTMLCommentOpen
 @2 HTMLCommentContent
-
-Line 2 -->
+@3 HTMLCommentClose
 
 ## CDATA Edge Cases
 
@@ -1174,6 +1175,14 @@ Form with multiple input types
 @M HTMLTagOpen
 @N HTMLTagName
 @O HTMLTagClose
+
+## Error Recovery Tests
+
+Truly unclosed comment at EOF
+<!-- This comment never closes
+1   2
+@1 HTMLCommentOpen
+@2 HTMLCommentContent|ErrorUnbalancedTokenFallback
 
 ## Known Issues & Open Questions
 
