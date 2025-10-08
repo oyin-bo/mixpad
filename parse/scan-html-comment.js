@@ -78,12 +78,12 @@ export function scanHTMLComment(input, start, end, output) {
       }
 
       if (tempOffset < end && input.charCodeAt(tempOffset) === 60 /* < */) {
-        // Found '<' on new line - close comment here
+        // Found '<' on new line - close comment here (successful recovery, no error flag)
         const contentLength = offset - contentStart;
         if (contentLength > 0) {
-          output.push(contentLength | HTMLCommentContent | ErrorUnbalancedTokenFallback);
+          output.push(contentLength | HTMLCommentContent);
         }
-        // Don't emit zero-length close token
+        // Don't emit close token, just return
         return offset - start;
       }
       
