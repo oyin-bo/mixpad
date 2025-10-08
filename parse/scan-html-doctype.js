@@ -76,6 +76,6 @@ export function scanHTMLDocType(input, start, end, output) {
   if (contentLength > 0) {
     output.push(contentLength | HTMLDocTypeContent | ErrorUnbalancedTokenFallback);
   }
-  output.push(0 | HTMLDocTypeClose | ErrorUnbalancedTokenFallback);
+  // Don't emit zero-length close token
   return offset - start;
 }

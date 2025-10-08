@@ -89,23 +89,23 @@ export function scanXMLProcessingInstruction(input, start, end, output) {
     }
     
     if (ch === 10 || ch === 13) {
-      // Unclosed PI, close at newline (restorative strategy)
+      // Close at newline (restorative strategy - no error flag, successful recovery)
       const contentLength = offset - contentStart;
       if (contentLength > 0) {
-        output.push(contentLength | XMLProcessingInstructionContent | ErrorUnbalancedTokenFallback);
+        output.push(contentLength | XMLProcessingInstructionContent);
       }
-      output.push(0 | XMLProcessingInstructionClose | ErrorUnbalancedTokenFallback);
+      // Don't emit close token, just return to allow newline to be tokenized
       return offset - start;
     }
     
     offset++;
   }
 
-  // EOF without finding '?>'
+  // EOF without finding '?>' - this IS an error
   const contentLength = offset - contentStart;
   if (contentLength > 0) {
     output.push(contentLength | XMLProcessingInstructionContent | ErrorUnbalancedTokenFallback);
   }
-  output.push(0 | XMLProcessingInstructionClose | ErrorUnbalancedTokenFallback);
+  // Don't emit zero-length close token
   return offset - start;
 }

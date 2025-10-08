@@ -109,9 +109,11 @@ export function scanHTMLTag(input, start, end, output) {
   if (isClosing) {
     // Skip whitespace
     const wsStart = offset;
+    let hasNewline = false;
     while (offset < end) {
       const ch = input.charCodeAt(offset);
       if (ch === 9 || ch === 32 || ch === 10 || ch === 13) {
+        if (ch === 10 || ch === 13) hasNewline = true;
         offset++;
       } else {
         break;
@@ -123,21 +125,17 @@ export function scanHTMLTag(input, start, end, output) {
     }
 
     if (offset < end && input.charCodeAt(offset) === 62 /* > */) {
-      output.push(1 | HTMLTagClose);
+      if (hasNewline) {
+        // Closing tag with newline before > - treat as error
+        output.push(1 | HTMLTagClose | ErrorUnbalancedTokenFallback);
+      } else {
+        output.push(1 | HTMLTagClose);
+      }
       return offset - start + 1;
     }
 
-    // Unclosed closing tag - close at newline or EOF
-    while (offset < end) {
-      const ch = input.charCodeAt(offset);
-      if (ch === 10 || ch === 13) {
-        output.push(0 | HTMLTagClose | ErrorUnbalancedTokenFallback);
-        return offset - start;
-      }
-      offset++;
-    }
-
-    output.push(0 | HTMLTagClose | ErrorUnbalancedTokenFallback);
+    // Unclosed closing tag - would emit error but zero-length tokens not allowed
+    // Just return without emitting closing token
     return offset - start;
   }
 
@@ -292,8 +290,7 @@ export function scanHTMLTag(input, start, end, output) {
         }
         
         if (valCh === 10 || valCh === 13) {
-          // Unclosed attribute value - close at newline with error quote
-          output.push(1 | HTMLAttributeQuote | ErrorUnbalancedTokenFallback);
+          // Unclosed attribute value - close at newline without emitting quote token
           hasError = true;
           break;
         }
@@ -303,7 +300,7 @@ export function scanHTMLTag(input, start, end, output) {
           const entityToken = scanEntity(input, offset, end);
           if (entityToken) {
             output.push(entityToken);
-            offset += entityToken & 0xFFFFFF; // length is in lower 24 bits
+            offset += entityToken & 0xFFFF; // length is in lower 16 bits
             continue;
           }
         }
@@ -362,14 +359,12 @@ export function scanHTMLTag(input, start, end, output) {
     }
   }
 
-  // Unclosed opening tag
+  // Unclosed opening tag - don't emit zero-length close token
   if (hasError || offset >= end) {
-    output.push(0 | HTMLTagClose | ErrorUnbalancedTokenFallback);
     return offset - start;
   }
 
-  // Shouldn't reach here, but safety fallback
-  output.push(0 | HTMLTagClose | ErrorUnbalancedTokenFallback);
+  // Shouldn't reach here, but safety fallback - don't emit zero-length token
   return offset - start;
 }
 
