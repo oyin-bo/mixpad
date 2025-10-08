@@ -316,7 +316,7 @@ Unclosed XML PI (at newline)
 1 2  3
 @1 XMLProcessingInstructionOpen
 @2 XMLProcessingInstructionTarget
-@3 XMLProcessingInstructionContent
+@3 XMLProcessingInstructionContent|ErrorUnbalancedTokenFallback
 
 ?>
 

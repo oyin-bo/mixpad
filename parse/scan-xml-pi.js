@@ -88,6 +88,16 @@ export function scanXMLProcessingInstruction(input, start, end, output) {
       return offset - start + 2;
     }
     
+    if (ch === 10 || ch === 13) {
+      // Unclosed PI, close at newline (restorative strategy)
+      const contentLength = offset - contentStart;
+      if (contentLength > 0) {
+        output.push(contentLength | XMLProcessingInstructionContent | ErrorUnbalancedTokenFallback);
+      }
+      // Don't emit zero-length close token
+      return offset - start;
+    }
+    
     offset++;
   }
 

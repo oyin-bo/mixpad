@@ -32,8 +32,9 @@ export function scanHTMLComment(input, start, end, output) {
 
   let offset = start + 4;
   const contentStart = offset;
+  let foundNewlineWithoutClose = false;
 
-  // Scan for '-->'
+  // Scan for '-->' or use restorative strategy
   while (offset < end) {
     const ch = input.charCodeAt(offset);
 
@@ -48,6 +49,45 @@ export function scanHTMLComment(input, start, end, output) {
       }
       output.push(3 | HTMLCommentClose);
       return offset - start + 3;
+    }
+
+    // Restorative strategy: look for '<' on new line as breakpoint
+    if (ch === 10 || ch === 13) {
+      foundNewlineWithoutClose = true;
+      offset++;
+      
+      // Skip any additional newline characters (handle \r\n)
+      while (offset < end) {
+        const nlCh = input.charCodeAt(offset);
+        if (nlCh === 10 || nlCh === 13) {
+          offset++;
+        } else {
+          break;
+        }
+      }
+
+      // Check if next non-whitespace character is '<'
+      let tempOffset = offset;
+      while (tempOffset < end) {
+        const wsCh = input.charCodeAt(tempOffset);
+        if (wsCh === 9 || wsCh === 32) {
+          tempOffset++;
+        } else {
+          break;
+        }
+      }
+
+      if (tempOffset < end && input.charCodeAt(tempOffset) === 60 /* < */) {
+        // Found '<' on new line - close comment here
+        const contentLength = offset - contentStart;
+        if (contentLength > 0) {
+          output.push(contentLength | HTMLCommentContent | ErrorUnbalancedTokenFallback);
+        }
+        // Don't emit zero-length close token
+        return offset - start;
+      }
+      
+      continue;
     }
 
     offset++;
