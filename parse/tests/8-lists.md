@@ -20,6 +20,12 @@ Basic bullet with plus:
 @1 BulletListMarker "+"
 @2 InlineText "item 1"
 
+Bullet with multiple spaces after marker:
+-   item with spaces
+1   2
+@1 BulletListMarker "-"
+@2 InlineText "item with spaces"
+
 Multiple items:
 - item 1
 - item 2
@@ -42,64 +48,66 @@ Basic ordered with parenthesis:
 @1 OrderedListMarker "1)"
 @2 InlineText "first"
 
+Ordered with different start number:
+5. item
+1  2
+@1 OrderedListMarker "5."
+@2 InlineText "item"
+
 Multiple digit number:
 123. item
 1    2
 @1 OrderedListMarker "123."
 @2 InlineText "item"
 
+Ordered with multiple spaces after marker:
+1.   item with spaces
+1    2
+@1 OrderedListMarker "1."
+@2 InlineText "item with spaces"
+
+Maximum allowed digits (9 digits):
+123456789. item
+1          2
+@1 OrderedListMarker "123456789."
+@2 InlineText "item"
+
 ## Task lists
 
 Unchecked task:
-## Task checkbox unchecked
-
-```input
 - [ ] todo
-```
-
-```position
 1 2   3
-```
-
-```output
-@0 BulletListMarker "-"
+@1 BulletListMarker "-"
 @2 TaskListMarker "[ ]"
-@6 InlineText "todo"
-```
+@3 InlineText "todo"
 
 Checked task lowercase:
-## Task checkbox checked lowercase x
-
-```input
 - [x] done
-```
-
-```position
 1 2   3
-```
-
-```output
-@0 BulletListMarker "-"
+@1 BulletListMarker "-"
 @2 TaskListMarker "[x]"
-@6 InlineText "done"
-```
+@3 InlineText "done"
 
 Checked task uppercase:
-## Task checkbox checked uppercase X
-
-```input
 - [X] done
-```
-
-```position
 1 2   3
-```
-
-```output
-@0 BulletListMarker "-"
+@1 BulletListMarker "-"
 @2 TaskListMarker "[X]"
-@6 InlineText "done"
-```
+@3 InlineText "done"
+
+Task with asterisk bullet:
+* [ ] task
+1 2   3
+@1 BulletListMarker "*"
+@2 TaskListMarker "[ ]"
+@3 InlineText "task"
+
+Task with plus bullet:
++ [x] task
+1 2   3
+@1 BulletListMarker "+"
+@2 TaskListMarker "[x]"
+@3 InlineText "task"
 
 ## Not list markers
 
@@ -123,3 +131,47 @@ Number with wrong delimiter:
 1: item
 1
 @1 InlineText "1: item"
+
+Plus without space:
++item
+1
+@1 InlineText "+item"
+
+Number without space after delimiter:
+1.item
+1
+@1 InlineText "1.item"
+
+Number paren without space:
+1)item
+1
+@1 InlineText "1)item"
+
+Too many digits (10 digits):
+1234567890. item
+1
+@1 InlineText "1234567890. item"
+
+Indented 4 spaces (code block, not list):
+    - item
+1   2
+@1 Whitespace "    "
+@2 InlineText "- item"
+
+Task checkbox without bullet:
+[ ] not a task
+1   2
+@1 TaskListMarker "[ ]"
+@2 InlineText "not a task"
+
+Task checkbox not followed by space:
+- [ ]x invalid
+1 2
+@1 BulletListMarker "-"
+@2 InlineText "[ ]x invalid"
+
+Task checkbox with invalid character:
+- [y] invalid
+1 2
+@1 BulletListMarker "-"
+@2 InlineText "[y] invalid"
