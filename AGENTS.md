@@ -16,6 +16,18 @@ MixPad employs an innovative **[annotated markdown testing approach](parse/docs/
 
 This testing philosophy is central to MixPad's ability to move fast while staying grounded - every feature is specified, verified, and documented through this unified approach, creating a feedback loop that accelerates development while maintaining reliability.
 
+### Infinite loop prevention
+
+When debugging infinite loops in the parser, run [runtest.js](runtest.js) test harness instead of raw built-in node runner. The test harness will break infinite loops with a timeout.
+
+The test harness produces exact same output as raw node test runner, and is irreplaceable for debugging infinite loops. Basic node test runner is prohibited in these cases.
+
+## Directness
+
+Always give direct answers to questions. DO NOT embellish or recommend anything unless requested.
+
+Do not announce writing TODOs.
+
 ## Explicit Constraints
 
 These are considered hard constraints set out as the policy.

@@ -305,30 +305,38 @@ export function scanHTMLTag(input, start, end, output) {
           }
         }
         
-        if (valCh === 37 /* % */ && offset + 2 < end) {
-          // Try to parse percent-encoding (%XX)
-          const hex1 = input.charCodeAt(offset + 1);
-          const hex2 = input.charCodeAt(offset + 2);
-          if (((hex1 >= 48 && hex1 <= 57) || (hex1 >= 65 && hex1 <= 70) || (hex1 >= 97 && hex1 <= 102)) &&
-              ((hex2 >= 48 && hex2 <= 57) || (hex2 >= 65 && hex2 <= 70) || (hex2 >= 97 && hex2 <= 102))) {
-            output.push(3 | PercentEncoding);
-            offset += 3;
-            continue;
-          }
-        }
-        
         // Regular text - scan until next special char
         const textStart = offset;
         while (offset < end) {
           const ch = input.charCodeAt(offset);
-          if (ch === quoteCh || ch === 38 /* & */ || ch === 37 /* % */ || ch === 10 || ch === 13) {
+          if (ch === quoteCh || ch === 38 /* & */ || ch === 10 || ch === 13) {
             break;
+          }
+          // Check for percent-encoding boundary (%XX)
+          if (ch === 37 /* % */ && offset + 2 < end) {
+            const hex1 = input.charCodeAt(offset + 1);
+            const hex2 = input.charCodeAt(offset + 2);
+            if (((hex1 >= 48 && hex1 <= 57) || (hex1 >= 65 && hex1 <= 70) || (hex1 >= 97 && hex1 <= 102)) &&
+                ((hex2 >= 48 && hex2 <= 57) || (hex2 >= 65 && hex2 <= 70) || (hex2 >= 97 && hex2 <= 102))) {
+              break; // Valid %XX sequence - stop text run here
+            }
           }
           offset++;
         }
         const textLen = offset - textStart;
         if (textLen > 0) {
           output.push(textLen | HTMLAttributeValue);
+        }
+        
+        // After emitting text, check if we stopped at a valid percent-encoding
+        if (offset < end && input.charCodeAt(offset) === 37 /* % */ && offset + 2 < end) {
+          const hex1 = input.charCodeAt(offset + 1);
+          const hex2 = input.charCodeAt(offset + 2);
+          if (((hex1 >= 48 && hex1 <= 57) || (hex1 >= 65 && hex1 <= 70) || (hex1 >= 97 && hex1 <= 102)) &&
+              ((hex2 >= 48 && hex2 <= 57) || (hex2 >= 65 && hex2 <= 70) || (hex2 >= 97 && hex2 <= 102))) {
+            output.push(3 | PercentEncoding);
+            offset += 3;
+          }
         }
       }
 
