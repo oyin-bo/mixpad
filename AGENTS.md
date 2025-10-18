@@ -18,9 +18,13 @@ This testing philosophy is central to MixPad's ability to move fast while stayin
 
 ### Infinite loop prevention
 
-When debugging infinite loops in the parser, run [runtest.js](runtest.js) test harness instead of raw built-in node runner. The test harness will break infinite loops with a timeout.
+When debugging infinite loops in the parser, use Node.js's built-in test runner with a timeout. Prefer running tests via `npm test` (the project `test` script passes `--test-timeout`) or run directly, for example:
 
-The test harness produces exact same output as raw node test runner, and is irreplaceable for debugging infinite loops. Basic node test runner is prohibited in these cases.
+```
+node --test --test-concurrency=1 --test-timeout=5000
+```
+
+The `--test-timeout` option provides the timeout protection previously supplied by the repository's custom harness and is the recommended approach.
 
 ## Directness
 

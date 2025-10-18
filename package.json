@@ -11,7 +11,7 @@
     "build:parser-old": "esbuild --bundle parser/index.ts --sourcemap --outfile=./mparser.js --format=cjs --platform=node",
     "build-old": "npm run build:parser-old",
     "test-old": "vitest run",
-    "test": "node --test"
+    "test": "node --test --test-timeout=5000"
   },
   "keywords": [
     "Mixpad",
