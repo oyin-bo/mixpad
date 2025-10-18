@@ -20,9 +20,9 @@ HTML comment on double new line recovery - content then normal parsing
 @2 HTMLCommentContent " unclosed\n"
 
 More
-1    2
-@1 NewLine
-@2 InlineText "More"
+1   2
+@1 InlineText "More"
+@2 NewLine
 <-- EOF
 
 HTML comment on new line - no recovery (single newline)
