@@ -109,10 +109,25 @@ export function scanEntity(input, start, end) {
     }
 
     if (matched && j === klen) {
-      // Full candidate matched. Consumed length = '&' + first letter + klen
-      const length = klen + 2;
-      const kind = EntityNamed;
-      return length | kind;
+      // Full candidate matched. For named entities, require semicolon terminator.
+      // Check if the candidate k ends with semicolon
+      const endsWithSemicolon = k.length > 0 && k.charCodeAt(k.length - 1) === 59 /* ; */;
+      
+      if (endsWithSemicolon) {
+        // Semicolon is part of the entity name in the map, we already matched it
+        const length = klen + 2;
+        const kind = EntityNamed;
+        return length | kind;
+      } else {
+        // Legacy entity without semicolon in map - require semicolon in input
+        const nextIdx = nameSecondIndex + j;
+        if (nextIdx < end && input.charCodeAt(nextIdx) === 59 /* ; */) {
+          const length = klen + 3; // & + first char + k + ;
+          const kind = EntityNamed;
+          return length | kind;
+        }
+        // No semicolon, don't match
+      }
     }
   }
 

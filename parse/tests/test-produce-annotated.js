@@ -74,6 +74,16 @@ for (const mdFilePath of findMarkdownFiles(__dirname)) {
             return assertionResult;
           }
 
+          // If assertion needs to be generated from token
+          if (assertion.needsGeneration) {
+            assertionResult += tokenKindToString(matchingToken.kind);
+            if (matchingToken.text) {
+              assertionResult += ' ' + JSON.stringify(matchingToken.text);
+            }
+            anyAssertionFailed++;
+            return assertionResult;
+          }
+
           const assertionTextFailed =
             typeof assertion.text === 'string' &&
             assertion.text !== matchingToken.text;
@@ -235,6 +245,7 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
      *  marker?: string,
      *  assertionSource?: string,
      *  unparseable?: boolean,
+     *  needsGeneration?: boolean,
      *  tokenKind?: number,
      *  tokenFlags?: number,
      *  text?: string
@@ -311,6 +322,15 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
         assertions[iAssertionLine].unparseable = true;
       }
 
+    }
+
+    // Mark assertions without assertionSource for generation - they represent position markers
+    // that don't have corresponding @ lines yet
+    for (let i = 0; i < assertions.length; i++) {
+      if (!assertions[i].assertionSource) {
+        // This position marker doesn't have an assertion, it needs to be generated during test
+        assertions[i].needsGeneration = true;
+      }
     }
 
     tests.push({

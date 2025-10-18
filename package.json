@@ -1,7 +1,7 @@
 {
   "name": "mixpad",
   "description": "Mixpad document parser and management",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "type": "module",
   "main": "index.js",
   "directories": {

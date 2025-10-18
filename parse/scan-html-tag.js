@@ -338,6 +338,15 @@ export function scanHTMLTag(input, start, end, output) {
             offset += 3;
           }
         }
+        
+        // Check if we stopped at an entity
+        if (offset < end && input.charCodeAt(offset) === 38 /* & */) {
+          const entityToken = scanEntity(input, offset, end);
+          if (entityToken) {
+            output.push(entityToken);
+            offset += entityToken & 0xFFFF; // length is in lower 16 bits
+          }
+        }
       }
 
       if (offset >= end && input.charCodeAt(offset - 1) !== quoteCh) {

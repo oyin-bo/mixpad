@@ -264,7 +264,7 @@ Textarea
 
 Textarea with multiple entities and markup-like text
 <textarea>&lt;div&gt; **not markdown** &amp; &#169; end</textarea>
-12       3456789ABCDEF  GH IJKLM  NOPQR  ST  U
+12       34   5  6   7                 8    9A     B   C D       EF
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -279,10 +279,11 @@ Textarea with multiple entities and markup-like text
 @C HTMLTagOpen
 @D HTMLTagName
 @E HTMLTagClose
+@F NewLine
 
 Textarea with percent-like sequences and entities
 <textarea>100% sure %20 &amp;percent;</textarea>
-12       3456789ABC DEF  GHIJK  LMNOP
+12       34             5    6       7 8       9A
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -292,10 +293,11 @@ Textarea with percent-like sequences and entities
 @7 HTMLTagOpen
 @8 HTMLTagName
 @9 HTMLTagClose
+@A NewLine
 
 Textarea with numeric hex entity and unclosed markup-like
 <textarea>code &amp; &#x41; <span>not a tag</textarea>
-12       3456789AB C DE  FGH IJKLMN
+12       34    5    67     8               9 A       BC
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -307,10 +309,11 @@ Textarea with numeric hex entity and unclosed markup-like
 @9 HTMLTagOpen
 @A HTMLTagName
 @B HTMLTagClose
+@C NewLine
 
 Textarea: plain text only
 <textarea>Hello world</textarea>
-12       3456789AB  C
+12       34          5 6       78
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -318,10 +321,11 @@ Textarea: plain text only
 @5 HTMLTagOpen
 @6 HTMLTagName
 @7 HTMLTagClose
+@8 NewLine
 
 Textarea: named entities parsed (semicolons required)
 <textarea>&lt;&gt;&amp;&copy;</textarea>
-12       3456789ABCDEF  GH
+12       34   5   6    7     8 9       AB
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -332,10 +336,11 @@ Textarea: named entities parsed (semicolons required)
 @8 HTMLTagOpen
 @9 HTMLTagName
 @A HTMLTagClose
+@B NewLine
 
 Textarea: decimal numeric entities
 <textarea>Price: &#36;100</textarea>
-12       3456789AB CDE
+12       34      5    6  7 8       9A
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -345,10 +350,11 @@ Textarea: decimal numeric entities
 @7 HTMLTagOpen
 @8 HTMLTagName
 @9 HTMLTagClose
+@A NewLine
 
 Textarea: hex numeric entities (upper/lowercase X)
 <textarea>Letter: &#x41; and &#X42;</textarea>
-12       3456789ABCDE F GH  IJK
+12       34       5     6    7     8 9       AB
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -356,14 +362,14 @@ Textarea: hex numeric entities (upper/lowercase X)
 @5 EntityHex "&#x41;"
 @6 HTMLRawText " and "
 @7 EntityHex "&#X42;"
-@8 HTMLRawText ""
-@9 HTMLTagOpen
-@A HTMLTagName
-@B HTMLTagClose
+@8 HTMLTagOpen
+@9 HTMLTagName
+@A HTMLTagClose
+@B NewLine
 
 Textarea: entity adjacent to letters and numbers
 <textarea>A&amp;Bcopy&#33;2025</textarea>
-12       3456789ABCDEF GHIJ K
+12       345    6    7    8   9 A       BC
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -375,10 +381,11 @@ Textarea: entity adjacent to letters and numbers
 @9 HTMLTagOpen
 @A HTMLTagName
 @B HTMLTagClose
+@C NewLine
 
 Textarea: semicolon-less named entity should NOT be parsed (must be treated as text)
 <textarea>&copy rest</textarea>
-12       3456789AB C
+12       34         5 6       78
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -386,10 +393,11 @@ Textarea: semicolon-less named entity should NOT be parsed (must be treated as t
 @5 HTMLTagOpen
 @6 HTMLTagName
 @7 HTMLTagClose
+@8 NewLine
 
 Textarea: incomplete entity (no digits) remains text
 <textarea>&#; &amp;</textarea>
-12       3456789AB C
+12       34   5    6 7       89
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -398,10 +406,11 @@ Textarea: incomplete entity (no digits) remains text
 @6 HTMLTagOpen
 @7 HTMLTagName
 @8 HTMLTagClose
+@9 NewLine
 
 Textarea: percent sequences are plain text, entities still parsed
 <textarea>100% ok %20 &amp;percent;</textarea>
-12       3456789ABCDE FGH I
+12       34           5    6       7 8       9A
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -411,10 +420,11 @@ Textarea: percent sequences are plain text, entities still parsed
 @7 HTMLTagOpen
 @8 HTMLTagName
 @9 HTMLTagClose
+@A NewLine
 
 Textarea: Markdown-like constructs are raw text
 <textarea>**not bold** `code` _em_</textarea>
-12       3456789ABCDEF GHI
+12       34                       5 6       78
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -422,10 +432,11 @@ Textarea: Markdown-like constructs are raw text
 @5 HTMLTagOpen
 @6 HTMLTagName
 @7 HTMLTagClose
+@8 NewLine
 
 Textarea: < and > that look like tags should be treated as text unless closing textarea is found
 <textarea>Here is <span> and </textarea> remains</textarea>
-12       3456789ABCDE F GH IJK
+12       34                  5 6       789      A B       CD
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -433,10 +444,16 @@ Textarea: < and > that look like tags should be treated as text unless closing t
 @5 HTMLTagOpen
 @6 HTMLTagName
 @7 HTMLTagClose
+@8 Whitespace
+@9 InlineText "remains"
+@A HTMLTagOpen
+@B HTMLTagName
+@C HTMLTagClose
+@D NewLine
 
 Textarea: case-insensitive closing tag detection
 <textarea>raw text</TEXTAREA>
-12       3456789ABC D
+12       34       5 6       78
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 HTMLTagClose
@@ -444,6 +461,7 @@ Textarea: case-insensitive closing tag detection
 @5 HTMLTagOpen
 @6 HTMLTagName
 @7 HTMLTagClose
+@8 NewLine
 
 ## Error Recovery
 
@@ -785,7 +803,7 @@ Multiple entities in quoted attribute
 
 Decimal and hex numeric entities in attribute
 <a title="&#169; and &#xA9;">link</a>
-1234    56789 10  11 12   13 14 15
+1234    567     8    9     ABC   D EFG
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -793,19 +811,19 @@ Decimal and hex numeric entities in attribute
 @5 HTMLAttributeEquals
 @6 HTMLAttributeQuote
 @7 EntityDecimal "&#169;"
-@8 Whitespace
-@9 HTMLAttributeValue " and "
-@A EntityHex "&#xA9;"
-@B HTMLAttributeQuote
+@8 HTMLAttributeValue " and "
+@9 EntityHex "&#xA9;"
+@A HTMLAttributeQuote
 @C HTMLTagClose
 @D InlineText
 @E HTMLTagOpen
 @F HTMLTagName
 @G HTMLTagClose
+@G NewLine
 
 Quoted attribute mixing entity and percent encoding
 <a title="&amp;%20end">ok</a>
-1234   567     8  9  A
+1234    567    8  9  ABC D EFG
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -821,10 +839,11 @@ Quoted attribute mixing entity and percent encoding
 @D HTMLTagOpen
 @E HTMLTagName
 @F HTMLTagClose
+@G NewLine
 
 Invalid percent sequence in quoted attribute (treated as text)
 <div title="100% sure">text</div>
-12  34    56789    0 1 2
+12  34    567        89A   B C  DE
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -838,10 +857,11 @@ Invalid percent sequence in quoted attribute (treated as text)
 @B HTMLTagOpen
 @C HTMLTagName
 @D HTMLTagClose
+@E NewLine
 
 Unquoted attribute with ampersand (entities NOT parsed in unquoted values)
 <div note=&copy;>text</div>
-12  34  56       7 8
+12  34   56     78   9 A  BC
 @1 HTMLTagOpen
 @2 HTMLTagName
 @3 Whitespace
@@ -853,6 +873,7 @@ Unquoted attribute with ampersand (entities NOT parsed in unquoted values)
 @9 HTMLTagOpen
 @A HTMLTagName
 @B HTMLTagClose
+@C NewLine
 
 
 JavaScript in attribute
