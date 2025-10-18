@@ -22,12 +22,19 @@ for (const mdFilePath of findMarkdownFiles(__dirname)) {
   const relativePath = path.relative(repoBase, mdFilePath).replace(/\\/g, '/');
 
   test(relativePath, async t => {
-    const parsedTestCases = parseScannedAnnotatedBlocks(fs.readFileSync(mdFilePath, 'utf8'));
-    const markdownContentText = parsedTestCases.markdownLines.join('');
-    const tokens = parseAndGetTokens(markdownContentText);
+    const fullContent = fs.readFileSync(mdFilePath, 'utf8');
+    const sections = splitByEOFMarkers(fullContent);
 
-    for (const testCase of parsedTestCases.tests) {
-      await t.test(parsedTestCases.markdownLines[testCase.lineIndex].trimEnd() + ' ' + testCase.positionalMarkerLine.trimEnd().replace(/\s+/g, '-'), () => {
+    for (const section of sections) {
+      const parsedTestCases = parseScannedAnnotatedBlocks(section.content);
+      const markdownContentText = parsedTestCases.markdownLines.join('');
+      const tokens = parseAndGetTokens(markdownContentText);
+
+      for (const testCase of parsedTestCases.tests) {
+        // Adjust rawLineIndex to reflect original file position
+        const adjustedRawLineIndex = testCase.rawLineIndex + section.startLineIndex;
+
+        await t.test(parsedTestCases.markdownLines[testCase.lineIndex].trimEnd() + ' ' + testCase.positionalMarkerLine.trimEnd().replace(/\s+/g, '-'), () => {
 
         let manufacturedPositionalMarkerLine = '';
         markdownContentText.charCodeAt(0);
@@ -116,7 +123,7 @@ for (const mdFilePath of findMarkdownFiles(__dirname)) {
         }
 
         const leadLines = [
-          'at ' + relativePath + ':' + (testCase.rawLineIndex + 1) + '\n'
+          'at ' + relativePath + ':' + (adjustedRawLineIndex + 1) + '\n'
         ];
         for (let i = Math.max(0, testCase.lineIndex - 3); i <= testCase.lineIndex; i++) {
           leadLines.push(parsedTestCases.markdownLines[i]);
@@ -150,7 +157,65 @@ for (const mdFilePath of findMarkdownFiles(__dirname)) {
         );
       });
     }
+    }
   });
+}
+
+/**
+ * Split annotated markdown by EOF markers.
+ * Each section starts fresh with independent token scanning.
+ * @param {string} fullContent
+ * @returns {{ content: string, startLineIndex: number }[]}
+ */
+function splitByEOFMarkers(fullContent) {
+  const sections = [];
+  const lines = fullContent.split(/\r\n|\n|\r/);
+  let currentSection = [];
+  let currentStartLine = 0;
+
+  // EOF marker regex: <--EOF (2+ dashes, optional whitespace around EOF)
+  const EOF_MARKER_REGEX = /^<--+\s*EOF\s*$/;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    if (EOF_MARKER_REGEX.test(line.trim())) {
+      // Found EOF marker - save current section and start new one
+      if (currentSection.length > 0) {
+        sections.push({
+          content: currentSection.join('\n'),
+          startLineIndex: currentStartLine
+        });
+      }
+      
+      // Skip to next line after EOF marker
+      currentStartLine = i + 1;
+      currentSection = [];
+      
+      // If next line is a marker/assertion block (starts with '1'), skip it
+      if (i + 1 < lines.length && lines[i + 1].trimStart().startsWith('1')) {
+        let skipTo = i + 2; // skip marker line
+        // Skip all following @ assertion lines
+        while (skipTo < lines.length && lines[skipTo].trimStart().startsWith('@')) {
+          skipTo++;
+        }
+        i = skipTo - 1; // -1 because loop will increment
+        currentStartLine = skipTo;
+      }
+    } else {
+      currentSection.push(line);
+    }
+  }
+
+  // Add final section if any content remains
+  if (currentSection.length > 0) {
+    sections.push({
+      content: currentSection.join('\n'),
+      startLineIndex: currentStartLine
+    });
+  }
+
+  return sections;
 }
 
 /**

@@ -50,6 +50,71 @@ Authoring notes:
 - Provide exactly one `@` assertion line for each non‑whitespace marker character; assertions are matched left‑to-right.
 - This document describes the author‑facing rules; implementation details and parsing heuristics are documented separately in the harness reference when needed.
 
+## EOF Markers for Multiple Independent Scans
+
+To test multiple unclosed constructs or independent scanning scenarios within a single annotated Markdown file, an **EOF marker** can be used to break the token stream and restart scanning from scratch.
+
+### EOF Marker Syntax
+
+An EOF marker is recognized when a line ends with the pattern:
+
+```
+<--EOF
+```
+
+Where:
+- Two or more dashes (`--`) precede `EOF`
+- Zero or more whitespace characters may appear between the dashes and `EOF`
+- Zero or more whitespace characters may appear after `EOF` until the line end
+- The marker must appear at the end of a line (no continuation on the same line)
+
+**Valid examples:**
+```markdown
+<--EOF
+<---EOF
+<-- EOF
+<--  EOF  
+<---- EOF
+```
+
+### Scanning Behavior with EOF Markers
+
+1. **Breaks token stream:** When an EOF marker is encountered, scanning stops at that point. The content up to (but not including) the marker line is treated as complete input for tokenization.
+
+2. **Restarts from scratch:** Content after the EOF marker is scanned independently, with a fresh token stream starting from zero. No state carries forward from the previous section.
+
+3. **Line number preservation:** When the test harness reports errors for sections after an EOF marker, line numbers still reference the original file positions. The line numbering is never reset—only the token stream is restarted.
+
+4. **Next-line scanning:** Scanning resumes at the start of the line following the EOF marker. If the next line begins a marker/assertion block (positional marker line starting with `1`), that entire block is skipped, and scanning starts on the line after the assertion block completes.
+
+### Use Case: Testing Unclosed Constructs
+
+EOF markers are particularly useful for testing error recovery with unclosed HTML/XML constructs, where each section needs to independently verify behavior at EOF:
+
+```markdown
+<!-- unclosed comment
+1
+@1 HTMLCommentOpen|ErrorUnbalancedToken
+
+<--EOF
+
+<div class="test
+1
+@1 HTMLTagOpen|ErrorUnbalancedToken
+
+<--EOF
+
+<?xml version="1.0"
+1
+@1 XMLProcessingInstructionOpen|ErrorUnbalancedToken
+```
+
+In this example:
+- First section tests unclosed HTML comment behavior at EOF
+- Second section independently tests unclosed opening tag at EOF
+- Third section independently tests unclosed XML PI at EOF
+- Each section's tokens are scanned fresh without interference from previous sections
+
 # Implementation notes
 
 ## Test Harness Architecture
