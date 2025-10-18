@@ -1,14 +1,14 @@
 // @ts-check
 
 import { FencedOpen, FencedContent, FencedClose } from './scan-tokens.js';
-import { ErrorUnbalancedTokenFallback } from './scan-token-flags.js';
+import { ErrorUnbalancedToken } from './scan-token-flags.js';
 
 /**
  * A simple, always-forward scanner for fenced code blocks.
  * It scans from the opener forward one time, captures the content span and
  * detects a valid closing fence. If no closer is found before `endOffset`,
  * it returns an unbalanced result that uses the same fallback pattern as
- * `scan-backtick-inline.js` (emit opener with ErrorUnbalancedTokenFallback
+ * `scan-backtick-inline.js` (emit opener with ErrorUnbalancedToken
  * and content up to EOF).
  *
  * This implementation is intentionally straightforward: advance indices only,
@@ -156,8 +156,8 @@ export function scanFencedBlock(input, startOffset, endOffset, output) {
 
   // No closing fence found before EOF: fallback to unbalanced behaviour.
   const contentLength = endOffset - contentStart;
-  output.push(FencedOpen | ErrorUnbalancedTokenFallback | openLen);
-  if (contentLength > 0) output.push(FencedContent | ErrorUnbalancedTokenFallback | contentLength);
+  output.push(FencedOpen | ErrorUnbalancedToken | openLen);
+  if (contentLength > 0) output.push(FencedContent | ErrorUnbalancedToken | contentLength);
   return endOffset - startOffset;
 }
 

@@ -218,13 +218,15 @@ When a construct that is required to have a closing delimiter (such as `-->` for
    - Example: `<!-- comment` (EOF) → `[HTMLCommentOpen|ErrorUnbalancedToken, HTMLCommentContent, EOF]`
 
 **Per-construct recovery points (non-exhaustive):**
-- **Opening tag:** double newline (with possible whitespace between) or `<`
-- **Quoted attribute values:** double newline (with possible whitespace between), `<`, or `>`
+- **Opening tag:** double newline (with possible whitespace between) or `<` -- the content parsing stops before double-newline or `<`, and they are parsed normally hereafter
+- **Quoted attribute values:** double newline (with possible whitespace between), `<`, or `>` -- the content parsing stops before these, and they are parsed normally hereafter
 - **HTML comments:** double-newline (with possible whitespace between) or `<` on new line (with possible whitespace indent)
 - **CDATA:** double newline (with possible whitespace between), `<`, or `>` - and specifically in case `>` will also be taken as a malformed CDATA close token, and parsing continues after
 - **DOCTYPE:** newline or `<`
 - **XML PI:** newline, `<` or `>` - and specifically in case `>` will also be taken as a malformed PI close token, and parsing continues after
 - **Raw text (script/style/textarea):** double newline (with possible whitespace between) or `<`
+
+Note that in most cases (probably except `>`) the recovery does not consume the pattern that is matched: double-newline, or `<`. This means the parsing continues from that pattern again, and would produce corresponding newline tokens or tag open tokens as normal.
 
 **Invalid constructs (not error recovery, but early rejection):**
 ```html

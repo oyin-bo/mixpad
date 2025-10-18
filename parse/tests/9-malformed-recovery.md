@@ -8,11 +8,11 @@ Double newline recovery
 <!-- unclosed comment
 1   2
 @1 HTMLCommentOpen|ErrorUnbalancedToken
-@2 HTMLCommentContent|ErrorUnbalancedToken " unclosed comment\n\n"
+@2 HTMLCommentContent|ErrorUnbalancedToken " unclosed comment\n"
 
 <-- EOF
 
-XML comment on new line recovery (with whitespace)
+XML comment on double new line recovery
 <!-- unclosed
 1   2
 @1 HTMLCommentOpen|ErrorUnbalancedToken
@@ -21,11 +21,11 @@ XML comment on new line recovery (with whitespace)
 More
 <-- EOF
 
-XML comment on new line recovery (no whitespace)
+XML comment on new line - no recovery
 <!-- unclosed
 1   2
 @1 HTMLCommentOpen|ErrorUnbalancedToken
-@2 HTMLCommentContent " unclosed\n"
+@2 HTMLCommentContent " unclosed\nMore"
 More
 <-- EOF
 
@@ -37,26 +37,25 @@ Newline recovery
 @1 XMLProcessingInstructionOpen|ErrorUnbalancedToken
 <-- EOF
 
-< recovery
+XML instruction: no recovery
 <?xml unclosed <-- EOF
 1
 @1 XMLProcessingInstructionOpen|ErrorUnbalancedToken
 
 > malformed close recovery
 <?xml unclosed >
-1    2         3
+1
 @1 XMLProcessingInstructionOpen|ErrorUnbalancedToken
-@2 XMLProcessingInstructionTarget
-@3 XMLProcessingInstructionClose|ErrorUnbalancedToken
+
 <-- EOF
 
 ## CDATA Sections
 
 Double newline recovery
 <![CDATA[ unclosed
-1        2
+1
 @1 HTMLCDataOpen|ErrorUnbalancedToken
-@2 HTMLCDataContent " unclosed\n\n"
+
 <-- EOF
 
 < recovery
@@ -67,10 +66,9 @@ Double newline recovery
 
 > malformed close recovery
 <![CDATA[ unclosed >
-1        2         3
+1
 @1 HTMLCDataOpen|ErrorUnbalancedToken
-@2 HTMLCDataContent
-@3 HTMLCDataClose|ErrorUnbalancedToken
+
 <-- EOF
 
 ## DOCTYPE

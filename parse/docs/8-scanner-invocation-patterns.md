@@ -366,7 +366,7 @@ The semantic scanner processes **paragraph chunks** of provisional tokens. It ne
 
 **Pattern B benefits:**
 - Complex multi-token sequences already assembled
-- Unbalanced cases flagged with `ErrorUnbalancedTokenFallback`
+- Unbalanced cases flagged with `ErrorUnbalancedToken`
 - No need to re-scan for closers
 
 Both patterns are **fully compatible** with the two-phase architecture.

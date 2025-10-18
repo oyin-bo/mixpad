@@ -19,7 +19,7 @@ Token model (provisional tokens)
   - FencedInfo: token that represents the info string (language/attributes) and its length. May be folded into FencedOpen if simpler.
   - FencedContent: represents the raw content span length (no slices until parser requests content).
   - FencedClose: encodes fence char and length for the closing run.
-  - Use existing ErrorUnbalancedTokenFallback flag for cases where opener exists but no balanced closer is found; in that case scanner should emit opener(with flag) and FencedContent with fallback length (content up to EOF or permissible fallback length).
+  - Use existing ErrorUnbalancedToken flag for cases where opener exists but no balanced closer is found; in that case scanner should emit opener(with flag) and FencedContent with fallback length (content up to EOF or permissible fallback length).
 
 Scanner algorithm (streaming, allocation-sparing)
 1. Detection
@@ -40,7 +40,7 @@ Scanner algorithm (streaming, allocation-sparing)
    - Support both LF and CRLF line endings. Normalise positions accordingly without slicing strings.
 5. Balanced vs unbalanced
    - If a closer is found: return or emit FencedOpen, FencedContent (length up to start of closer), and FencedClose (encoding closing length). Include info-string token (or embed info metadata in FencedOpen).
-   - If no closer is found before EOF: emit FencedOpen | ErrorUnbalancedTokenFallback and FencedContent | ErrorUnbalancedTokenFallback. The parser or fallback logic will convert to literal backticks in inline content or other error handling.
+   - If no closer is found before EOF: emit FencedOpen | ErrorUnbalancedToken and FencedContent | ErrorUnbalancedToken. The parser or fallback logic will convert to literal backticks in inline content or other error handling.
 
 Edge cases and policy decisions
 - Mixed fence characters: an opener of backticks must be closed by backticks only. Tildes close only tildes.
@@ -82,7 +82,7 @@ Integration steps (practical order)
 1. Draft annotated-markdown tests (these act as specification) and add them to `parse/tests/`.
 2. Implement `parse/scan-backtick-fences.js` (or `scan-fences.js`) exporting a `scanFencedBlock(input, start, end, output)` function that mirrors patterns in `scan-backtick-inline.js` (streaming, index-based, no allocations until close confirmed). Keep JSDoc and style consistent.
 3. Wire `scan0.js` to call the new scanner when encountering a backtick or tilde at a potential opener position. Ensure scanner receives correct `start` (index where fence char appears) and `end`.
-4. Update provisional token constants in `parse/scan-tokens.js` if needed, and reuse `ErrorUnbalancedTokenFallback` flag.
+4. Update provisional token constants in `parse/scan-tokens.js` if needed, and reuse `ErrorUnbalancedToken` flag.
 5. Run `npm test`, iterate on failures, and refine tests or implementation.
 
 Quality gates and smoke checks

@@ -1,5 +1,4 @@
 export const ErrorUnbalancedToken = 0x10000;
-export const ErrorUnbalancedTokenFallback = 0x10000; // Alias for compatibility
 
 // List-specific flags
 export const ErrorMalformedListMarker = 0x20000;

@@ -33,7 +33,7 @@ export function scanHTMLComment(input, start, end, output) {
 
   let offset = start + 4;
   const contentStart = offset;
-  let prevWasNewline = false;
+  let newlineCount = 0;  // Track consecutive newlines for recovery detection
   let lineStart = offset;
 
   // Scan for '-->' with heuristic recovery
@@ -55,34 +55,31 @@ export function scanHTMLComment(input, start, end, output) {
 
     // Check for heuristic recovery points
     if (ch === 10 /* \n */ || ch === 13 /* \r */) {
-      if (prevWasNewline) {
-        // Double newline found - include second newline in content
-        if (ch === 13 && offset + 1 < end && input.charCodeAt(offset + 1) === 10) {
-          offset += 2; // \r\n
-        } else {
-          offset++;
-        }
-        const contentLength = offset - contentStart;
-        if (contentLength > 0) {
-          output.push(contentLength | HTMLCommentContent);
-        }
-        // Flag opening token as unbalanced
-        output[openTokenIndex] |= ErrorUnbalancedToken;
-        return offset - start;
-      }
-      // Consume first newline (including \r\n pairs)
+      // Consume newline (including \r\n pairs)
       if (ch === 13 && offset + 1 < end && input.charCodeAt(offset + 1) === 10) {
         offset += 2; // \r\n
       } else {
         offset++;
       }
-      prevWasNewline = true;
+      
+      newlineCount++;
       lineStart = offset;
+      
+      // Double newline found - recovery point
+      if (newlineCount >= 2) {
+        const contentLength = offset - contentStart;
+        if (contentLength > 0) {
+          output.push(contentLength | HTMLCommentContent | ErrorUnbalancedToken);
+        }
+        // Flag opening token as unbalanced
+        output[openTokenIndex] |= ErrorUnbalancedToken;
+        return offset - start;
+      }
       continue;
     }
 
     // Check for < on new line (with possible whitespace indent)
-    if (ch === 60 /* < */ && prevWasNewline) {
+    if (ch === 60 /* < */ && newlineCount >= 1) {
       // Check if only whitespace between lineStart and here
       let onlyWhitespace = true;
       for (let i = lineStart; i < offset; i++) {
@@ -96,7 +93,8 @@ export function scanHTMLComment(input, start, end, output) {
         // Recovery point: < on new line
         const contentLength = offset - contentStart;
         if (contentLength > 0) {
-          output.push(contentLength | HTMLCommentContent);
+          const contentToken = contentLength | HTMLCommentContent;
+          output.push(contentToken | ErrorUnbalancedToken);
         }
         // Flag opening token as unbalanced
         output[openTokenIndex] |= ErrorUnbalancedToken;
@@ -104,8 +102,9 @@ export function scanHTMLComment(input, start, end, output) {
       }
     }
 
+    // Reset newline counter if we encounter non-whitespace, non-newline
     if (ch !== 32 && ch !== 9) {
-      prevWasNewline = false;
+      newlineCount = 0;
     }
 
     offset++;
@@ -114,11 +113,10 @@ export function scanHTMLComment(input, start, end, output) {
   // EOF without finding proper close - error recovery
   const contentLength = offset - contentStart;
   if (contentLength > 0) {
-    output.push(contentLength | HTMLCommentContent | ErrorUnbalancedToken);
+    const contentToken = contentLength | HTMLCommentContent;
+    output.push(contentToken | ErrorUnbalancedToken);
   }
   // Flag opening token as unbalanced
   output[openTokenIndex] |= ErrorUnbalancedToken;
-  return offset - start;
-  // Don't emit zero-length close token
   return offset - start;
 }

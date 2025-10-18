@@ -1,6 +1,6 @@
 // @ts-check
 
-import { ErrorUnbalancedTokenFallback } from './scan-token-flags.js';
+import { ErrorUnbalancedToken } from './scan-token-flags.js';
 import { InlineCode, BacktickBoundary } from './scan-tokens.js';
 
 /**
@@ -75,7 +75,7 @@ function scanInlineCode(input, start, end, openN) {
 
   if (fallbackCodeLength < 0) fallbackCodeLength = 0;
 
-  return InlineCode | ErrorUnbalancedTokenFallback | fallbackCodeLength;
+  return InlineCode | ErrorUnbalancedToken | fallbackCodeLength;
 }
 
 
@@ -112,10 +112,10 @@ export function scanBacktickInline(input, startOffset, endOffset, output) {
   // `offset + openLen - 1` because `offset` held the post-incremented index.
   const inlineTok = scanInlineCode(input, startOffset + openLen, endOffset, openLen);
 
-  // If inlineTok carries ErrorUnbalancedTokenFallback, we must perform the
+  // If inlineTok carries ErrorUnbalancedToken, we must perform the
   // fallback/unbalanced handling: check whether there exists a closing run
   // after the inlineTok's fallback length.
-  if (inlineTok && (inlineTok & 0xF0000) & ErrorUnbalancedTokenFallback) {
+  if (inlineTok && (inlineTok & 0xF0000) & ErrorUnbalancedToken) {
     // compute position where a closing backtick run might be found. The
     // original calculation used: offset - 1 + getTokenLength(openBacktickTok) + getTokenLength(inlineTok)
     // Here offset corresponds to startOffset + 1 in the original flow; simplifying:
@@ -128,14 +128,14 @@ export function scanBacktickInline(input, startOffset, endOffset, output) {
 
     if (closingBacktickTok) {
       // found a closing run but it's unbalanced: emit open(with flag), inline, closing(with flag)
-      output.push(openBacktickTok | ErrorUnbalancedTokenFallback);
+      output.push(openBacktickTok | ErrorUnbalancedToken);
       output.push(inlineTok);
-      output.push(closingBacktickTok | ErrorUnbalancedTokenFallback);
+      output.push(closingBacktickTok | ErrorUnbalancedToken);
       const closingLen = closingBacktickTok & 0xFFFF;
       return openLen + inlineLen + closingLen;
     } else {
       // emit open(with flag) and inline
-      output.push(openBacktickTok | ErrorUnbalancedTokenFallback);
+      output.push(openBacktickTok | ErrorUnbalancedToken);
       output.push(inlineTok);
       return openLen + inlineLen;
     }
