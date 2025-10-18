@@ -91,10 +91,8 @@ export function scanHTMLDocType(input, start, end, output) {
   // EOF without finding '>'
   const contentLength = offset - contentStart;
   if (contentLength > 0) {
-    output.push(contentLength | HTMLDocTypeContent | ErrorUnbalancedToken);
+    output.push(contentLength | HTMLDocTypeContent);
   }
   output[openTokenIndex] |= ErrorUnbalancedToken;
-  return offset - start;
-  // Don't emit zero-length close token
   return offset - start;
 }

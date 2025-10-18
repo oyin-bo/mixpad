@@ -27,12 +27,12 @@ import { getTokenLength } from './scan-core.js';
 export function scanHTMLRawText(input, start, end, tagNameStart, tagNameLength, output) {
   let offset = start;
   let segmentStart = start;
-  let prevWasNewline = false;
+  let prevWasNewline = false;  // Track if previous non-space/tab was newline
 
   while (offset < end) {
     const ch = input.charCodeAt(offset);
 
-    // Check for double newline recovery point
+    // Check for double newline (with possible whitespace between) recovery point
     if (ch === 10 /* \n */ || ch === 13 /* \r */) {
       if (prevWasNewline) {
         // Double newline - recovery point
@@ -41,6 +41,7 @@ export function scanHTMLRawText(input, start, end, tagNameStart, tagNameLength, 
           output.push(rawLength | HTMLRawText);
         }
         // Note: Opening tag will be flagged by scan-html-tag.js
+        // Don't consume the newline - it will be parsed normally
         return offset - start;
       }
       prevWasNewline = true;
@@ -51,19 +52,15 @@ export function scanHTMLRawText(input, start, end, tagNameStart, tagNameLength, 
     // Check for closing tag (case-insensitive): '</', then tag name, then '>' or whitespace
     if (ch === 60 /* < */) {
       if (offset + 1 >= end || input.charCodeAt(offset + 1) !== 47 /* / */) {
-        // Just a < but not closing tag - could be recovery point only if on new line
-        if (prevWasNewline) {
-          if (offset > segmentStart) {
-            const rawLength = offset - segmentStart;
-            output.push(rawLength | HTMLRawText);
-          }
-          // Recovery at < on new line
-          return offset - start;
+        // Just a < but not closing tag - recovery point if flagged
+        if (offset > segmentStart) {
+          const rawLength = offset - segmentStart;
+          output.push(rawLength | HTMLRawText);
         }
-        // Not a closing tag and not on new line - continue as raw text
-        offset++;
-        prevWasNewline = false;
-        continue;
+        // Recovery at < 
+        // Note: Opening tag will be flagged by scan-html-tag.js
+        // Don't consume the < - it will be parsed normally
+        return offset - start;
       }
       
       // Check tag name match (case-insensitive)
@@ -125,6 +122,7 @@ export function scanHTMLRawText(input, start, end, tagNameStart, tagNameLength, 
       }
     }
 
+    // Reset newline flag if we encounter non-whitespace character
     if (ch !== 32 && ch !== 9) {
       prevWasNewline = false;
     }

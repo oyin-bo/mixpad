@@ -217,7 +217,7 @@ When a construct that is required to have a closing delimiter (such as `-->` for
    - No synthetic closing token is emitted.
    - Example: `<!-- comment` (EOF) → `[HTMLCommentOpen|ErrorUnbalancedToken, HTMLCommentContent, EOF]`
 
-**Per-construct recovery points (non-exhaustive):**
+**Per-construct recovery points:**
 - **Opening tag:** double newline (with possible whitespace between) or `<` -- the content parsing stops before double-newline or `<`, and they are parsed normally hereafter
 - **Quoted attribute values:** double newline (with possible whitespace between), `<`, or `>` -- the content parsing stops before these, and they are parsed normally hereafter
 - **HTML comments:** double-newline (with possible whitespace between) or `<` on new line (with possible whitespace indent)

@@ -127,10 +127,8 @@ export function scanXMLProcessingInstruction(input, start, end, output) {
   // EOF without finding '?>' - error
   const contentLength = offset - contentStart;
   if (contentLength > 0) {
-    output.push(contentLength | XMLProcessingInstructionContent | ErrorUnbalancedToken);
+    output.push(contentLength | XMLProcessingInstructionContent);
   }
   output[openTokenIndex] |= ErrorUnbalancedToken;
-  return offset - start;
-  // Don't emit zero-length close token
   return offset - start;
 }

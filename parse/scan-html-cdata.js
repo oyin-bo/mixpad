@@ -38,7 +38,7 @@ export function scanHTMLCData(input, start, end, output) {
 
   let offset = start + 9;
   const contentStart = offset;
-  let prevWasNewline = false;
+  let prevWasNewline = false;  // Track if previous non-space/tab was newline
 
   // Scan for ']]>' with heuristic recovery
   while (offset < end) {
@@ -58,47 +58,52 @@ export function scanHTMLCData(input, start, end, output) {
 
     // Heuristic recovery points
     if (ch === 10 /* \n */ || ch === 13 /* \r */) {
+      // Double newline (with possible whitespace between) - recovery point
       if (prevWasNewline) {
-        // Double newline - recovery point
-        // Include this second newline in content
-        if (ch === 13 && offset + 1 < end && input.charCodeAt(offset + 1) === 10) {
-          offset += 2; // \r\n
-        } else {
-          offset++;
-        }
         const contentLength = offset - contentStart;
         if (contentLength > 0) {
           output.push(contentLength | HTMLCDataContent);
         }
         output[openTokenIndex] |= ErrorUnbalancedToken;
+        // Don't consume the newline - it will be parsed normally
         return offset - start;
       }
+      
       prevWasNewline = true;
-      offset++;
+      
+      // Consume newline (including \r\n pairs)
+      if (ch === 13 && offset + 1 < end && input.charCodeAt(offset + 1) === 10) {
+        offset += 2; // \r\n
+      } else {
+        offset++;
+      }
       continue;
     }
 
-    if (ch === 60 /* < */ && prevWasNewline) {
-      // < on new line - recovery point
+    if (ch === 60 /* < */) {
+      // < - recovery point
       const contentLength = offset - contentStart;
       if (contentLength > 0) {
         output.push(contentLength | HTMLCDataContent);
       }
       output[openTokenIndex] |= ErrorUnbalancedToken;
+      // Don't consume the < - it will be parsed normally
       return offset - start;
     }
 
-    if (ch === 62 /* > */ && prevWasNewline) {
-      // > on new line - recovery point, emit as malformed close
+    if (ch === 62 /* > */) {
+      // > - recovery point, emit as malformed close
       const contentLength = offset - contentStart;
       if (contentLength > 0) {
         output.push(contentLength | HTMLCDataContent);
       }
       output[openTokenIndex] |= ErrorUnbalancedToken;
       output.push(1 | HTMLCDataClose | ErrorUnbalancedToken);
+      // Consume the > and continue parsing after it
       return offset - start + 1;
     }
 
+    // Reset newline flag if we encounter non-whitespace character
     if (ch !== 32 && ch !== 9) {
       prevWasNewline = false;
     }
@@ -109,10 +114,8 @@ export function scanHTMLCData(input, start, end, output) {
   // EOF without finding close
   const contentLength = offset - contentStart;
   if (contentLength > 0) {
-    output.push(contentLength | HTMLCDataContent | ErrorUnbalancedToken);
+    output.push(contentLength | HTMLCDataContent);
   }
   output[openTokenIndex] |= ErrorUnbalancedToken;
-  return offset - start;
-  // Don't emit zero-length close token
   return offset - start;
 }

@@ -143,22 +143,28 @@ export function scanHTMLTag(input, start, end, output) {
 
   // Parse attributes for opening tags with heuristic recovery
   let hasError = false;
-  let prevWasNewline = false;
+  let prevWasNewlineOrWhitespace = false;  // Track if we just saw newline (with possible whitespace after)
   
   while (offset < end) {
     // Skip whitespace (track newlines for recovery)
     const wsStart = offset;
-    let wsHasDoubleNewline = false;
+    let wsHasNewline = false;
     while (offset < end) {
       const ch = input.charCodeAt(offset);
       if (ch === 9 || ch === 32 || ch === 10 || ch === 13) {
         if (ch === 10 || ch === 13) {
-          if (prevWasNewline) {
-            wsHasDoubleNewline = true;
+          // Double newline (with possible whitespace between) - recovery point
+          if (prevWasNewlineOrWhitespace) {
+            // Emit whitespace up to this point (before second newline)
+            const wsLength = offset - wsStart;
+            if (wsLength > 0) {
+              output.push(wsLength | Whitespace);
+            }
+            output[openTokenIndex] |= ErrorUnbalancedToken;
+            // Don't consume the newline - it will be parsed normally
+            return offset - start;
           }
-          prevWasNewline = true;
-        } else {
-          // Space or tab - don't reset prevWasNewline
+          wsHasNewline = true;
         }
         offset++;
       } else {
@@ -170,11 +176,8 @@ export function scanHTMLTag(input, start, end, output) {
       output.push(wsLength | Whitespace);
     }
 
-    // Check for double-newline recovery point
-    if (wsHasDoubleNewline) {
-      output[openTokenIndex] |= ErrorUnbalancedToken;
-      return offset - start;
-    }
+    // Update flag: were we just in whitespace that contained a newline?
+    prevWasNewlineOrWhitespace = wsHasNewline;
 
     if (offset >= end) {
       output[openTokenIndex] |= ErrorUnbalancedToken;
@@ -186,6 +189,7 @@ export function scanHTMLTag(input, start, end, output) {
     // Recovery point: < character
     if (ch === 60 /* < */) {
       output[openTokenIndex] |= ErrorUnbalancedToken;
+      // Don't consume the < - it will be parsed normally
       return offset - start;
     }
 
@@ -201,7 +205,8 @@ export function scanHTMLTag(input, start, end, output) {
       return offset - start + 2;
     }
 
-    prevWasNewline = false;
+    // Non-whitespace, non-special character - reset flag
+    prevWasNewlineOrWhitespace = false;
 
     // Parse attribute name (potentially with namespace)
     const attrNameStart = offset;
@@ -309,7 +314,7 @@ export function scanHTMLTag(input, start, end, output) {
       output.push(1 | HTMLAttributeQuote);
       offset++;
 
-      let attrPrevWasNewline = false;
+      let attrPrevWasNewlineOrWhitespace = false;  // Track newline with possible whitespace after
       while (offset < end) {
         const valCh = input.charCodeAt(offset);
         
@@ -322,12 +327,14 @@ export function scanHTMLTag(input, start, end, output) {
         
         // Heuristic recovery for attribute values
         if (valCh === 10 /* \n */ || valCh === 13 /* \r */) {
-          if (attrPrevWasNewline) {
-            // Double newline - recovery point
+          // Double newline (with possible whitespace between) - recovery point
+          if (attrPrevWasNewlineOrWhitespace) {
             output[openTokenIndex] |= ErrorUnbalancedToken;
+            // Don't consume the newline - it will be parsed normally
             return offset - start;
           }
-          // Single newline - emit as whitespace and trigger recovery
+          
+          // Emit newline as whitespace
           const wsStart = offset;
           if (valCh === 13 && offset + 1 < end && input.charCodeAt(offset + 1) === 10) {
             offset += 2; // \r\n
@@ -335,23 +342,28 @@ export function scanHTMLTag(input, start, end, output) {
             offset++;
           }
           output.push((offset - wsStart) | Whitespace);
-          output[openTokenIndex] |= ErrorUnbalancedToken;
-          return offset - start;
+          attrPrevWasNewlineOrWhitespace = true;
+          continue;
         }
         
         if (valCh === 60 /* < */) {
           // < - recovery point
           output[openTokenIndex] |= ErrorUnbalancedToken;
+          // Don't consume the < - it will be parsed normally
           return offset - start;
         }
         
         if (valCh === 62 /* > */) {
           // > - recovery point
           output[openTokenIndex] |= ErrorUnbalancedToken;
+          // Don't consume the > - it will be parsed normally
           return offset - start;
         }
         
-        attrPrevWasNewline = false;
+        // Reset flag if we encounter non-whitespace character
+        if (valCh !== 32 && valCh !== 9) {
+          attrPrevWasNewlineOrWhitespace = false;
+        }
         
         if (valCh === 38 /* & */) {
           // Try to parse entity
