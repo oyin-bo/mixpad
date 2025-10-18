@@ -20,9 +20,9 @@ HTML comment on double new line recovery - content then normal parsing
 @2 HTMLCommentContent " unclosed\n"
 
 More
-3    4
-@3 NewLine
-@4 InlineText "More"
+1    2
+@1 NewLine
+@2 InlineText "More"
 <-- EOF
 
 HTML comment on new line - no recovery (single newline)
@@ -40,10 +40,10 @@ HTML comment recovery at < on new line
 @2 HTMLCommentContent " unclosed\n"
 
 <div>
-3   4     5
-@3 HTMLTagOpen
-@4 HTMLTagName "div"
-@5 HTMLTagClose
+1   2     3
+@1 HTMLTagOpen
+@2 HTMLTagName "div"
+@3 HTMLTagClose
 <-- EOF
 
 HTML comment no recovery - < not on new line
@@ -55,7 +55,7 @@ HTML comment no recovery - < not on new line
 
 HTML comment properly closed - no error
 <!-- comment -->
-1   2          3
+1   2         3
 @1 HTMLCommentOpen
 @2 HTMLCommentContent " comment "
 @3 HTMLCommentClose
@@ -70,8 +70,7 @@ Newline recovery - content stops before newline
 @2 XMLProcessingInstructionTarget "xml"
 @3 XMLProcessingInstructionContent " unclosed"
 
-4
-@4 NewLine
+
 <-- EOF
 
 < recovery - content stops before <
@@ -82,9 +81,9 @@ Newline recovery - content stops before newline
 @3 XMLProcessingInstructionContent " unclosed\n"
 
 <div
-4   5
-@4 HTMLTagOpen
-@5 HTMLTagName "div"
+1   2
+@1 HTMLTagOpen
+@2 HTMLTagName "div"
 <-- EOF
 
 > malformed close recovery - emits malformed close token
@@ -122,8 +121,6 @@ Double newline recovery - content includes first newline
 @2 HTMLCDataContent " unclosed\n"
 
 
-3
-@3 NewLine
 <-- EOF
 
 < recovery - content includes newline, < not consumed
@@ -133,8 +130,8 @@ Double newline recovery - content includes first newline
 @2 HTMLCDataContent " unclosed\n"
 
 <
-3
-@3 InlineText "<"
+1
+@1 InlineText "<"
 <-- EOF
 
 > malformed close recovery - emits malformed close token
@@ -168,8 +165,7 @@ Newline recovery - content stops before newline
 @1 HTMLDocTypeOpen|ErrorUnbalancedToken
 @2 HTMLDocTypeContent " unclosed"
 
-3
-@3 NewLine
+
 <-- EOF
 
 < recovery - content stops before <
@@ -179,9 +175,9 @@ Newline recovery - content stops before newline
 @2 HTMLDocTypeContent " unclosed"
 
 <
-3 4
-@3 NewLine
-@4 InlineText "<"
+1 2
+@1 NewLine
+@2 InlineText "<"
 <-- EOF
 
 DOCTYPE properly closed - no error
@@ -219,8 +215,6 @@ Double newline recovery - whitespace includes both newlines
 < recovery during attributes - whitespace before <
 <div attr="value"
 1   2    3   4    5          6      7  8
-
-
 @1 HTMLTagOpen|ErrorUnbalancedToken
 @2 HTMLTagName "div"
 @3 Whitespace
@@ -230,9 +224,10 @@ Double newline recovery - whitespace includes both newlines
 @7 HTMLAttributeValue "value"
 @8 HTMLAttributeQuote
 
+
 <
-9
-@9 InlineText "<"
+1
+@1 InlineText "<"
 <-- EOF
 
 Opening tag properly closed - no error
@@ -266,8 +261,6 @@ Opening tag to EOF - no recovery point found
 Double newline in quoted value - first newline as Whitespace, second as NewLine
 <div attr="unclosed
 1   2    3   4    5          6        7
-
-
 @1 HTMLTagOpen|ErrorUnbalancedToken
 @2 HTMLTagName "div"
 @3 Whitespace
@@ -276,18 +269,12 @@ Double newline in quoted value - first newline as Whitespace, second as NewLine
 @6 HTMLAttributeQuote
 @7 HTMLAttributeValue "unclosed"
 
-8
-@8 Whitespace
 
-9
-@9 NewLine
 <-- EOF
 
 < in quoted value - recovery at <
 <div attr="unclosed
 1   2    3   4    5          6        7
-
-
 @1 HTMLTagOpen|ErrorUnbalancedToken
 @2 HTMLTagName "div"
 @3 Whitespace
@@ -296,19 +283,15 @@ Double newline in quoted value - first newline as Whitespace, second as NewLine
 @6 HTMLAttributeQuote
 @7 HTMLAttributeValue "unclosed"
 
-8
-@8 Whitespace
 
 <
-9
-@9 InlineText "<"
+1
+@1 InlineText "<"
 <-- EOF
 
 > in quoted value - recovery at >
 <div attr="unclosed
 1   2    3   4    5          6        7
-
-
 @1 HTMLTagOpen|ErrorUnbalancedToken
 @2 HTMLTagName "div"
 @3 Whitespace
@@ -317,12 +300,10 @@ Double newline in quoted value - first newline as Whitespace, second as NewLine
 @6 HTMLAttributeQuote
 @7 HTMLAttributeValue "unclosed"
 
-8
-@8 Whitespace
 
 >
-9
-@9 InlineText ">"
+1
+@1 InlineText ">"
 <-- EOF
 
 EOF in quoted value - no synthetic quote, no recovery point
@@ -363,11 +344,6 @@ Double newline recovery in script - content includes first newline
 unclosed
 
 
-4
-@4 HTMLRawText "\nunclosed\n"
-
-5
-@5 NewLine
 <-- EOF
 
 < recovery in style - content includes newline, < not consumed
@@ -380,12 +356,9 @@ unclosed
 unclosed
 
 
-4
-@4 HTMLRawText "\nunclosed\n"
-
 <
-5
-@5 InlineText "<"
+1
+@1 InlineText "<"
 <-- EOF
 
 Script properly closed - no error
@@ -471,6 +444,6 @@ Closing tag with newline before > - error flagged
 @3 Whitespace
 
 >
-4
-@4 HTMLTagClose|ErrorUnbalancedToken
+1
+@1 HTMLTagClose|ErrorUnbalancedToken
 <-- EOF
