@@ -664,40 +664,40 @@ MixPad follows CommonMark exactly for core parsing, adds value through editor fe
 
 ## Implementation Checklist
 
-### Phase 1: Token Definitions & Basic Scanning
+### Block 1: Token Definitions & Basic Scanning
 - [ ] Define `BulletListMarker`, `OrderedListMarker`, `TaskListMarker` tokens
 - [ ] Implement `scanBulletListMarker`
 - [ ] Implement `scanOrderedListMarker`
 - [ ] Implement `scanTaskListMarker`
 - [ ] Add tests for marker recognition
 
-### Phase 2: Indentation & Structure
+### Block 2: Indentation & Structure
 - [ ] Implement indentation calculation
 - [ ] Build list item context tracking
 - [ ] Determine content belonging (continuation vs new item)
 - [ ] Handle nesting depth
 - [ ] Add tests for nesting and indentation
 
-### Phase 3: Tight/Loose & Lazy Continuation
+### Block 3: Tight/Loose & Lazy Continuation
 - [ ] Implement blank line detection
 - [ ] Mark lists as tight or loose
 - [ ] Handle lazy continuation
 - [ ] Add `WarningLazyListContinuation` flag
 - [ ] Add tests for tight/loose rendering
 
-### Phase 4: Interruption & Boundaries
+### Block 4: Interruption & Boundaries
 - [ ] Implement paragraph interruption rules
 - [ ] Detect list endings (marker changes, dedent)
 - [ ] Handle thematic breaks
 - [ ] Add tests for interruption cases
 
-### Phase 5: Error Recovery
+### Block 5: Error Recovery
 - [ ] Handle malformed indentation
 - [ ] Recover from broken nesting
 - [ ] Mark inconsistent markers with warnings
 - [ ] Add tests for error cases
 
-### Phase 6: Integration & Performance
+### Block 6: Integration & Performance
 - [ ] Integrate with semantic scanner
 - [ ] Verify zero-allocation goals
 - [ ] Benchmark performance
@@ -741,4 +741,3 @@ This design provides:
 ✅ **Incremental parsing** support for editor use  
 ✅ **Thorough testing strategy** with annotated markdown  
 
-**Next steps:** Begin Phase 1 implementation (token definitions and basic scanning).
