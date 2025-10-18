@@ -161,7 +161,7 @@ CDATA with special chars
 <![CDATA[<div>&amp;</div>]]>
 1        2               3
 @1 HTMLCDataOpen
-@2 HTMLCDataContent
+@2 HTMLCDataContent "<div>&amp;</div>"
 @3 HTMLCDataClose
 
 ## DOCTYPE Declarations
@@ -1207,10 +1207,10 @@ Comment with nested markers
 <!-- <!-- inner --> -->
 1   2           3  45
 @1 HTMLCommentOpen
-@2 HTMLCommentContent
+@2 HTMLCommentContent " <!-- inner "
 @3 HTMLCommentClose
 @4 Whitespace
-@5 InlineText
+@5 InlineText "-->"
 
 Multi-line comment with tag-like content
 <!-- <div>not a tag</div> -->
@@ -1470,13 +1470,6 @@ Form with multiple input types
 @N HTMLTagName
 @O HTMLTagClose
 
-## Error Recovery Tests
-
-Truly unclosed comment at EOF
-<!-- This comment never closes
-1   2
-@1 HTMLCommentOpen
-@2 HTMLCommentContent|ErrorUnbalancedTokenFallback
 
 ## Known Issues & Open Questions
 

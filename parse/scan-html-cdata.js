@@ -1,6 +1,6 @@
 // @ts-check
 
-import { ErrorUnbalancedTokenFallback } from './scan-token-flags.js';
+import { ErrorUnbalancedToken } from './scan-token-flags.js';
 import { HTMLCDataClose, HTMLCDataContent, HTMLCDataOpen } from './scan-tokens.js';
 
 /**
@@ -32,13 +32,15 @@ export function scanHTMLCData(input, start, end, output) {
     return 0;
   }
 
-  // Emit opening token
+  const openTokenIndex = output.length;
+  // Emit opening token (will flag later if unclosed)
   output.push(9 | HTMLCDataOpen);
 
   let offset = start + 9;
   const contentStart = offset;
+  let prevWasNewline = false;
 
-  // Scan for ']]>' (greedy matching - first occurrence closes)
+  // Scan for ']]>' with heuristic recovery
   while (offset < end) {
     const ch = input.charCodeAt(offset);
 
@@ -54,14 +56,63 @@ export function scanHTMLCData(input, start, end, output) {
       return offset - start + 3;
     }
 
+    // Heuristic recovery points
+    if (ch === 10 /* \n */ || ch === 13 /* \r */) {
+      if (prevWasNewline) {
+        // Double newline - recovery point
+        // Include this second newline in content
+        if (ch === 13 && offset + 1 < end && input.charCodeAt(offset + 1) === 10) {
+          offset += 2; // \r\n
+        } else {
+          offset++;
+        }
+        const contentLength = offset - contentStart;
+        if (contentLength > 0) {
+          output.push(contentLength | HTMLCDataContent);
+        }
+        output[openTokenIndex] |= ErrorUnbalancedToken;
+        return offset - start;
+      }
+      prevWasNewline = true;
+      offset++;
+      continue;
+    }
+
+    if (ch === 60 /* < */ && prevWasNewline) {
+      // < on new line - recovery point
+      const contentLength = offset - contentStart;
+      if (contentLength > 0) {
+        output.push(contentLength | HTMLCDataContent);
+      }
+      output[openTokenIndex] |= ErrorUnbalancedToken;
+      return offset - start;
+    }
+
+    if (ch === 62 /* > */ && prevWasNewline) {
+      // > on new line - recovery point, emit as malformed close
+      const contentLength = offset - contentStart;
+      if (contentLength > 0) {
+        output.push(contentLength | HTMLCDataContent);
+      }
+      output[openTokenIndex] |= ErrorUnbalancedToken;
+      output.push(1 | HTMLCDataClose | ErrorUnbalancedToken);
+      return offset - start + 1;
+    }
+
+    if (ch !== 32 && ch !== 9) {
+      prevWasNewline = false;
+    }
+
     offset++;
   }
 
   // EOF without finding close
   const contentLength = offset - contentStart;
   if (contentLength > 0) {
-    output.push(contentLength | HTMLCDataContent | ErrorUnbalancedTokenFallback);
+    output.push(contentLength | HTMLCDataContent | ErrorUnbalancedToken);
   }
+  output[openTokenIndex] |= ErrorUnbalancedToken;
+  return offset - start;
   // Don't emit zero-length close token
   return offset - start;
 }

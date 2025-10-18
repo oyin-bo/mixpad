@@ -34,7 +34,25 @@ for (const mdFilePath of findMarkdownFiles(__dirname)) {
         // Adjust rawLineIndex to reflect original file position
         const adjustedRawLineIndex = testCase.rawLineIndex + section.startLineIndex;
 
-        await t.test(parsedTestCases.markdownLines[testCase.lineIndex].trimEnd() + ' ' + testCase.positionalMarkerLine.trimEnd().replace(/\s+/g, '-'), () => {
+        const testName =
+          parsedTestCases.markdownLines[testCase.lineIndex]
+            .replace(/[\\\[\]\(\)\.\*\?\+\|{}\^$&<>\/!:"]+/g, ' ').trim() + ' ' +
+          testCase.positionalMarkerLine.trimEnd().replace(/\s+/g, '-');
+
+        // // Normal test filter in node is wonky.
+        // // Use <filepattern>|<testnamepattern> in --test-name-pattern argument
+        // if (process.execArgv.find(arg => arg.startsWith('--test-name-pattern='))) {
+        //   const pattern = process.execArgv.find(arg => arg.startsWith('--test-name-pattern='))?.split('=')[1];
+        //   if (pattern) {
+        //     const nameParts = pattern.split(/[^a-z0-9]+/i).filter(Boolean);
+        //     const hasMatch = nameParts.find(part => testName.toLowerCase().includes(part.toLowerCase()));
+        //     if (!hasMatch) continue;
+        //   }
+        // }
+
+        await t.test(
+          //relativePath + ' ' +
+          testName, () => {
 
         let manufacturedPositionalMarkerLine = '';
         markdownContentText.charCodeAt(0);

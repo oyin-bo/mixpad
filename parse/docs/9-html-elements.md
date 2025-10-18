@@ -1,7 +1,5 @@
 # HTML Elements Parsing
 
-**Status:** Planning  
-**Date:** 2025-10-05  
 **Context:** Comprehensive design for HTML element parsing in MixPad, including special content modes (script/style/CDATA/comments) and Markdown-HTML interleaving.
 
 ## Executive Summary
@@ -51,14 +49,16 @@ More text here...
 Even more text...
 ```
 
-**Strategy:** Use heuristics to artificially close unclosed elements at likely breakpoints:
+**Strategy:** When a construct that requires a closing delimiter is not found before EOF, error recovery may attempt to find a heuristic recovery point. If found, the scanner marks the opening token with `ErrorUnbalancedToken`, emits content consumed so far, and resumes at the recovery point. If no recovery point applies, the content extends to EOF with the opening token still flagged. In all cases, no synthetic closing token is emitted.
 
-- **Block-level elements:** Close at blank line or at next block-level element start
-- **Inline elements:** Close at end of line or at `<` (start of new tag)
-- **Script/style/CDATA:** Close at explicit closer or EOF
-- **Comments:** Close at `-->` or EOF
+**Recovery heuristics (construct-specific):**
+- **Block-level tags / opening tags:** Recovery point at newline or next `<`
+- **Inline tag / attribute values:** Recovery point at newline or `<`
+- **HTML comments:** Recovery point at `<` on new line or double-newline
+- **CDATA / DOCTYPE / Raw text:** Recovery point at EOF (strict, no early heuristic)
+- **XML PI:** Recovery point at newline or EOF
 
-**Always:** Flag the opening token with `ErrorUnbalancedTokenFallback` so syntax highlighting can show the issue, but rendering/editing behavior remains reasonable.
+**Always:** Mark the opening token with `ErrorUnbalancedToken` so syntax highlighting and diagnostics can show the issue, but the tokenizer continues robustly.
 
 ## Token Vocabulary
 
@@ -78,7 +78,7 @@ The parser will need to produce a variety of token types to represent the differ
 
 ### Token Flags
 
-To handle errors gracefully, we will use a minimal set of flags. For now, we will rely on the existing `ErrorUnbalancedTokenFallback` flag to mark tokens that are part of a malformed or unclosed structure. If more specific error flags become necessary during implementation, they can be added at that time. The goal is to be frugal with flags and let demonstrated needs drive their creation.
+To handle errors gracefully, we will use a minimal set of flags. For now, we will rely on the existing `ErrorUnbalancedToken` flag to mark tokens that are part of a malformed or unclosed structure. If more specific error flags become necessary during implementation, they can be added at that time. The goal is to be frugal with flags and let demonstrated needs drive their creation.
 
 
 ## Scanning Architecture
@@ -194,33 +194,46 @@ attr=simple-value-123
 - **No special parsing:** Treat colons as regular name characters (XML spec allows this)
 - Semantic layer can split on `:` if namespace processing is needed
 
-### Malformed Tag Recovery
+### Malformed Syntax Run Recovery
 
-**Unclosed opening tag:**
-```html
-<div class="note
-More text here
-```
-**Strategy:** Close at newline OR at next `<`
-**Tokens:**
-1. `HTMLTagOpen` with `ErrorUnbalancedHTMLTag` flag
-2. `HTMLTagName`
-3. Attributes parsed as far as possible
-4. Artificial `HTMLTagClose` at newline (flagged as fallback)
+When a construct that is required to have a closing delimiter (such as `-->` for comments, `?>` for PIs, `>` for tags, `"` or `'` for quoted attribute values) is not found before EOF, error recovery may apply.
 
-**Invalid tag name:**
+**Fundamental principle:** The opening token for the unclosed construct is always marked with `ErrorUnbalancedToken`. No synthetic closing token is emitted.
+
+**Recovery strategies** (applied in order of preference):
+
+1. **Heuristic recovery point found:**
+   - A construct-specific recovery heuristic identifies a likely exit point (e.g., `<` at start-of-line for comments, newline for attribute values, double-newline for raw text).
+   - The scanner emits the accumulated content tokens (text, entities, etc.) up to (but not including) the recovery point.
+   - The scanner returns consumed length up to the recovery point, allowing the main scanner to resume normally.
+   - The opening token is flagged with `ErrorUnbalancedToken`.
+   - No synthetic closing token is emitted.
+   - Example: `<!-- comment\n<div>` → `[HTMLCommentOpen|ErrorUnbalancedToken, HTMLCommentContent, <div parsed normally>`
+
+2. **No recovery point found (extends to EOF):**
+   - The scanner consumes input until EOF.
+   - The opening token is flagged with `ErrorUnbalancedToken`.
+   - Content tokens are emitted for everything consumed.
+   - No synthetic closing token is emitted.
+   - Example: `<!-- comment` (EOF) → `[HTMLCommentOpen|ErrorUnbalancedToken, HTMLCommentContent, EOF]`
+
+**Per-construct recovery points (non-exhaustive):**
+- **Opening tag:** double newline (with possible whitespace between) or `<`
+- **Quoted attribute values:** double newline (with possible whitespace between), `<`, or `>`
+- **HTML comments:** double-newline (with possible whitespace between) or `<` on new line (with possible whitespace indent)
+- **CDATA:** double newline (with possible whitespace between), `<`, or `>` - and specifically in case `>` will also be taken as a malformed CDATA close token, and parsing continues after
+- **DOCTYPE:** newline or `<`
+- **XML PI:** newline, `<` or `>` - and specifically in case `>` will also be taken as a malformed PI close token, and parsing continues after
+- **Raw text (script/style/textarea):** double newline (with possible whitespace between) or `<`
+
+**Invalid constructs (not error recovery, but early rejection):**
 ```html
 <123-not-valid>
 ```
-**Strategy:** Treat as literal text, don't tokenize as tag
-**Fallback:** Return 0, let `scanInlineText` handle it
+**Strategy:** Reject during initial validation (invalid tag name). Return 0, let `scanInlineText` handle as literal text. This is not error recovery; the construct is not recognized as valid syntax.
 
-**Nested quotes in attributes:**
-```html
-<div title="He said "hello"">
-```
-**Strategy:** Parse until first matching quote, flag as malformed
-**Tokens:** `HTMLAttributeValue` with `ErrorMalformedHTMLTag` flag
+**Token never emitted as synthetic close:**
+No closing token (e.g., `HTMLCommentClose`, `HTMLTagClose`, `HTMLAttributeQuote`) is synthesized during error recovery. Content is consumed, opening token flagged, and scanning resumes at the recovery point or EOF.
 
 ## HTML Comments (scan-html-comment.js)
 
@@ -253,7 +266,7 @@ open                                                close
 More document content
 ```
 **Strategy:** An unclosed comment should not consume the rest of the file. Instead, a restorative strategy will be used. The parser will look for the next occurrence of `-->` or a standalone `<` on a new line.
-- If `-->` is found, the comment will be closed there, and the closing token will be marked with `ErrorUnbalancedTokenFallback`.
+- If `-->` is found, the comment will be closed there, and the closing token will be marked with `ErrorUnbalancedToken`.
 - If a new tag start `<` is found, the comment will be artificially closed before it, with the missing closing delimiter also marked as a fallback.
 This prevents catastrophic parsing failures during editing.
 
@@ -407,7 +420,7 @@ export function scanHTMLDocType(input, start, end, output) {
     output.push(contentLength | HTMLDocTypeContent | ErrorUnbalancedHTMLTag);
   }
   // Artificial close
-  output.push(0 | HTMLDocTypeClose | ErrorUnbalancedTokenFallback);
+  output.push(0 | HTMLDocTypeClose | ErrorUnbalancedToken);
   return offset - start;
 }
 ```
@@ -434,7 +447,7 @@ After the `HTMLTagClose` token of an opening `<script>`, `<style>`, or `<textare
 
 ### Scanning Strategy
 
-The scanner for raw text will search for the appropriate closing tag (e.g., `</script>`) in a case-insensitive manner. While scanning, it will invoke other primitive scanners, such as the one for HTML entities. If no closing tag is found by the end of the input, the content will be consumed to the end, and the structure will be marked with `ErrorUnbalancedTokenFallback`.
+The scanner for raw text will search for the appropriate closing tag (e.g., `</script>`) in a case-insensitive manner. While scanning, it will invoke other primitive scanners, such as the one for HTML entities. If no closing tag is found by the end of the input, the content will be consumed to the end, and the structure will be marked with `ErrorUnbalancedToken`.
 
 
 ### Special Cases
@@ -594,7 +607,7 @@ export function scanXMLProcessingInstruction(input, start, end, output) {
       if (contentLength > 0) {
         output.push(contentLength | XMLProcessingInstructionContent | ErrorUnbalancedHTMLTag);
       }
-      output.push(0 | XMLProcessingInstructionClose | ErrorUnbalancedTokenFallback);
+      output.push(0 | XMLProcessingInstructionClose | ErrorUnbalancedToken);
       return offset - start;
     }
     offset++;
@@ -605,7 +618,7 @@ export function scanXMLProcessingInstruction(input, start, end, output) {
   if (contentLength > 0) {
     output.push(contentLength | XMLProcessingInstructionContent | ErrorUnbalancedHTMLTag);
   }
-  output.push(0 | XMLProcessingInstructionClose | ErrorUnbalancedTokenFallback);
+  output.push(0 | XMLProcessingInstructionClose | ErrorUnbalancedToken);
   return offset - start;
 }
 ```
@@ -648,21 +661,30 @@ The distinction between block and inline HTML elements is a concern for the sema
 **The core principle is that Markdown parsing is always active, even inside HTML elements.** The presence of an HTML tag does not turn off Markdown processing. This means that sequences like `<div>*emphasis*</div>` and `<span>*emphasis*</span>` are both valid and will be parsed accordingly. The `scan0` tokenizer simply produces a stream of tokens (HTML and Markdown mixed), and the semantic layer is responsible for constructing the correct syntax tree from this stream. No special context stack is needed in `scan0` to manage this.
 
 
-## Error Handling and Restorative Strategies
+## Error Handling and Error Recovery
 
-The parser's behavior is consistent and predictable at all times. There is no special "editing mode." The restorative parsing strategies are always active, ensuring that the input is handled gracefully whether the document is being viewed or actively edited. This provides a stable and unsurprising user experience.
+The parser's behavior is consistent and predictable at all times. There is no special "editing mode." Error recovery (when a construct is unclosed) is always active, ensuring that input is handled gracefully whether the document is being viewed or actively edited. This provides a stable and unsurprising user experience.
 
-### Summary Table
-| Construct | Unclosed Scenario | Restorative Action | Flag |
+**Core principle:** When a construct requiring a closing delimiter is not found before EOF, the opening token is marked with `ErrorUnbalancedToken`. Content tokens are emitted for what was consumed. No synthetic closing token is emitted. The scanner may attempt heuristic recovery (resume at a recovery point) or extend to EOF, but the opening token always bears the error flag.
+
+### Recovery Summary
+
+| Construct | Unclosed Scenario | Recovery Behavior | Opening Token Flag |
 |-----------|------------------|----------|------|
-| Opening tag | `<div class="note` followed by newline | Close at newline or before next `<` | `ErrorUnbalancedTokenFallback` |
-| Closing tag | `</div` followed by newline | Close at newline | `ErrorUnbalancedTokenFallback` |
-| Comment | `<!-- no close` | Close at next `-->` or `<` | `ErrorUnbalancedTokenFallback` |
-| CDATA | `<![CDATA[ no close` | Close at EOF | `ErrorUnbalancedTokenFallback` |
-| DOCTYPE | `<!DOCTYPE html` | Close at EOF | `ErrorUnbalancedTokenFallback` |
-| XML PI | `<?xml version="1.0"` | Close at newline or EOF | `ErrorUnbalancedTokenFallback` |
-| Script/style/textarea | `<script>` with no closer | Close at EOF | `ErrorUnbalancedTokenFallback` |
-| Attribute value | `attr="no close` | Close at newline or `>` | `ErrorUnbalancedTokenFallback` |
+| Opening tag | `<div class="note` (newline) | Attempt recovery at newline or `<`; if found, resume there; otherwise extend to EOF | `ErrorUnbalancedToken` |
+| Closing tag | `</div` (newline) | Attempt recovery at newline; if found, resume; otherwise extend to EOF | `ErrorUnbalancedToken` |
+| Attribute value (quoted) | `attr="no close` (newline) | Attempt recovery at newline, `<`, or `>`; otherwise extend to EOF | (opening tag marked) |
+| Comment | `<!-- no close` (following content) | Attempt recovery at `<` on new line or double-newline; otherwise extend to EOF | `ErrorUnbalancedToken` |
+| CDATA | `<![CDATA[ no close` | No early heuristic; extend to EOF | `ErrorUnbalancedToken` |
+| DOCTYPE | `<!DOCTYPE html` | No early heuristic; extend to EOF (multi-line allowed) | `ErrorUnbalancedToken` |
+| XML PI | `<?xml version="1.0"` | Attempt recovery at newline; otherwise extend to EOF | `ErrorUnbalancedToken` |
+| Raw text (script/style/textarea) | `<script>` (no closing tag) | No early heuristic; extend to EOF | (opening tag marked) |
+
+**Invariants:**
+- Opening token always flagged when construct is unclosed (recovery or EOF).
+- No synthetic closing token emitted.
+- No tokens with encoded length zero.
+- Recovery only happens when a proper closing delimiter is absent.
 
 
 ## Token Information
@@ -695,7 +717,7 @@ These tests will serve as a living specification for the parser's behavior.
 
 ### Phase 1: Token Definitions
 - Define the necessary HTML token types in the appropriate module.
-- Define any necessary error flags, starting with the existing `ErrorUnbalancedTokenFallback`.
+- Define any necessary error flags, starting with the existing `ErrorUnbalancedToken`.
 
 ### Phase 2: Basic Tag Scanning
 - Implement the scanner for basic HTML tags (opening, closing, self-closing) and their attributes.
@@ -715,7 +737,7 @@ These tests will serve as a living specification for the parser's behavior.
 
 ### Phase 5: Error Handling
 - Systematically review and test all error handling and restorative strategies across all new scanner modules.
-- Ensure that the `ErrorUnbalancedTokenFallback` flag is applied correctly in all relevant cases.
+- Ensure that the `ErrorUnbalancedToken` flag is applied correctly in all relevant cases.
 
 ### Phase 6: Integration and Performance
 - Run the full test suite to ensure no regressions have been introduced.

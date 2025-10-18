@@ -1,6 +1,6 @@
 // @ts-check
 
-import { ErrorUnbalancedTokenFallback } from './scan-token-flags.js';
+import { ErrorUnbalancedToken } from './scan-token-flags.js';
 import {
   XMLProcessingInstructionClose,
   XMLProcessingInstructionContent,
@@ -33,7 +33,8 @@ export function scanXMLProcessingInstruction(input, start, end, output) {
   let offset = start + 2;
   if (offset >= end) return 0;
 
-  // Emit opening token
+  const openTokenIndex = output.length;
+  // Emit opening token (will flag later if unclosed)
   output.push(2 | XMLProcessingInstructionOpen);
 
   // Parse target name
@@ -71,7 +72,7 @@ export function scanXMLProcessingInstruction(input, start, end, output) {
     output.push(targetLength | XMLProcessingInstructionTarget);
   }
 
-  // Parse content until '?>'
+  // Parse content until '?>' with heuristic recovery
   const contentStart = offset;
 
   while (offset < end) {
@@ -79,7 +80,7 @@ export function scanXMLProcessingInstruction(input, start, end, output) {
     
     if (ch === 63 /* ? */ && offset + 1 < end &&
         input.charCodeAt(offset + 1) === 62 /* > */) {
-      // Found '?>'
+      // Found proper close '?>'
       const contentLength = offset - contentStart;
       if (contentLength > 0) {
         output.push(contentLength | XMLProcessingInstructionContent);
@@ -88,24 +89,48 @@ export function scanXMLProcessingInstruction(input, start, end, output) {
       return offset - start + 2;
     }
     
-    if (ch === 10 || ch === 13) {
-      // Close at newline (restorative strategy - no error flag, successful recovery)
+    // Heuristic recovery points
+    if (ch === 10 /* \n */ || ch === 13 /* \r */) {
+      // Newline - recovery point
       const contentLength = offset - contentStart;
       if (contentLength > 0) {
         output.push(contentLength | XMLProcessingInstructionContent);
       }
-      // Don't emit close token, just return to allow newline to be tokenized
+      output[openTokenIndex] |= ErrorUnbalancedToken;
       return offset - start;
+    }
+    
+    if (ch === 60 /* < */) {
+      // < - recovery point
+      const contentLength = offset - contentStart;
+      if (contentLength > 0) {
+        output.push(contentLength | XMLProcessingInstructionContent);
+      }
+      output[openTokenIndex] |= ErrorUnbalancedToken;
+      return offset - start;
+    }
+    
+    if (ch === 62 /* > */) {
+      // > - recovery point, also emit as malformed close
+      const contentLength = offset - contentStart;
+      if (contentLength > 0) {
+        output.push(contentLength | XMLProcessingInstructionContent);
+      }
+      output[openTokenIndex] |= ErrorUnbalancedToken;
+      output.push(1 | XMLProcessingInstructionClose | ErrorUnbalancedToken);
+      return offset - start + 1;
     }
     
     offset++;
   }
 
-  // EOF without finding '?>' - this IS an error
+  // EOF without finding '?>' - error
   const contentLength = offset - contentStart;
   if (contentLength > 0) {
-    output.push(contentLength | XMLProcessingInstructionContent | ErrorUnbalancedTokenFallback);
+    output.push(contentLength | XMLProcessingInstructionContent | ErrorUnbalancedToken);
   }
+  output[openTokenIndex] |= ErrorUnbalancedToken;
+  return offset - start;
   // Don't emit zero-length close token
   return offset - start;
 }

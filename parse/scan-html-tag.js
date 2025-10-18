@@ -1,6 +1,6 @@
 // @ts-check
 
-import { ErrorUnbalancedTokenFallback } from './scan-token-flags.js';
+import { ErrorUnbalancedToken } from './scan-token-flags.js';
 import {
   EntityDecimal,
   EntityHex,
@@ -95,7 +95,8 @@ export function scanHTMLTag(input, start, end, output) {
   const tagNameLength = offset - tagNameStart;
   if (tagNameLength === 0) return 0;
 
-  // Emit opening token
+  const openTokenIndex = output.length;
+  // Emit opening token (will flag later if unclosed)
   if (isClosing) {
     output.push(2 | HTMLTagOpen); // '</'
   } else {
@@ -127,26 +128,38 @@ export function scanHTMLTag(input, start, end, output) {
     if (offset < end && input.charCodeAt(offset) === 62 /* > */) {
       if (hasNewline) {
         // Closing tag with newline before > - treat as error
-        output.push(1 | HTMLTagClose | ErrorUnbalancedTokenFallback);
+        output[openTokenIndex] |= ErrorUnbalancedToken;
+        output.push(1 | HTMLTagClose | ErrorUnbalancedToken);
       } else {
         output.push(1 | HTMLTagClose);
       }
       return offset - start + 1;
     }
 
-    // Unclosed closing tag - would emit error but zero-length tokens not allowed
-    // Just return without emitting closing token
+    // Unclosed closing tag - flag opening token
+    output[openTokenIndex] |= ErrorUnbalancedToken;
     return offset - start;
   }
 
-  // Parse attributes for opening tags
+  // Parse attributes for opening tags with heuristic recovery
   let hasError = false;
+  let prevWasNewline = false;
+  
   while (offset < end) {
-    // Skip whitespace
+    // Skip whitespace (track newlines for recovery)
     const wsStart = offset;
+    let wsHasDoubleNewline = false;
     while (offset < end) {
       const ch = input.charCodeAt(offset);
       if (ch === 9 || ch === 32 || ch === 10 || ch === 13) {
+        if (ch === 10 || ch === 13) {
+          if (prevWasNewline) {
+            wsHasDoubleNewline = true;
+          }
+          prevWasNewline = true;
+        } else {
+          // Space or tab - don't reset prevWasNewline
+        }
         offset++;
       } else {
         break;
@@ -157,9 +170,24 @@ export function scanHTMLTag(input, start, end, output) {
       output.push(wsLength | Whitespace);
     }
 
-    if (offset >= end) break;
+    // Check for double-newline recovery point
+    if (wsHasDoubleNewline) {
+      output[openTokenIndex] |= ErrorUnbalancedToken;
+      return offset - start;
+    }
+
+    if (offset >= end) {
+      output[openTokenIndex] |= ErrorUnbalancedToken;
+      break;
+    }
 
     const ch = input.charCodeAt(offset);
+
+    // Recovery point: < character
+    if (ch === 60 /* < */) {
+      output[openTokenIndex] |= ErrorUnbalancedToken;
+      return offset - start;
+    }
 
     // Check for tag close or self-closing
     if (ch === 62 /* > */) {
@@ -172,6 +200,8 @@ export function scanHTMLTag(input, start, end, output) {
       output.push(2 | HTMLTagSelfClosing);
       return offset - start + 2;
     }
+
+    prevWasNewline = false;
 
     // Parse attribute name (potentially with namespace)
     const attrNameStart = offset;
@@ -271,7 +301,7 @@ export function scanHTMLTag(input, start, end, output) {
 
     if (offset >= end) break;
 
-    // Parse attribute value
+    // Parse attribute value with recovery
     const quoteCh = input.charCodeAt(offset);
     
     if (quoteCh === 34 /* " */ || quoteCh === 39 /* ' */) {
@@ -279,6 +309,7 @@ export function scanHTMLTag(input, start, end, output) {
       output.push(1 | HTMLAttributeQuote);
       offset++;
 
+      let attrPrevWasNewline = false;
       while (offset < end) {
         const valCh = input.charCodeAt(offset);
         
@@ -289,11 +320,38 @@ export function scanHTMLTag(input, start, end, output) {
           break;
         }
         
-        if (valCh === 10 || valCh === 13) {
-          // Unclosed attribute value - close at newline without emitting quote token
-          hasError = true;
-          break;
+        // Heuristic recovery for attribute values
+        if (valCh === 10 /* \n */ || valCh === 13 /* \r */) {
+          if (attrPrevWasNewline) {
+            // Double newline - recovery point
+            output[openTokenIndex] |= ErrorUnbalancedToken;
+            return offset - start;
+          }
+          // Single newline - emit as whitespace and trigger recovery
+          const wsStart = offset;
+          if (valCh === 13 && offset + 1 < end && input.charCodeAt(offset + 1) === 10) {
+            offset += 2; // \r\n
+          } else {
+            offset++;
+          }
+          output.push((offset - wsStart) | Whitespace);
+          output[openTokenIndex] |= ErrorUnbalancedToken;
+          return offset - start;
         }
+        
+        if (valCh === 60 /* < */) {
+          // < - recovery point
+          output[openTokenIndex] |= ErrorUnbalancedToken;
+          return offset - start;
+        }
+        
+        if (valCh === 62 /* > */) {
+          // > - recovery point
+          output[openTokenIndex] |= ErrorUnbalancedToken;
+          return offset - start;
+        }
+        
+        attrPrevWasNewline = false;
         
         if (valCh === 38 /* & */) {
           // Try to parse entity
@@ -309,7 +367,8 @@ export function scanHTMLTag(input, start, end, output) {
         const textStart = offset;
         while (offset < end) {
           const ch = input.charCodeAt(offset);
-          if (ch === quoteCh || ch === 38 /* & */ || ch === 10 || ch === 13) {
+          if (ch === quoteCh || ch === 38 /* & */ || ch === 10 || ch === 13 ||
+              ch === 60 /* < */ || ch === 62 /* > */) {
             break;
           }
           // Check for percent-encoding boundary (%XX)
@@ -350,8 +409,8 @@ export function scanHTMLTag(input, start, end, output) {
       }
 
       if (offset >= end && input.charCodeAt(offset - 1) !== quoteCh) {
-        // EOF without closing quote - emit error quote
-        output.push(1 | HTMLAttributeQuote | ErrorUnbalancedTokenFallback);
+        // EOF without closing quote - per spec, don't emit synthetic close
+        output[openTokenIndex] |= ErrorUnbalancedToken;
         hasError = true;
       }
     } else {
@@ -376,12 +435,13 @@ export function scanHTMLTag(input, start, end, output) {
     }
   }
 
-  // Unclosed opening tag - don't emit zero-length close token
+  // Unclosed opening tag - flag opening token if error
   if (hasError || offset >= end) {
+    output[openTokenIndex] |= ErrorUnbalancedToken;
     return offset - start;
   }
 
-  // Shouldn't reach here, but safety fallback - don't emit zero-length token
+  // Shouldn't reach here, but safety fallback
   return offset - start;
 }
 

@@ -1,6 +1,5 @@
 // @ts-check
 
-import { ErrorUnbalancedTokenFallback } from './scan-token-flags.js';
 import { scanEntity } from './scan-entity.js';
 import { HTMLRawText } from './scan-tokens.js';
 import { getTokenLength } from './scan-core.js';
@@ -28,12 +27,42 @@ import { getTokenLength } from './scan-core.js';
 export function scanHTMLRawText(input, start, end, tagNameStart, tagNameLength, output) {
   let offset = start;
   let segmentStart = start;
+  let prevWasNewline = false;
 
   while (offset < end) {
+    const ch = input.charCodeAt(offset);
+
+    // Check for double newline recovery point
+    if (ch === 10 /* \n */ || ch === 13 /* \r */) {
+      if (prevWasNewline) {
+        // Double newline - recovery point
+        if (offset > segmentStart) {
+          const rawLength = offset - segmentStart;
+          output.push(rawLength | HTMLRawText);
+        }
+        // Note: Opening tag will be flagged by scan-html-tag.js
+        return offset - start;
+      }
+      prevWasNewline = true;
+      offset++;
+      continue;
+    }
+
     // Check for closing tag (case-insensitive): '</', then tag name, then '>' or whitespace
-    if (input.charCodeAt(offset) === 60 /* < */) {
+    if (ch === 60 /* < */) {
       if (offset + 1 >= end || input.charCodeAt(offset + 1) !== 47 /* / */) {
+        // Just a < but not closing tag - could be recovery point only if on new line
+        if (prevWasNewline) {
+          if (offset > segmentStart) {
+            const rawLength = offset - segmentStart;
+            output.push(rawLength | HTMLRawText);
+          }
+          // Recovery at < on new line
+          return offset - start;
+        }
+        // Not a closing tag and not on new line - continue as raw text
         offset++;
+        prevWasNewline = false;
         continue;
       }
       
@@ -46,10 +75,10 @@ export function scanHTMLRawText(input, start, end, tagNameStart, tagNameLength, 
           match = false;
           break;
         }
-        const ch = input.charCodeAt(tempOffset);
+        const tagCh = input.charCodeAt(tempOffset);
         const expectedCh = input.charCodeAt(tagNameStart + i);
         // Case-insensitive comparison
-        const chLower = (ch >= 65 && ch <= 90) ? ch + 32 : ch;
+        const chLower = (tagCh >= 65 && tagCh <= 90) ? tagCh + 32 : tagCh;
         const expLower = (expectedCh >= 65 && expectedCh <= 90) ? expectedCh + 32 : expectedCh;
         
         if (chLower !== expLower) {
@@ -64,7 +93,7 @@ export function scanHTMLRawText(input, start, end, tagNameStart, tagNameLength, 
         const nextCh = input.charCodeAt(tempOffset);
         if (nextCh === 62 /* > */ || nextCh === 9 || nextCh === 32 || 
             nextCh === 10 || nextCh === 13) {
-          // Found closing tag - emit any pending raw text
+          // Found proper closing tag - emit any pending raw text
           if (offset > segmentStart) {
             const rawLength = offset - segmentStart;
             output.push(rawLength | HTMLRawText);
@@ -76,7 +105,7 @@ export function scanHTMLRawText(input, start, end, tagNameStart, tagNameLength, 
     }
 
     // Check for entity
-    if (input.charCodeAt(offset) === 38 /* & */) {
+    if (ch === 38 /* & */) {
       const entityToken = scanEntity(input, offset, end);
       if (entityToken !== 0) {
         // Emit any pending raw text before the entity
@@ -91,8 +120,13 @@ export function scanHTMLRawText(input, start, end, tagNameStart, tagNameLength, 
         const entityLength = getTokenLength(entityToken);
         offset += entityLength;
         segmentStart = offset;
+        prevWasNewline = false;
         continue;
       }
+    }
+
+    if (ch !== 32 && ch !== 9) {
+      prevWasNewline = false;
     }
 
     offset++;
@@ -101,8 +135,8 @@ export function scanHTMLRawText(input, start, end, tagNameStart, tagNameLength, 
   // EOF without finding closing tag
   if (offset > segmentStart) {
     const rawLength = offset - segmentStart;
-    output.push(rawLength | HTMLRawText | ErrorUnbalancedTokenFallback);
+    output.push(rawLength | HTMLRawText);
   }
-  
+  // Note: Opening tag will be flagged by scan-html-tag.js
   return offset - start;
 }

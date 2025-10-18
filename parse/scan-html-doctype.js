@@ -1,6 +1,6 @@
 // @ts-check
 
-import { ErrorUnbalancedTokenFallback } from './scan-token-flags.js';
+import { ErrorUnbalancedToken } from './scan-token-flags.js';
 import { HTMLDocTypeClose, HTMLDocTypeContent, HTMLDocTypeOpen } from './scan-tokens.js';
 
 /**
@@ -42,10 +42,11 @@ export function scanHTMLDocType(input, start, end, output) {
     offset++;
   }
 
-  // Emit opening token
+  const openTokenIndex = output.length;
+  // Emit opening token (will flag later if unclosed)
   output.push(9 | HTMLDocTypeOpen); // '<!DOCTYPE'
 
-  // Scan content until '>' (tracking square brackets for DTD subset)
+  // Scan content until '>' with heuristic recovery
   const contentStart = offset;
   let bracketDepth = 0;
 
@@ -59,13 +60,29 @@ export function scanHTMLDocType(input, start, end, output) {
       bracketDepth--;
       offset++;
     } else if (ch === 62 /* > */ && bracketDepth === 0) {
-      // Found closing '>'
+      // Found proper closing '>'
       const contentLength = offset - contentStart;
       if (contentLength > 0) {
         output.push(contentLength | HTMLDocTypeContent);
       }
       output.push(1 | HTMLDocTypeClose);
       return offset - start + 1;
+    } else if (ch === 10 /* \n */ || ch === 13 /* \r */) {
+      // Newline - recovery point
+      const contentLength = offset - contentStart;
+      if (contentLength > 0) {
+        output.push(contentLength | HTMLDocTypeContent);
+      }
+      output[openTokenIndex] |= ErrorUnbalancedToken;
+      return offset - start;
+    } else if (ch === 60 /* < */) {
+      // < - recovery point
+      const contentLength = offset - contentStart;
+      if (contentLength > 0) {
+        output.push(contentLength | HTMLDocTypeContent);
+      }
+      output[openTokenIndex] |= ErrorUnbalancedToken;
+      return offset - start;
     } else {
       offset++;
     }
@@ -74,8 +91,10 @@ export function scanHTMLDocType(input, start, end, output) {
   // EOF without finding '>'
   const contentLength = offset - contentStart;
   if (contentLength > 0) {
-    output.push(contentLength | HTMLDocTypeContent | ErrorUnbalancedTokenFallback);
+    output.push(contentLength | HTMLDocTypeContent | ErrorUnbalancedToken);
   }
+  output[openTokenIndex] |= ErrorUnbalancedToken;
+  return offset - start;
   // Don't emit zero-length close token
   return offset - start;
 }
