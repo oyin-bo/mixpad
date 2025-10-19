@@ -18,6 +18,7 @@ import { scanBulletListMarker } from './scan-list-bullet.js';
 import { scanOrderedListMarker } from './scan-list-ordered.js';
 import { scanTaskListMarker } from './scan-list-task.js';
 import { BacktickBoundary, InlineCode, InlineText, NewLine, Whitespace, HTMLTagName, HTMLTagClose, HTMLTagOpen } from './scan-tokens.js';
+import { IsSafeReparsePoint, ErrorUnbalancedToken } from './scan-token-flags.js';
 
 /**
  * ProvisionalToken: 32-bit packed representation.
@@ -48,7 +49,20 @@ export function scan0({
 
   let tokenCount = 0;
   let offset = startOffset;
+  
+  // Safe reparse point tracking
+  // Initialize to true for the start of file (offset 0)
+  let next_token_is_reparse_start = (startOffset === 0);
+  let error_recovery_mode = false;
+  
   while (offset < endOffset) {
+    // Record the index where the next token(s) will be added
+    const tokenStartIndex = output.length;
+    const shouldMarkAsReparsePoint = next_token_is_reparse_start && !error_recovery_mode;
+    
+    // Reset the flag; it will be set again if this token creates a safe boundary
+    next_token_is_reparse_start = false;
+    
     const ch = input.charCodeAt(offset++);
 
     switch (ch) {
@@ -385,6 +399,44 @@ export function scan0({
         if (consumed > 0) {
           tokenCount = output.length;
           offset += consumed - 1;
+        }
+      }
+    }
+    
+    // Apply safe reparse point flag if needed (to the first token emitted in this iteration)
+    if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+      output[tokenStartIndex] |= IsSafeReparsePoint;
+    }
+    
+    // Check if we just emitted tokens that create a safe boundary
+    // A safe boundary is created by a blank line pattern:
+    // - NewLine followed by NewLine (blank line)
+    // - NewLine followed by Whitespace followed by NewLine (blank line with spaces)
+    if (output.length > tokenStartIndex) {
+      const lastToken = output[output.length - 1];
+      const lastTokenKind = getTokenKind(lastToken);
+      const lastTokenFlags = getTokenFlags(lastToken);
+      
+      // Update error recovery mode based on last token
+      if (lastTokenFlags & ErrorUnbalancedToken) {
+        error_recovery_mode = true;
+      }
+      
+      // Check for blank line pattern
+      if (lastTokenKind === NewLine) {
+        // Look at the token before the one we just emitted
+        // (could be from a previous iteration)
+        if (output.length >= 2) {
+          const prevToken = output[output.length - 2];
+          const prevTokenKind = getTokenKind(prevToken);
+          
+          // NewLine after NewLine or Whitespace = blank line
+          if (prevTokenKind === NewLine || prevTokenKind === Whitespace) {
+            // Only set reparse point if not in error recovery
+            if (!error_recovery_mode) {
+              next_token_is_reparse_start = true;
+            }
+          }
         }
       }
     }
