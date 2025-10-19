@@ -1,8 +1,6 @@
 # Headings — Implementation & Test Plan
 
-**Date:** October 18, 2025  
-**Status:** Planning  
-**Context:** Comprehensive design for ATX and Setext heading parsing in MixPad's scanner layer, following zero-allocation principles.
+Comprehensive design for ATX and Setext heading parsing in MixPad's scanner layer, following zero-allocation principles.
 
 ## Executive Summary
 
