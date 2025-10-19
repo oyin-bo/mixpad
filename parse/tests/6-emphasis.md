@@ -1,24 +1,24 @@
 *word*
 12   3
-@1 AsteriskDelimiter "*" CanOpen
+@1 AsteriskDelimiter|IsSafeReparsePoint "*" CanOpen
 @2 InlineText "word"
 @3 AsteriskDelimiter "*" CanClose
 
 _word_
 12   3
-@1 UnderscoreDelimiter "_" CanOpen
+@1 UnderscoreDelimiter|IsSafeReparsePoint "_" CanOpen
 @2 InlineText "word"
 @3 UnderscoreDelimiter "_" CanClose
 
 ~~word~~
 1 2   3
-@1 TildeDelimiter "~~" CanOpen
+@1 TildeDelimiter|IsSafeReparsePoint "~~" CanOpen
 @2 InlineText "word"
 @3 TildeDelimiter "~~" CanClose
 
 **bold**
 1 2   3
-@1 AsteriskDelimiter "**" CanOpen
+@1 AsteriskDelimiter|IsSafeReparsePoint "**" CanOpen
 @2 InlineText "bold"
 @3 AsteriskDelimiter "**" CanClose
 
