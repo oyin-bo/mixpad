@@ -97,6 +97,9 @@ export function scanXMLProcessingInstruction(input, start, end, output) {
         output.push(contentLength | XMLProcessingInstructionContent);
       }
       output[openTokenIndex] |= ErrorUnbalancedToken;
+      for (let i = openTokenIndex + 1; i < output.length; i++) {
+        output[i] |= ErrorUnbalancedToken;
+      }
       return offset - start;
     }
     
@@ -107,6 +110,9 @@ export function scanXMLProcessingInstruction(input, start, end, output) {
         output.push(contentLength | XMLProcessingInstructionContent);
       }
       output[openTokenIndex] |= ErrorUnbalancedToken;
+      for (let i = openTokenIndex + 1; i < output.length; i++) {
+        output[i] |= ErrorUnbalancedToken;
+      }
       return offset - start;
     }
     
@@ -117,6 +123,9 @@ export function scanXMLProcessingInstruction(input, start, end, output) {
         output.push(contentLength | XMLProcessingInstructionContent);
       }
       output[openTokenIndex] |= ErrorUnbalancedToken;
+      for (let i = openTokenIndex + 1; i < output.length; i++) {
+        output[i] |= ErrorUnbalancedToken;
+      }
       output.push(1 | XMLProcessingInstructionClose | ErrorUnbalancedToken);
       return offset - start + 1;
     }
@@ -130,5 +139,8 @@ export function scanXMLProcessingInstruction(input, start, end, output) {
     output.push(contentLength | XMLProcessingInstructionContent);
   }
   output[openTokenIndex] |= ErrorUnbalancedToken;
+  for (let i = openTokenIndex + 1; i < output.length; i++) {
+    output[i] |= ErrorUnbalancedToken;
+  }
   return offset - start;
 }

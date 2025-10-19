@@ -29,18 +29,21 @@ Newline recovery
 <?xml unclosed
 1    2
 @1 XMLProcessingInstructionOpen|ErrorUnbalancedToken
-@2 XMLProcessingInstructionOpen|ErrorUnbalancedToken " unclosed"
+@2 XMLProcessingInstructionContent|ErrorUnbalancedToken " unclosed"
 <-- EOF
 
 XML instruction: no recovery
 <?xml unclosed <-- EOF
-1
+1    2
 @1 XMLProcessingInstructionOpen|ErrorUnbalancedToken
+@2 XMLProcessingInstructionContent|ErrorUnbalancedToken " unclosed "
 
 > malformed close recovery
 <?xml unclosed >
-1
+1    2         3
 @1 XMLProcessingInstructionOpen|ErrorUnbalancedToken
+@2 XMLProcessingInstructionContent " unclosed "
+@3 XMLProcessingInstructionClose|ErrorUnbalancedToken
 
 <-- EOF
 
