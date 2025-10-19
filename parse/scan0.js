@@ -18,6 +18,7 @@ import { scanBulletListMarker } from './scan-list-bullet.js';
 import { scanOrderedListMarker } from './scan-list-ordered.js';
 import { scanTaskListMarker } from './scan-list-task.js';
 import { BacktickBoundary, InlineCode, InlineText, NewLine, Whitespace, HTMLTagName, HTMLTagClose, HTMLTagOpen } from './scan-tokens.js';
+import { IsSafeReparsePoint, ErrorUnbalancedToken } from './scan-token-flags.js';
 
 /**
  * ProvisionalToken: 32-bit packed representation.
@@ -48,7 +49,20 @@ export function scan0({
 
   let tokenCount = 0;
   let offset = startOffset;
+  
+  // Safe reparse point tracking
+  // Start of file (offset 0) is always a safe reparse point
+  let next_token_is_reparse_start = (startOffset === 0);
+  let in_error_recovery = false;
+  let consecutive_newlines = 0;
   while (offset < endOffset) {
+    // Check if we need to mark this token as a safe reparse point
+    const mark_as_reparse_point = next_token_is_reparse_start && !in_error_recovery;
+    if (next_token_is_reparse_start) {
+      next_token_is_reparse_start = false;
+    }
+    
+    const token_start_index = output.length;
     const ch = input.charCodeAt(offset++);
 
     switch (ch) {
@@ -56,6 +70,11 @@ export function scan0({
       case 0: {
         output.push(NewLine | 1 /* NewLine, length: 1 */);
         tokenCount++;
+        consecutive_newlines++;
+        // After a blank line (two consecutive newlines), the next token is a safe reparse point
+        if (consecutive_newlines >= 2) {
+          next_token_is_reparse_start = true;
+        }
         break;
       }
 
@@ -67,6 +86,11 @@ export function scan0({
           output.push(NewLine | 1 /* NewLine, length: 1 */);
         }
         tokenCount++;
+        consecutive_newlines++;
+        // After a blank line (two consecutive newlines), the next token is a safe reparse point
+        if (consecutive_newlines >= 2) {
+          next_token_is_reparse_start = true;
+        }
         break;
       }
 
@@ -76,16 +100,21 @@ export function scan0({
         const entityToken = scanEntity(input, offset - 1, endOffset);
         if (entityToken !== 0) {
           const length = getTokenLength(entityToken);
-          output.push(entityToken);
+          output.push(entityToken | (mark_as_reparse_point ? IsSafeReparsePoint : 0));
           tokenCount++;
           offset += length - 1;
         } else {
           const consumed = scanInlineText(input, offset - 1, endOffset, output);
           if (consumed > 0) {
+            if (mark_as_reparse_point && output.length > token_start_index) {
+              output[token_start_index] |= IsSafeReparsePoint;
+            }
             tokenCount = output.length;
             offset += consumed - 1;
           }
         }
+        // Reset consecutive newlines for non-newline content
+        consecutive_newlines = 0;
         continue;
       }
 
@@ -94,17 +123,22 @@ export function scan0({
         const esc = scanEscaped(input, offset - 1, endOffset);
         if (esc !== 0) {
           const length = getTokenLength(esc);
-          output.push(esc);
+          output.push(esc | (mark_as_reparse_point ? IsSafeReparsePoint : 0));
           tokenCount++;
           offset += length - 1;
+          consecutive_newlines = 0;
           continue;
         }
         // fallthrough to inline text if not recognized
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += consumed - 1;
         }
+        consecutive_newlines = 0;
         continue;
       }
 
@@ -112,7 +146,11 @@ export function scan0({
         // Try fenced block first if we could be at line start
         const consumed = scanFencedBlock(input, offset - 1, endOffset, output);
         if (consumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
+          consecutive_newlines = 0;
           return tokenCount; // Return after handling block fence
         }
 
@@ -123,14 +161,22 @@ export function scan0({
           // nothing recognized; fall back to inline text handling
           const consumed = scanInlineText(input, offset - 1, endOffset, output);
           if (consumed > 0) {
+            if (mark_as_reparse_point && output.length > token_start_index) {
+              output[token_start_index] |= IsSafeReparsePoint;
+            }
             tokenCount = output.length;
             offset += consumed - 1;
           }
+          consecutive_newlines = 0;
           continue;
         }
 
         // no need to update offset, we return immediately
+        if (mark_as_reparse_point && output.length > token_start_index) {
+          output[token_start_index] |= IsSafeReparsePoint;
+        }
         tokenCount = output.length;
+        consecutive_newlines = 0;
         return tokenCount;
       }
 
@@ -138,24 +184,36 @@ export function scan0({
         // Try fenced block first
         const consumedFence = scanFencedBlock(input, offset - 1, endOffset, output);
         if (consumedFence > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
+          consecutive_newlines = 0;
           return tokenCount; // Return after handling block fence
         }
 
         // Try emphasis delimiter
         const consumedEmphasis = scanEmphasis(input, offset - 1, endOffset, output);
         if (consumedEmphasis > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += consumedEmphasis - 1;
+          consecutive_newlines = 0;
           continue;
         }
 
         // Fall back to inline text
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += consumed - 1;
         }
+        consecutive_newlines = 0;
         continue;
       }
 
@@ -163,41 +221,61 @@ export function scan0({
         // Try bullet list marker first
         const listConsumed = scanBulletListMarker(input, offset - 1, endOffset, output);
         if (listConsumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += listConsumed - 1;
+          consecutive_newlines = 0;
           continue;
         }
         
         // Try emphasis delimiter (Pattern B: returns consumed length)
         const consumedEmphasis = scanEmphasis(input, offset - 1, endOffset, output);
         if (consumedEmphasis > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += consumedEmphasis - 1;
+          consecutive_newlines = 0;
           continue;
         }
 
         // Fall back to inline text
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += consumed - 1;
         }
+        consecutive_newlines = 0;
         continue;
       }
 
       case 95 /* _ underscore */: {
         const consumedEmphasis = scanEmphasis(input, offset - 1, endOffset, output);
         if (consumedEmphasis > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += consumedEmphasis - 1;
+          consecutive_newlines = 0;
           continue;
         }
 
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += consumed - 1;
         }
+        consecutive_newlines = 0;
         continue;
       }
 
@@ -273,17 +351,25 @@ export function scan0({
         }
 
         if (htmlConsumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += htmlConsumed - 1;
+          consecutive_newlines = 0;
           continue;
         }
 
         // Fall back to inline text
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += consumed - 1;
         }
+        consecutive_newlines = 0;
         continue;
       }
 
@@ -293,9 +379,10 @@ export function scan0({
         if (output.length > 0 && getTokenKind(output[output.length - 1]) === Whitespace) {
           output[output.length - 1]++; // Increment length (low bits)
         } else {
-          output.push(Whitespace | 1 /* Whitespace, length: 1 */);
+          output.push(Whitespace | 1 | (mark_as_reparse_point ? IsSafeReparsePoint : 0));
           tokenCount++;
         }
+        // Whitespace doesn't reset consecutive_newlines
         continue;
       }
 
@@ -303,17 +390,25 @@ export function scan0({
         // Try bullet list marker
         const listConsumed = scanBulletListMarker(input, offset - 1, endOffset, output);
         if (listConsumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += listConsumed - 1;
+          consecutive_newlines = 0;
           continue;
         }
 
         // Fall back to inline text
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += consumed - 1;
         }
+        consecutive_newlines = 0;
         continue;
       }
 
@@ -321,17 +416,25 @@ export function scan0({
         // Try bullet list marker
         const listConsumed = scanBulletListMarker(input, offset - 1, endOffset, output);
         if (listConsumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += listConsumed - 1;
+          consecutive_newlines = 0;
           continue;
         }
 
         // Fall back to inline text
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += consumed - 1;
         }
+        consecutive_newlines = 0;
         continue;
       }
 
@@ -348,17 +451,25 @@ export function scan0({
         // Try ordered list marker
         const listConsumed = scanOrderedListMarker(input, offset - 1, endOffset, output);
         if (listConsumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += listConsumed - 1;
+          consecutive_newlines = 0;
           continue;
         }
 
         // Fall back to inline text
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += consumed - 1;
         }
+        consecutive_newlines = 0;
         continue;
       }
 
@@ -366,26 +477,48 @@ export function scan0({
         // Try task list marker
         const taskConsumed = scanTaskListMarker(input, offset - 1, endOffset, output);
         if (taskConsumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += taskConsumed - 1;
+          consecutive_newlines = 0;
           continue;
         }
 
         // Fall back to inline text
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += consumed - 1;
         }
+        consecutive_newlines = 0;
         continue;
       }
 
       default: {
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
+          if (mark_as_reparse_point && output.length > token_start_index) {
+            output[token_start_index] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += consumed - 1;
         }
+        consecutive_newlines = 0;
+      }
+    }
+    
+    // Track error recovery state based on ErrorUnbalancedToken flag
+    if (output.length > token_start_index) {
+      const first_new_token = output[token_start_index];
+      const flags = getTokenFlags(first_new_token);
+      
+      if (flags & ErrorUnbalancedToken) {
+        in_error_recovery = true;
       }
     }
   }
