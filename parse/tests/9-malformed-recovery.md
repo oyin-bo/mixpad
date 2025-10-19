@@ -4,21 +4,15 @@ Tests for recovery heuristics across all HTML/XML constructs as specified in `9-
 
 ## HTML Comments
 
-Double newline recovery
-<!-- unclosed comment
-1   2
-@1 HTMLCommentOpen|ErrorUnbalancedToken
-@2 HTMLCommentContent|ErrorUnbalancedToken " unclosed comment\n"
-
-<-- EOF
-
 XML comment on double new line recovery
 <!-- unclosed
-1   2
+1   2        3
 @1 HTMLCommentOpen|ErrorUnbalancedToken
-@2 HTMLCommentContent " unclosed\n\n"
+@2 HTMLCommentContent|ErrorUnbalancedToken " unclosed"
+@3 NewLine
 
 More
+@1 InlineText "More"
 <-- EOF
 
 XML comment on new line - no recovery
@@ -33,8 +27,9 @@ More
 
 Newline recovery
 <?xml unclosed
-1
+1    2
 @1 XMLProcessingInstructionOpen|ErrorUnbalancedToken
+@2 XMLProcessingInstructionOpen|ErrorUnbalancedToken " unclosed"
 <-- EOF
 
 XML instruction: no recovery

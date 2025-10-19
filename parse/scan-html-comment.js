@@ -28,23 +28,15 @@ export function scanHTMLComment(input, start, end, output) {
   }
 
   const openTokenIndex = output.length;
-  // Emit opening token (will flag later if unclosed)
   output.push(4 | HTMLCommentOpen);
 
   let offset = start + 4;
   const contentStart = offset;
-  let prevWasNewline = false;  // Track if previous non-space/tab was newline
-  let lineStart = offset;
 
-  // Scan for '-->' with heuristic recovery
+  // Scan for a valid closing sequence '-->'
   while (offset < end) {
-    const ch = input.charCodeAt(offset);
-
-    // Check for closing sequence '-->'
-    if (ch === 45 /* - */ && offset + 2 < end &&
-        input.charCodeAt(offset + 1) === 45 /* - */ &&
-        input.charCodeAt(offset + 2) === 62 /* > */) {
-      // Found proper close
+    if (input.charCodeAt(offset) === 45 && offset + 2 < end && input.charCodeAt(offset + 1) === 45 && input.charCodeAt(offset + 2) === 62) {
+      // Found '-->', so the comment is well-formed.
       const contentLength = offset - contentStart;
       if (contentLength > 0) {
         output.push(contentLength | HTMLCommentContent);
@@ -52,71 +44,77 @@ export function scanHTMLComment(input, start, end, output) {
       output.push(3 | HTMLCommentClose);
       return offset - start + 3;
     }
-
-    // Check for heuristic recovery points
-    if (ch === 10 /* \n */ || ch === 13 /* \r */) {
-      // Double newline (with possible whitespace between) - recovery point
-      if (prevWasNewline) {
-        const contentLength = offset - contentStart;
-        if (contentLength > 0) {
-          output.push(contentLength | HTMLCommentContent);
-        }
-        // Flag opening token as unbalanced
-        output[openTokenIndex] |= ErrorUnbalancedToken;
-        // Don't consume the newline - it will be parsed normally
-        return offset - start;
-      }
-      
-      prevWasNewline = true;
-      lineStart = offset;
-      
-      // Consume newline (including \r\n pairs)
-      if (ch === 13 && offset + 1 < end && input.charCodeAt(offset + 1) === 10) {
-        offset += 2; // \r\n
-      } else {
-        offset++;
-      }
-      continue;
-    }
-
-    // Check for < on new line (with possible whitespace indent)
-    if (ch === 60 /* < */ && prevWasNewline) {
-      // Check if only whitespace between lineStart and here
-      let onlyWhitespace = true;
-      for (let i = lineStart; i < offset; i++) {
-        const wsCh = input.charCodeAt(i);
-        if (wsCh !== 32 && wsCh !== 9 && wsCh !== 10 && wsCh !== 13) {
-          onlyWhitespace = false;
-          break;
-        }
-      }
-      if (onlyWhitespace) {
-        // Recovery point: < on new line
-        const contentLength = offset - contentStart;
-        if (contentLength > 0) {
-          output.push(contentLength | HTMLCommentContent);
-        }
-        // Flag opening token as unbalanced
-        output[openTokenIndex] |= ErrorUnbalancedToken;
-        // Don't consume the < - it will be parsed normally
-        return offset - start;
-      }
-    }
-
-    // Reset newline flag if we encounter non-whitespace character
-    if (ch !== 32 && ch !== 9) {
-      prevWasNewline = false;
-    }
-
     offset++;
   }
 
-  // EOF without finding proper close - error recovery
-  const contentLength = offset - contentStart;
-  if (contentLength > 0) {
-    output.push(contentLength | HTMLCommentContent);
-  }
-  // Flag opening token as unbalanced
+  // If we reach here, '-->' was not found. This is an unclosed comment.
   output[openTokenIndex] |= ErrorUnbalancedToken;
-  return offset - start;
+
+  // Apply recovery rules as per spec: double-newline or '<' on a new line.
+  let recoveryEnd = end;
+
+  let i = contentStart;
+  while (i < end) {
+    const ch = input.charCodeAt(i);
+
+    if (ch === 10 /* LF */ || ch === 13 /* CR */) {
+      const newlineStart = i;
+      if (ch === 13 && i + 1 < end && input.charCodeAt(i + 1) === 10) {
+        i++; // Consume LF in CRLF
+      }
+      
+      // Check for double newline
+      let nextNonWhitespace = i + 1;
+      while (nextNonWhitespace < end) {
+        const nextCh = input.charCodeAt(nextNonWhitespace);
+        if (nextCh === 10 || nextCh === 13) { // Found a second newline
+          recoveryEnd = newlineStart;
+          i = end; // Break outer loop
+          break;
+        }
+        if (nextCh !== 32 && nextCh !== 9) { // Not whitespace
+          break;
+        }
+        nextNonWhitespace++;
+      }
+      if (i === end) break;
+    } else if (ch === 60 /* < */) {
+      // Check if '<' is on a new line
+      let lineStart = -1;
+      // Find the start of the current line
+      for (let j = i - 1; j >= contentStart -1; j--) {
+        if (j < contentStart) { // Beginning of comment content
+          lineStart = contentStart;
+          break;
+        }
+        const prevCh = input.charCodeAt(j);
+        if (prevCh === 10 || prevCh === 13) {
+          lineStart = j + 1;
+          break;
+        }
+      }
+      
+      if (lineStart !== -1) {
+        let isWhitespaceOnly = true;
+        for (let j = lineStart; j < i; j++) {
+          if (input.charCodeAt(j) !== 32 && input.charCodeAt(j) !== 9) {
+            isWhitespaceOnly = false;
+            break;
+          }
+        }
+        if (isWhitespaceOnly) {
+          recoveryEnd = i;
+          break;
+        }
+      }
+    }
+    i++;
+  }
+  
+  const contentLength = recoveryEnd - contentStart;
+  if (contentLength > 0) {
+    output.push(contentLength | HTMLCommentContent | ErrorUnbalancedToken);
+  }
+
+  return recoveryEnd - start;
 }

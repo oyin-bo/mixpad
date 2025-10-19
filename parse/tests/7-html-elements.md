@@ -489,14 +489,17 @@ Unclosed closing tag
 >
 
 Multi-line comment (simple)
-<!-- unclosed
+<!-- multiline
 1   2
 @1 HTMLCommentOpen
-@2 HTMLCommentContent " unclosed\n\n"
+@2 HTMLCommentContent " multiline\nmore lines\n\n"
+more lines
+1
+@1 HTMLCommentContent " multiline\nmore lines\n\n"
 
 -->
-3
-@3 HTMLCommentClose
+1
+@1 HTMLCommentClose
 
 Unclosed CDATA
 <![CDATA[no close

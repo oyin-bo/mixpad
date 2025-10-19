@@ -106,17 +106,25 @@ for (const mdFilePath of findMarkdownFiles(__dirname)) {
 
           const assertionFlagsFailed =
             typeof assertion.tokenFlags === 'number' &&
-            (assertion.tokenFlags & matchingToken.flags) !== assertion.tokenFlags;
+            assertion.tokenFlags !== matchingToken.flags;
 
           if (!assertionTextFailed && !assertionKindFailed && !assertionFlagsFailed) {
             return assertion.assertionSource;
           } else {
             anyAssertionFailed++;
-            assertionResult += [
-              typeof assertion.tokenKind === 'number' ? tokenKindToString(matchingToken.kind) : '',
-              typeof assertion.tokenFlags === 'number' ? tokenFlagsToString(matchingToken.flags) : '',
-              typeof assertion.text !== 'string' ? '' : JSON.stringify(matchingToken.text)
-            ].filter(Boolean).join(' ');
+            const parts = [tokenKindToString(matchingToken.kind)];
+            const flags = tokenFlagsToString(matchingToken.flags);
+            if (flags) {
+              parts.push(flags);
+            }
+            // Use original assertion text if it existed, otherwise use token's text
+            const text = typeof assertion.text === 'string' 
+              ? JSON.stringify(matchingToken.text) 
+              : (matchingToken.text ? JSON.stringify(matchingToken.text) : '');
+            if (text) {
+              parts.push(text);
+            }
+            assertionResult += parts.join(' ');
             return assertionResult;
           }
         });
