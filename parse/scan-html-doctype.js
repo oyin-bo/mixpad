@@ -71,7 +71,7 @@ export function scanHTMLDocType(input, start, end, output) {
       // Newline - recovery point
       const contentLength = offset - contentStart;
       if (contentLength > 0) {
-        output.push(contentLength | HTMLDocTypeContent);
+        output.push(contentLength | HTMLDocTypeContent | ErrorUnbalancedToken);
       }
       output[openTokenIndex] |= ErrorUnbalancedToken;
       return offset - start;
@@ -79,7 +79,7 @@ export function scanHTMLDocType(input, start, end, output) {
       // < - recovery point
       const contentLength = offset - contentStart;
       if (contentLength > 0) {
-        output.push(contentLength | HTMLDocTypeContent);
+        output.push(contentLength | HTMLDocTypeContent | ErrorUnbalancedToken);
       }
       output[openTokenIndex] |= ErrorUnbalancedToken;
       return offset - start;
@@ -91,7 +91,7 @@ export function scanHTMLDocType(input, start, end, output) {
   // EOF without finding '>'
   const contentLength = offset - contentStart;
   if (contentLength > 0) {
-    output.push(contentLength | HTMLDocTypeContent);
+    output.push(contentLength | HTMLDocTypeContent | ErrorUnbalancedToken);
   }
   output[openTokenIndex] |= ErrorUnbalancedToken;
   return offset - start;

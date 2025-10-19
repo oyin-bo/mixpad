@@ -51,21 +51,34 @@ XML instruction: no recovery
 
 Double newline recovery
 <![CDATA[ unclosed
-1
+1        2
 @1 HTMLCDataOpen|ErrorUnbalancedToken
+@2 HTMLCDataContent|ErrorUnbalancedToken " unclosed"
+
+After
+
+After
+1
+@1 InlineText "After"
 
 <-- EOF
 
 < recovery
 <![CDATA[ unclosed
-1
+1        2
 @1 HTMLCDataOpen|ErrorUnbalancedToken
+@2 HTMLCDataContent|ErrorUnbalancedToken " unclosed"
+<
+1
+@1 HTMLTagOpen
 <-- EOF
 
 > malformed close recovery
 <![CDATA[ unclosed >
-1
+1        2         3
 @1 HTMLCDataOpen|ErrorUnbalancedToken
+@2 HTMLCDataContent|ErrorUnbalancedToken " unclosed "
+@3 HTMLCDataClose|ErrorUnbalancedToken
 
 <-- EOF
 
@@ -73,28 +86,44 @@ Double newline recovery
 
 Newline recovery
 <!DOCTYPE unclosed
-1
+1        2
 @1 HTMLDocTypeOpen|ErrorUnbalancedToken
+@2 HTMLDocTypeContent|ErrorUnbalancedToken " unclosed"
+
+After
+1
+@1 InlineText "After"
 <-- EOF
 
 < recovery
 <!DOCTYPE unclosed
-1
+1        2
 @1 HTMLDocTypeOpen|ErrorUnbalancedToken
+@2 HTMLDocTypeContent|ErrorUnbalancedToken " unclosed"
+<
+1
+@1 HTMLTagOpen
 <-- EOF
 
 ## Opening Tags
 
 Double newline recovery (basic)
 <div attr="value"
-1
+12   3     4
 @1 HTMLTagOpen|ErrorUnbalancedToken
+@2 HTMLTagName "div"
+@3 HTMLAttributeName "attr"
+@4 HTMLAttributeValue "value"
 <-- EOF
 
 < recovery during attributes
-<div attr="value" other
-1
+<div attr="value" <
+12   3    4       5
 @1 HTMLTagOpen|ErrorUnbalancedToken
+@2 HTMLTagName "div"
+@3 HTMLAttributeName "attr"
+@4 HTMLAttributeQuote "\""
+@5 HTMLTagOpen
 <-- EOF
 
 ## Quoted Attribute Values
@@ -106,21 +135,30 @@ Double newline in quoted value
 <-- EOF
 
 < in quoted value
-<div attr="unclosed
-1
+<div attr="unclosed<
+12   3    4
 @1 HTMLTagOpen|ErrorUnbalancedToken
+@2 HTMLTagName "div"
+@3 HTMLAttributeName "attr"
+@4 HTMLAttributeQuote "\""
 <-- EOF
 
 > in quoted value
 <div attr="unclosed >
-1
+12   3    4
 @1 HTMLTagOpen|ErrorUnbalancedToken
+@2 HTMLTagName "div"
+@3 HTMLAttributeName "attr"
+@4 HTMLAttributeQuote "\""
 <-- EOF
 
 EOF in quoted value (no synthetic quote)
 <div attr="unclosed
-1
+12   3    4
 @1 HTMLTagOpen|ErrorUnbalancedToken
+@2 HTMLTagName "div"
+@3 HTMLAttributeName "attr"
+@4 HTMLAttributeQuote "\""
 <-- EOF
 
 ## Raw Text Elements
@@ -158,9 +196,19 @@ Properly closed tag (should not error)
 @5 HTMLTagOpen
 @6 HTMLTagName
 <-- EOF
+
+EOF with incomplete attribute (no value)
 <div a="1" b="2" c
-1
+12  34 56 7 8    9
 @1 HTMLTagOpen|ErrorUnbalancedToken
+@2 HTMLTagName
+@3 Whitespace " "
+@4 HTMLAttributeName "a"
+@5 HTMLAttributeQuote "\""
+@6 HTMLAttributeValue "1"
+@7 Whitespace " "
+@8 HTMLAttributeEquals "="
+@9 HTMLAttributeName
 <-- EOF
 
 Closing tag with newline before > (error)
@@ -168,5 +216,5 @@ Closing tag with newline before > (error)
 >
 12
 @1 HTMLTagOpen|ErrorUnbalancedToken
-@2 NewLine
+@2 NewLine "\n"
 <-- EOF

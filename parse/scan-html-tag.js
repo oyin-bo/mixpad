@@ -57,7 +57,11 @@ export function scanHTMLTag(input, start, end, output) {
   if (input.charCodeAt(start) !== 60 /* < */) return 0;
 
   let offset = start + 1;
-  if (offset >= end) return 0;
+  if (offset >= end) {
+    // Bare '<' at EOF - emit as HTMLTagOpen
+    output.push(1 | HTMLTagOpen);
+    return 1;
+  }
 
   // Check if this is a closing tag
   const isClosing = input.charCodeAt(offset) === 47 /* / */;
@@ -73,7 +77,14 @@ export function scanHTMLTag(input, start, end, output) {
   // Tag name must start with ASCII letter
   if (!((firstCh >= 65 && firstCh <= 90) ||   // A-Z
         (firstCh >= 97 && firstCh <= 122))) { // a-z
-    return 0; // Not a valid tag
+    // Not a valid tag name start
+    // Check if it's just a bare '<' followed by non-tag character
+    if (!isClosing) {
+      // Bare '<' - emit as HTMLTagOpen
+      output.push(1 | HTMLTagOpen);
+      return 1;
+    }
+    return 0; // '</' without valid tag name - reject
   }
 
   offset++;

@@ -62,56 +62,75 @@ export function scanHTMLCData(input, start, end, output) {
 
   // EOF without finding close, now apply recovery heuristics.
   output[openTokenIndex] |= ErrorUnbalancedToken;
-  let prevWasNewline = false;
+  let recoveryEnd = -1;
 
-  while (offset < end) {
-    const ch = input.charCodeAt(offset);
-
-    // Heuristic recovery points
+  // Heuristic 1: Double newline
+  for (let i = offset; i < end; i++) {
+    const ch = input.charCodeAt(i);
     if (ch === 10 /* \n */ || ch === 13 /* \r */) {
-      if (prevWasNewline) {
-        const contentLength = offset - contentStart;
-        if (contentLength > 0) {
-          output.push(contentLength | HTMLCDataContent);
+      // Found first newline, now check if another newline follows
+      let nextPos = i + 1;
+      if (ch === 13 && nextPos < end && input.charCodeAt(nextPos) === 10) {
+        nextPos++; // Skip \n in \r\n pair
+      }
+      // Check if next character is also a newline
+      if (nextPos < end) {
+        const nextCh = input.charCodeAt(nextPos);
+        if (nextCh === 10 || nextCh === 13) {
+          // Double newline found! Recovery point is at the first newline
+          recoveryEnd = i;
+          break;
         }
-        return offset - start; // Don't consume the newline
       }
-      prevWasNewline = true;
-      if (ch === 13 && offset + 1 < end && input.charCodeAt(offset + 1) === 10) {
-        offset += 2; // \r\n
-      } else {
-        offset++;
-      }
-      continue;
     }
+  }
 
-    if (ch === 60 /* < */) {
-      const contentLength = offset - contentStart;
-      if (contentLength > 0) {
-        output.push(contentLength | HTMLCDataContent);
+  // Heuristic 2: '<' character
+  if (recoveryEnd === -1) {
+    for (let i = offset; i < end; i++) {
+      if (input.charCodeAt(i) === 60 /* < */) {
+        // Found <, backtrack past any preceding newlines
+        recoveryEnd = i;
+        while (recoveryEnd > offset) {
+          const prevCh = input.charCodeAt(recoveryEnd - 1);
+          if (prevCh === 10 /* \n */ || prevCh === 13 /* \r */) {
+            recoveryEnd--;
+          } else {
+            break;
+          }
+        }
+        break;
       }
-      return offset - start; // Don't consume the <
     }
+  }
 
-    if (ch === 62 /* > */) {
-      const contentLength = offset - contentStart;
-      if (contentLength > 0) {
-        output.push(contentLength | HTMLCDataContent);
+  // Heuristic 3: '>' character (malformed close)
+  if (recoveryEnd === -1) {
+    for (let i = offset; i < end; i++) {
+      if (input.charCodeAt(i) === 62 /* > */) {
+        recoveryEnd = i;
+        const contentLength = recoveryEnd - contentStart;
+        if (contentLength > 0) {
+          output.push(contentLength | HTMLCDataContent | ErrorUnbalancedToken);
+        }
+        output.push(1 | HTMLCDataClose | ErrorUnbalancedToken);
+        return recoveryEnd - start + 1; // Consume the >
       }
-      output.push(1 | HTMLCDataClose | ErrorUnbalancedToken);
-      return offset - start + 1; // Consume the >
     }
+  }
 
-    if (ch !== 32 && ch !== 9) {
-      prevWasNewline = false;
+  if (recoveryEnd !== -1) {
+    const contentLength = recoveryEnd - contentStart;
+    if (contentLength > 0) {
+      output.push(contentLength | HTMLCDataContent | ErrorUnbalancedToken);
     }
-    offset++;
+    return recoveryEnd - start;
   }
 
   // EOF
-  const contentLength = offset - contentStart;
+  const contentLength = end - contentStart;
   if (contentLength > 0) {
-    output.push(contentLength | HTMLCDataContent);
+    output.push(contentLength | HTMLCDataContent | ErrorUnbalancedToken);
   }
-  return offset - start;
+  return end - start;
 }
