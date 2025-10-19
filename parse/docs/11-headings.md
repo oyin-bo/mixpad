@@ -585,6 +585,11 @@ if (isPlainTextLine(lastTokens)) {
 
 Following the project's testing philosophy, create comprehensive test files under `parse/tests/`:
 
+**Development tip:** During implementation, run individual tests using `--test-name-pattern` to quickly verify specific cases without running the entire suite. For example:
+```bash
+node --test --test-name-pattern="Level 1" parse/tests/test-produce-annotated.js
+```
+
 ### 9-atx-headings.md
 
 Test coverage:

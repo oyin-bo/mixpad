@@ -698,6 +698,13 @@ Tokens are represented as numbers, which is a highly efficient approach. These n
 
 The correctness of the HTML parser will be verified using the annotated markdown testing approach, as described in [the corresponding design document](./1-annotated-markdown.md). Specific test files will be created to cover the various aspects of HTML parsing.
 
+**Development tip:** Use `--test-name-pattern` to run individual tests during implementation. This allows quick iteration on specific HTML parsing cases without running the entire test suite:
+```bash
+# Test specific HTML tag scenarios
+node --test --test-name-pattern="textarea" parse/tests/test-produce-annotated.js
+node --test --test-name-pattern="CDATA" parse/tests/test-produce-annotated.js
+```
+
 For example, a test for a simple `<div>` tag would look something like this:
 The source line `<div>` would be followed by markers under the `<` and `div` parts, with assertions specifying that the tokens `HTMLTagOpen` and `HTMLTagName` are expected at those positions.
 

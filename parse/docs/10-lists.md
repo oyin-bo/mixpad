@@ -531,6 +531,21 @@ Only first marker's number matters.
 
 Following MixPad's annotated markdown approach:
 
+**Development workflow:** When implementing list scanning, use `--test-name-pattern` to run specific test cases for quick iteration:
+```bash
+# Debug bullet list behavior
+node --test --test-name-pattern="bullet" parse/tests/test-produce-annotated.js
+
+# Test task list checkboxes
+node --test --test-name-pattern="task" parse/tests/test-produce-annotated.js
+
+# Verify ordered list edge cases
+node --test --test-name-pattern="ordered" parse/tests/test-produce-annotated.js
+```
+This focused testing approach significantly speeds up development and debugging of complex list nesting and indentation rules.
+
+Test examples:
+
 ```markdown
 Simple bullet list:
 - item 1

@@ -47,8 +47,53 @@ Authoring notes:
 
 - Keep the marker line and its `@` assertions adjacent; do not insert blank lines between them.
 - Use JSON double‑quoted strings for exact text assertions so escaping is consistent.
-- Provide exactly one `@` assertion line for each non‑whitespace marker character; assertions are matched left‑to-right.
+- Provide exactly one `@` assertion line for each non‑whitespace marker character; assertions are matched left‑to‑right.
 - This document describes the author‑facing rules; implementation details and parsing heuristics are documented separately in the harness reference when needed.
+
+## Debugging and Test Selection
+
+The annotated Markdown test harness generates individual tests for each annotated block, with test names that include the file path, line content, and positional marker pattern. This enables precise test selection during debugging.
+
+### Running Individual Tests
+
+Use Node.js's `--test-name-pattern` flag to run specific tests by matching against test names:
+
+```bash
+# Run a specific test by unique content
+node --test --test-name-pattern="Ampersand" parse/tests/test-produce-annotated.js
+
+# Run all tests related to a feature
+node --test --test-name-pattern="backtick" parse/tests/test-produce-annotated.js
+
+# Run multiple related tests with a pattern
+node --test --test-name-pattern="entities.md.*Delta" parse/tests/test-produce-annotated.js
+
+# Run tests from a specific file
+node --test --test-name-pattern="7-html-elements.md" parse/tests/test-produce-annotated.js
+```
+
+### Test Name Format
+
+Each test name follows the pattern:
+```
+{relative-file-path} {line-content} {positional-markers}
+```
+
+For example:
+- `parse/tests/2-entities.md Ampersand amp; 1-2`
+- `parse/tests/6-emphasis.md snake_case_variable 1`
+- `parse/tests/4-backtick-inline.md Simple backtick code 1-23-456`
+
+### Debugging Workflow
+
+When a test fails:
+
+1. **Identify the test name** from the failure output
+2. **Run just that test** using `--test-name-pattern` with a unique substring
+3. **Iterate quickly** without running the entire test suite
+4. **Use pattern matching** to run related tests once the fix is working
+
+This focused approach is particularly valuable when debugging complex scanner behavior, HTML parsing edge cases, or entity resolution issues where running hundreds of tests would slow down the development cycle.
 
 ## EOF Markers for Multiple Independent Scans
 
