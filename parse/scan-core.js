@@ -102,15 +102,15 @@ export function getTokenLength(token) {
 /** @param {import('./scan0.js').ProvisionalToken} token */
 export function getTokenKind(token) {
   return /** @type {TokenKind} */(
-    token & 0x0FF00000
-  ); // token kind lives in bits 20-27 (mask 0x0FF00000 = 8 bits = 256 token types)
+    token & 0x03FF0000
+  ); // token kind lives in bits 16-25 (mask 0x03FF0000 = 10 bits = 1024 token types)
 }
 
 /** @param {import('./scan0.js').ProvisionalToken} token */
 export function getTokenFlags(token) {
   return /** @type {TokenFlags} */(
-    token & 0xF0000
-  ); // 4 bits that are above the lower 16 bits
+    token & 0x60000000
+  ); // bits 29-30 (0x60000000)
 }
 
 /**

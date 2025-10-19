@@ -20,7 +20,11 @@ import { scanTaskListMarker } from './scan-list-task.js';
 import { BacktickBoundary, InlineCode, InlineText, NewLine, Whitespace, HTMLTagName, HTMLTagClose, HTMLTagOpen } from './scan-tokens.js';
 
 /**
- * Bitwise OR: length: lower 24 bits, flags: upper 7 bits.
+ * ProvisionalToken: 32-bit packed representation.
+ * Bits 0–15: length (16 bits, up to 65535 bytes per token)
+ * Bits 16–25: kind (10 bits, up to 1024 token types)
+ * Bits 29–30: flags (2 bits, up to 4 distinct flags)
+ * Bits 26-28 and 31 are unused.
  * @typedef {number} ProvisionalToken
  */
 
