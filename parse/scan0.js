@@ -11,6 +11,7 @@ import { scanHTMLCData } from './scan-html-cdata.js';
 import { scanHTMLComment } from './scan-html-comment.js';
 import { scanHTMLDocType } from './scan-html-doctype.js';
 import { scanHTMLRawText } from './scan-html-raw-text.js';
+import { scanTextarea } from './scan-textarea.js';
 import { scanHTMLTag, isRawTextElement } from './scan-html-tag.js';
 import { scanXMLProcessingInstruction } from './scan-xml-pi.js';
 import { scanBulletListMarker } from './scan-list-bullet.js';
@@ -254,8 +255,13 @@ export function scan0({
                 if (isRawTextElement(input, actualOffset, tagNameLength)) {
                   // Scan raw text content
                   const rawTextStart = offset - 1 + htmlConsumed;
-                  const rawTextConsumed = scanHTMLRawText(input, rawTextStart, endOffset, actualOffset, tagNameLength, output);
-                  htmlConsumed += rawTextConsumed;
+                  if (input.substring(actualOffset, actualOffset + tagNameLength).toLowerCase() === 'textarea') {
+                    const rawTextConsumed = scanTextarea(input, rawTextStart, endOffset, actualOffset, tagNameLength, output);
+                    htmlConsumed += rawTextConsumed;
+                  } else {
+                    const rawTextConsumed = scanHTMLRawText(input, rawTextStart, endOffset, actualOffset, tagNameLength, output);
+                    htmlConsumed += rawTextConsumed;
+                  }
                 }
               }
             }

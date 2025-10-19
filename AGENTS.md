@@ -26,6 +26,25 @@ node --test --test-concurrency=1 --test-timeout=5000
 
 The `--test-timeout` option provides the timeout protection previously supplied by the repository's custom harness and is the recommended approach.
 
+### Running individual tests for debugging
+
+The annotated Markdown test harness creates individual tests for each test block, enabling focused debugging. Use `--test-name-pattern` to run specific tests:
+
+```bash
+# Run a single failing test
+node --test --test-name-pattern="snake_case" parse/tests/test-produce-annotated.js
+
+# Run all tests for a specific feature
+node --test --test-name-pattern="backtick" parse/tests/test-produce-annotated.js
+
+# Run tests from a specific file
+node --test --test-name-pattern="entities.md" parse/tests/test-produce-annotated.js
+```
+
+This is the recommended workflow when debugging scanner behavior, fixing edge cases, or iterating on a specific feature. It's much faster than running the entire test suite repeatedly.
+
+See the [debugging section in annotated markdown docs](parse/docs/1-annotated-markdown.md#debugging-and-test-selection) for complete details.
+
 ## Directness
 
 Always give direct answers to questions. DO NOT embellish or recommend anything unless requested.

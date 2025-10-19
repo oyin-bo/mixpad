@@ -138,3 +138,4 @@ export function scanHTMLRawText(input, start, end, tagNameStart, tagNameLength, 
   // Note: Opening tag will be flagged by scan-html-tag.js
   return offset - start;
 }
+

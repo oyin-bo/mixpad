@@ -31,6 +31,12 @@ Markers on the text line (`1 2`) map to `@` assertions that specify token kinds 
 
 It serves both as an explainer for the tokens generated, and as an automated verification.
 
+**Debugging tip:** Run individual tests during development using `--test-name-pattern`:
+```bash
+node --test --test-name-pattern="Ampersand" parse/tests/test-produce-annotated.js
+```
+See [annotated markdown documentation](parse/docs/1-annotated-markdown.md#debugging-and-test-selection) for more details.
+
 ## Architecture: Two-Phase Zero-Allocation
 
 MixPad's architecture emerged from the zero-allocation constraint, creating six core principles:
