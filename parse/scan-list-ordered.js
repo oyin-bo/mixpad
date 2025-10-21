@@ -73,9 +73,6 @@ export function scanOrderedListMarker(input, start, end, output) {
   // Encode delimiter type in bit 28: 0 for '.', 1 for ')'
   const delimBit = delim === 46 ? 0 : (1 << 28);
   
-  // Pack: length | type | delimiter_bit
-  // Note: We can't fit the start number in the token itself for large numbers,
-  // so semantic layer will need to re-parse it from the source when needed
   output.push(length | OrderedListMarker | delimBit);
   
   return length;

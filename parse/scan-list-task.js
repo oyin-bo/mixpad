@@ -1,7 +1,6 @@
 // @ts-check
 
 import { TaskListMarker } from './scan-tokens.js';
-import { findLineStart, countIndentation } from './scan-core.js';
 
 /**
  * Scan task list checkbox marker (GitHub extension)

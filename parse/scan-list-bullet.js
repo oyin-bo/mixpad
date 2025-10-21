@@ -46,11 +46,7 @@ export function scanBulletListMarker(input, start, end, output) {
   // Token length is just the marker character (1 byte)
   const length = 1;
   
-  // Encode: length | type | marker_char
-  // Token type is in bits 20-27 (0x0FF00000)
-  // We store the marker character in bits 28-31 for later reference
-  // Shift left by 28 to position in upper bits, but we only need 2 bits to distinguish -, *, +
-  // Use bits 28-29: 0=-, 1=*, 2=+
+  // Encode marker character in bits 28-29: 0=-, 1=*, 2=+
   let markerBits = 0;
   if (char === 45) markerBits = 0 << 28;      // -
   else if (char === 42) markerBits = 1 << 28; // *
