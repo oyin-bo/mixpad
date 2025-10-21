@@ -1,6 +1,7 @@
 // @ts-check
 
 import { TaskListMarker } from './scan-tokens.js';
+import { findLineStart, countIndentation } from './scan-core.js';
 
 /**
  * Scan task list checkbox marker (GitHub extension)
@@ -14,11 +15,11 @@ import { TaskListMarker } from './scan-tokens.js';
  * - Case-insensitive for x/X
  * 
  * Token encoding (31 bits):
- * - Bits 0-19: Length (always 3: '[', check, ']')
- * - Bits 20-23: Token type (TaskListMarker)
- * - Bits 28-31: Metadata:
- *   - Bit 28: Checked state (0 for unchecked, 1 for checked)
- *   - Bits 29-31: Reserved
+ * - Bits 0-15: Length (always 3: '[', check, ']')
+ * - Bits 16-25: Token type (TaskListMarker)
+ * - Bits 26-27: Unused
+ * - Bit 28: Checked state (0 for unchecked, 1 for checked)
+ * - Bits 29-31: Reserved for flags
  * 
  * @param {string} input - The input text
  * @param {number} start - Start index (position of '[')

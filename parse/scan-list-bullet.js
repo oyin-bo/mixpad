@@ -15,11 +15,11 @@ import { findLineStart, countIndentation } from './scan-core.js';
  * - 4+ spaces of indentation = code block, not list
  * 
  * Token encoding (31 bits):
- * - Bits 0-19: Length (just the marker character, always 1)
- * - Bits 20-23: Token type (BulletListMarker)
- * - Bits 24-31: Metadata:
- *   - Bits 24-26: Marker character (45=-, 42=*, 43=+)
- *   - Bits 27-31: Reserved for flags
+ * - Bits 0-15: Length (just the marker character, always 1)
+ * - Bits 16-25: Token type (BulletListMarker)
+ * - Bits 26-27: Unused
+ * - Bits 28-29: Marker character (0=-, 1=*, 2=+)
+ * - Bits 30-31: Reserved for flags
  * 
  * @param {string} input - The input text
  * @param {number} start - Start index (position of -, *, or +)

@@ -16,14 +16,14 @@ import { findLineStart, countIndentation } from './scan-core.js';
  * - Start number ≤ 999,999,999
  * 
  * Token encoding (31 bits):
- * - Bits 0-19: Length (digits + delimiter, NOT including trailing space)
- * - Bits 20-23: Token type (OrderedListMarker)
- * - Bits 24-31: Metadata:
- *   - Bit 24: Delimiter type (0 for '.', 1 for ')')
- *   - Bits 25-31: Reserved for start number (stored separately in higher bits)
+ * - Bits 0-15: Length (digits + delimiter, NOT including trailing space)
+ * - Bits 16-25: Token type (OrderedListMarker)
+ * - Bits 26-27: Unused
+ * - Bit 28: Delimiter type (0 for '.', 1 for ')')
+ * - Bits 29-31: Reserved for flags
  * 
- * Note: Start number is stored in a separate metadata structure since we can't
- * fit large numbers in the remaining bits. For now we only store delimiter type.
+ * Note: Start number is not encoded in the token and must be re-parsed
+ * from the source text when needed (see getOrderedMarkerStartNumber).
  * 
  * @param {string} input - The input text
  * @param {number} start - Start index (position of first digit)
