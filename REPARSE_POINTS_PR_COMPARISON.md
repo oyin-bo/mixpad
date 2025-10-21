@@ -162,7 +162,6 @@ consecutive_newlines = 0;
 - **Largest changeset**: 139 lines added to scan0.js
 - **Maintenance nightmare**: Any change to flag logic requires 30+ updates
 - **Inconsistent patterns**: Some places check `token_start_index`, others directly OR the flag
-- **Incorrect whitespace handling**: Resets `consecutive_newlines` on whitespace, breaking NewLine-Whitespace-NewLine pattern detection
 - **Brittle error recovery**: Only checks first new token's flags
 
 #### Test Coverage
@@ -191,34 +190,17 @@ All three PRs implement the core requirements from `12-scan0-reparse-points.md`:
 |------------|--------|--------|--------|
 | Mark offset 0 as safe reparse point | ✓ | ✓ | ✓ |
 | Detect blank lines (NewLine-NewLine) | ✓ | ✓ | ✓ |
-| Handle whitespace in blank lines | ✓ | ✓ | ✗ Bug |
+| Handle whitespace in blank lines | ✓ | ✓ | ✓ |
 | Apply flag to first token after boundary | ✓ | ✓ | ✓ |
 | Forward-only logic (no look-behind) | ✓ | ✓ | ✓ |
 | Error recovery prevents reparse points | ✓ | ✓ | ✓ |
 | Zero-allocation design | ✓ | ✓ | ✓ |
 
-### Critical Bug in PR #49
+### No Critical Bugs Found
 
-PR #49 has a **logic bug** in blank line detection:
+Upon detailed testing, all three PRs correctly handle the NewLine-Whitespace-NewLine pattern. Testing with input `"Text before\n  \nText after"` shows that PR #49 (like PRs #47 and #48) correctly marks "Text after" as a reparse point.
 
-```javascript
-case 32 /* space */:
-case 9 /* tab */: {
-  // ...
-  consecutive_newlines = 0;  // BUG: Resets on whitespace!
-  continue;
-}
-```
-
-This breaks the NewLine-Whitespace-NewLine pattern. The specification explicitly requires detecting "blank lines with spaces/tabs". PR #49's test claims to test this:
-
-```markdown
-## Whitespace-only line is not a blank line
-
-Whitespace before content doesn't prevent blank line detection.
-```
-
-But this test actually has a newline, then whitespace+text on the same line - it's not testing NewLine-Whitespace-NewLine at all. **PR #49 would fail a proper test of this pattern.**
+PR #49 includes a comment "Whitespace doesn't reset consecutive_newlines" and correctly preserves the newline count through whitespace-only lines.
 
 ## Performance Analysis
 
@@ -358,17 +340,17 @@ However, PR #48's approach of clearing error recovery on blank lines is debatabl
 
 | Aspect | PR #47 | PR #48 | PR #49 |
 |--------|--------|--------|--------|
-| Blank line detection | ✓ Correct | ✓ Correct | ✗ Bug |
-| Whitespace handling | ✓ | ✓ | ✗ |
+| Blank line detection | ✓ Correct | ✓ Correct | ✓ Correct |
+| Whitespace handling | ✓ | ✓ | ✓ |
 | Error recovery | ✓ | ~ Questionable | ✓ |
 | First token marking | ✓ | ✓ | ✓ |
 | All tests pass | ✓ | ✓ | ✓ |
 
-Note: PR #49's tests pass only because they don't actually test the NewLine-Whitespace-NewLine pattern correctly.
+Note: All three PRs correctly implement the specification and pass their tests.
 
 ## Conclusion
 
-**PR #47 represents the superior implementation** with its minimal, elegant approach that perfectly aligns with the project's philosophy of making "absolutely minimal modifications." While PR #49 has the most comprehensive tests, its massive code duplication and logic bug disqualify it from being the primary choice. PR #48's helper function approach is reasonable but adds unnecessary complexity and overhead for marginal benefit.
+**PR #47 represents the superior implementation** with its minimal, elegant approach that perfectly aligns with the project's philosophy of making "absolutely minimal modifications." While PR #49 has the most comprehensive tests, its massive code duplication makes it unsuitable as the primary choice. PR #48's helper function approach is reasonable but adds unnecessary complexity and overhead for marginal benefit.
 
 The recommended path forward is to:
 1. Merge PR #47 as the foundation
