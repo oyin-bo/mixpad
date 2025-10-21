@@ -1,7 +1,7 @@
 // @ts-check
 
 import { OrderedListMarker } from './scan-tokens.js';
-import { findLineStart, countIndentation } from './scan-core.js';
+import { isValidListMarkerPosition } from './scan-core.js';
 
 /**
  * Scan ordered list marker: digits followed by . or )
@@ -34,13 +34,8 @@ import { findLineStart, countIndentation } from './scan-core.js';
 export function scanOrderedListMarker(input, start, end, output) {
   if (start >= end) return 0;
   
-  // Check line indentation (must be ≤ 3 spaces)
-  const lineStart = findLineStart(input, start);
-  const lineIndent = countIndentation(input, lineStart, start);
-  if (lineIndent > 3) return 0;
-  
-  // Marker must be first non-whitespace character on line
-  if (lineStart + lineIndent !== start) return 0;
+  // Validate position and indentation for list marker
+  if (!isValidListMarkerPosition(input, start)) return 0;
   
   let offset = start;
   let number = 0;

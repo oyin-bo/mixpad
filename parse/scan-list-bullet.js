@@ -1,7 +1,7 @@
 // @ts-check
 
 import { BulletListMarker } from './scan-tokens.js';
-import { findLineStart, countIndentation } from './scan-core.js';
+import { isValidListMarkerPosition } from './scan-core.js';
 
 /**
  * Scan bullet list marker: -, *, or +
@@ -35,14 +35,8 @@ export function scanBulletListMarker(input, start, end, output) {
   // Must be -, *, or +
   if (char !== 45 && char !== 42 && char !== 43) return 0;
   
-  // Check line indentation (must be ≤ 3 spaces)
-  const lineStart = findLineStart(input, start);
-  const lineIndent = countIndentation(input, lineStart, start);
-  if (lineIndent > 3) return 0;
-  
-  // Marker must be first non-whitespace character on line
-  // (lineStart + indentation should equal marker position)
-  if (lineStart + lineIndent !== start) return 0;
+  // Validate position and indentation for list marker
+  if (!isValidListMarkerPosition(input, start)) return 0;
   
   // Must be followed by space or tab
   if (start + 1 >= end) return 0;

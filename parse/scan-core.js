@@ -150,3 +150,25 @@ export function countIndentation(input, lineStart, pos) {
   }
   return indent;
 }
+
+/**
+ * Validate that a position is the first non-whitespace character on a line
+ * and that indentation is within the allowed limit for list markers.
+ * 
+ * @param {string} input - The input text
+ * @param {number} pos - Position to validate
+ * @param {number} maxIndent - Maximum allowed indentation (typically 3 for list markers)
+ * @returns {boolean} True if position is valid for a list marker, false otherwise
+ */
+export function isValidListMarkerPosition(input, pos, maxIndent = 3) {
+  const lineStart = findLineStart(input, pos);
+  const lineIndent = countIndentation(input, lineStart, pos);
+  
+  // Indentation must be within limit (4+ spaces = code block)
+  if (lineIndent > maxIndent) return false;
+  
+  // Position must be at first non-whitespace character on line
+  if (lineStart + lineIndent !== pos) return false;
+  
+  return true;
+}
