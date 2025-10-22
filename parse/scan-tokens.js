@@ -59,3 +59,8 @@ export const HTMLRawText = 0x270000;
 export const BulletListMarker = 0x280000;
 export const OrderedListMarker = 0x290000;
 export const TaskListMarker = 0x2A0000;
+
+// Heading Tokens
+export const ATXHeadingOpen = 0x2B0000;
+export const ATXHeadingClose = 0x2C0000;
+export const SetextHeadingUnderline = 0x2D0000;

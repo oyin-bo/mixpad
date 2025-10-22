@@ -17,7 +17,9 @@ import { scanXMLProcessingInstruction } from './scan-xml-pi.js';
 import { scanBulletListMarker } from './scan-list-bullet.js';
 import { scanOrderedListMarker } from './scan-list-ordered.js';
 import { scanTaskListMarker } from './scan-list-task.js';
-import { BacktickBoundary, InlineCode, InlineText, NewLine, Whitespace, HTMLTagName, HTMLTagClose, HTMLTagOpen } from './scan-tokens.js';
+import { scanATXHeading } from './scan-atx-heading.js';
+import { checkSetextUnderline } from './scan-setext-heading.js';
+import { BacktickBoundary, InlineCode, InlineText, NewLine, Whitespace, HTMLTagName, HTMLTagClose, HTMLTagOpen, SetextHeadingUnderline } from './scan-tokens.js';
 import { IsSafeReparsePoint, ErrorUnbalancedToken } from './scan-token-flags.js';
 
 /**
@@ -456,6 +458,28 @@ export function scan0({
         if (taskConsumed > 0) {
           tokenCount = output.length;
           offset += taskConsumed - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 35 /* # hash */: {
+        // Try ATX heading
+        const headingConsumed = scanATXHeading(input, offset - 1, endOffset, output);
+        if (headingConsumed > 0) {
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += headingConsumed - 1;
           continue;
         }
 
