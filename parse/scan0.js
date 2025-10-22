@@ -374,6 +374,15 @@ export function scan0({
       }
 
       case 45 /* - hyphen-minus */: {
+        // Try Setext underline first
+        const setextResult = checkSetextUnderline(input, offset - 1, endOffset);
+        if (setextResult.isValid) {
+          output.push(SetextHeadingUnderline | setextResult.length);
+          tokenCount++;
+          offset += setextResult.consumedLength - 1;
+          continue;
+        }
+        
         // Try bullet list marker
         const listConsumed = scanBulletListMarker(input, offset - 1, endOffset, output);
         if (listConsumed > 0) {
@@ -393,6 +402,25 @@ export function scan0({
           if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
             output[tokenStartIndex] |= IsSafeReparsePoint;
           }
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 61 /* = equals */: {
+        // Try Setext underline
+        const setextResult = checkSetextUnderline(input, offset - 1, endOffset);
+        if (setextResult.isValid) {
+          output.push(SetextHeadingUnderline | setextResult.length);
+          tokenCount++;
+          offset += setextResult.consumedLength - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
           tokenCount = output.length;
           offset += consumed - 1;
         }

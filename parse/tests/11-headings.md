@@ -129,142 +129,154 @@
 @3 ATXHeadingClose "##"
 
 Heading 1
-=========
-1        2
+1
 @1 InlineText "Heading 1"
-@2 NewLine "\n"
-@3 SetextHeadingUnderline "========="
+
+=========
+1
+@1 SetextHeadingUnderline "========="
 
 Text
-=
-1   2
+1
 @1 InlineText "Text"
-@2 NewLine "\n"
-@3 SetextHeadingUnderline "="
+
+=
+1
+@1 SetextHeadingUnderline "="
 
 Heading
-================================================================================
-1      2
+1
 @1 InlineText "Heading"
-@2 NewLine "\n"
-@3 SetextHeadingUnderline "================================================================================"
+
+================================================================================
+1
+@1 SetextHeadingUnderline "================================================================================"
 
 Heading 2
----------
-1        2
+1
 @1 InlineText "Heading 2"
-@2 NewLine "\n"
-@3 SetextHeadingUnderline "---------"
+
+---------
+1
+@1 SetextHeadingUnderline "---------"
 
 Text
--
-1   2
+1
 @1 InlineText "Text"
-@2 NewLine "\n"
-@3 SetextHeadingUnderline "-"
+
+-
+1
+@1 SetextHeadingUnderline "-"
 
 **Bold** heading
-================
 1      2        3
 @1 AsteriskDelimiter "**"
 @2 InlineText "Bold"
 @3 AsteriskDelimiter "**"
 @4 InlineText " heading"
-@5 NewLine "\n"
-@6 SetextHeadingUnderline "================"
+
+================
+1
+@1 SetextHeadingUnderline "================"
 
 Heading with `code`
-===================
 1               2  3
 @1 InlineText "Heading with "
 @2 BacktickBoundary "`"
 @3 InlineCode "code"
 @4 BacktickBoundary "`"
-@5 NewLine "\n"
-@6 SetextHeadingUnderline "==================="
+
+===================
+1
+@1 SetextHeadingUnderline "==================="
 
 Text
+1
+@1 InlineText "Text"
+
  ===
-1   2
-@1 InlineText "Text"
-@2 NewLine "\n"
-@3 Whitespace " "
-@4 SetextHeadingUnderline "==="
+123
+@1 Whitespace " "
+@2 SetextHeadingUnderline "==="
 
 Text
-   ===
-1   2  3
+1
 @1 InlineText "Text"
-@2 NewLine "\n"
-@3 Whitespace "   "
-@4 SetextHeadingUnderline "==="
+
+   ===
+1  2
+@1 Whitespace "   "
+@2 SetextHeadingUnderline "==="
 
 Text
 
 ===
-1   2  3
+1   2
 @1 InlineText "Text"
-@2 NewLine "\n\n"
+@2 NewLine "\n"
 @3 InlineText "==="
 
 Text
-=-=
-1   2
+1
 @1 InlineText "Text"
-@2 NewLine "\n"
-@3 InlineText "=-="
+
+=-=
+1
+@1 InlineText "=-="
 
     Code
-    ====
-1   2   3
+1   2
 @1 Whitespace "    "
 @2 InlineText "Code"
-@3 NewLine "\n"
-@4 Whitespace "    "
-@5 InlineText "===="
+
+    ====
+1   2
+@1 Whitespace "    "
+@2 InlineText "===="
 
 Text
-=== extra
-1   2
+1
 @1 InlineText "Text"
-@2 NewLine "\n"
-@3 InlineText "=== extra"
+
+=== extra
+1
+@1 InlineText "=== extra"
 
 # ATX Heading
 
 Setext
+1      2
+@1 InlineText "Setext"
+
 ======
-1           2  3      4
-@1 ATXHeadingOpen "#"
-@2 InlineText " ATX Heading"
-@3 NewLine "\n\n"
-@4 InlineText "Setext"
-@5 NewLine "\n"
-@6 SetextHeadingUnderline "======"
+1
+@1 SetextHeadingUnderline "======"
 
 ## First
-### Second
-1       2  3
+12
 @1 ATXHeadingOpen "##"
 @2 InlineText " First"
-@3 NewLine "\n"
-@4 ATXHeadingOpen "###"
-@5 InlineText " Second"
+
+### Second
+12
+@1 ATXHeadingOpen "###"
+@2 InlineText " Second"
 
 # First heading
-1
+12
 @1 ATXHeadingOpen "#"
 @2 InlineText " First heading"
 <-- EOF
 
 ## Last heading<-- EOF
-1
+12
 @1 ATXHeadingOpen "##"
 @2 InlineText " Last heading"
 
 Text
-===<-- EOF
-1   2
+1
 @1 InlineText "Text"
-@2 NewLine "\n"
-@3 SetextHeadingUnderline "==="
+
+===<-- EOF
+1
+@1 SetextHeadingUnderline "==="

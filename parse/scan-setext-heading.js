@@ -25,6 +25,11 @@ export function checkSetextUnderline(input, underlineStart, end) {
     return { isValid: false, depth: 0, char: 0, length: 0, consumedLength: 0 };
   }
   
+  // Ensure we're immediately after the indentation (no other characters between line start and underline)
+  if (lineStart + indent !== underlineStart) {
+    return { isValid: false, depth: 0, char: 0, length: 0, consumedLength: 0 };
+  }
+  
   // Check first character - must be = or -
   const firstChar = input.charCodeAt(underlineStart);
   if (firstChar !== 61 /* = */ && firstChar !== 45 /* - */) {
@@ -57,8 +62,8 @@ export function checkSetextUnderline(input, underlineStart, end) {
     pos++;
   }
   
-  // Calculate consumed length (including newline if present)
-  let consumedLength = pos - lineStart;
+  // Calculate consumed length from underlineStart (including newline if present)
+  let consumedLength = pos - underlineStart;
   if (pos < end) {
     const ch = input.charCodeAt(pos);
     if (ch === 13 /* \r */ && pos + 1 < end && input.charCodeAt(pos + 1) === 10 /* \n */) {
@@ -70,13 +75,13 @@ export function checkSetextUnderline(input, underlineStart, end) {
   
   // Valid underline
   const depth = firstChar === 61 /* = */ ? 1 : 2;
-  const totalLength = underlineStart - lineStart + underlineLength;
+  const tokenLength = underlineLength; // Token length is just the underline characters
   
   return {
     isValid: true,
     depth: depth,
     char: firstChar,
-    length: totalLength,
+    length: tokenLength,
     consumedLength: consumedLength
   };
 }
