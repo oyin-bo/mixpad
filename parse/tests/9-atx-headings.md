@@ -6,41 +6,41 @@ Comprehensive tests for ATX-style headings (# prefix).
 
 Level 1
 # Heading 1
-12
+1 2
 @1 ATXHeadingOpen "#"
 @2 InlineText "Heading 1"
 
 Level 2
 ## Heading 2
-12 3
+1 23
 @1 ATXHeadingOpen "##"
 @2 Whitespace " "
 @3 InlineText "Heading 2"
 
 Level 3
 ### Heading 3
-12  3
+1  34
 @1 ATXHeadingOpen "###"
 @2 Whitespace " "
 @3 InlineText "Heading 3"
 
 Level 4
 #### Heading 4
-12   3
+1   45
 @1 ATXHeadingOpen "####"
 @2 Whitespace " "
 @3 InlineText "Heading 4"
 
 Level 5
 ##### Heading 5
-12    3
+1    56
 @1 ATXHeadingOpen "#####"
 @2 Whitespace " "
 @3 InlineText "Heading 5"
 
 Level 6
 ###### Heading 6
-12     3
+1     67
 @1 ATXHeadingOpen "######"
 @2 Whitespace " "
 @3 InlineText "Heading 6"
@@ -49,14 +49,16 @@ Level 6
 
 Level 1 with closing
 # Heading 1 #
-12          3
+123        45
 @1 ATXHeadingOpen "#"
-@2 InlineText "Heading 1"
-@3 ATXHeadingClose "#"
+@2 Whitespace " "
+@3 InlineText "Heading 1"
+@4 Whitespace " "
+@5 ATXHeadingClose "#"
 
 Level 2 with closing
 ## Heading 2 ##
-12 3          45
+1 234         567
 @1 ATXHeadingOpen "##"
 @2 Whitespace " "
 @3 InlineText "Heading 2"
@@ -65,7 +67,7 @@ Level 2 with closing
 
 Longer closing sequence
 ### Heading ###########
-12  3       4         5
+1  234      5         6
 @1 ATXHeadingOpen "###"
 @2 Whitespace " "
 @3 InlineText "Heading"
@@ -88,7 +90,7 @@ No space after hash
 
 Valid: up to 3 spaces
    ## Heading
-1  23 4
+1  234
 @1 Whitespace "   "
 @2 ATXHeadingOpen "##"
 @3 Whitespace " "
@@ -104,7 +106,7 @@ Empty heading
 
 Empty with space
 ## 
-12 3
+123
 @1 ATXHeadingOpen "##"
 @2 Whitespace " "
 @3 NewLine
@@ -113,7 +115,8 @@ Empty with space
 
 Heading at start
 # First
-12
+123
 @1 ATXHeadingOpen "#"
-@2 InlineText "First"
+@2 Whitespace " "
+@3 InlineText "First"
 

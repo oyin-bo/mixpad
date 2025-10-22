@@ -1,6 +1,6 @@
 // @ts-check
 
-import { ATXHeadingOpen, ATXHeadingClose, InlineText } from './scan-tokens.js';
+import { ATXHeadingOpen, ATXHeadingClose, InlineText, Whitespace } from './scan-tokens.js';
 import { findLineStart, countIndentation } from './scan-core.js';
 
 /**
@@ -65,10 +65,16 @@ export function scanATXHeading(input, start, end, output) {
     lineEnd++;
   }
   
-  // Emit ATXHeadingOpen (just the # characters, no space)
+  // Emit ATXHeadingOpen (just the # characters)
   output.push(hashCount | ATXHeadingOpen | depthBits);
   
-  // Content starts immediately after opening (includes the required space)
+  // Emit Whitespace token for the space/tab after opening if present
+  if (pos < end && (input.charCodeAt(pos) === 32 || input.charCodeAt(pos) === 9)) {
+    output.push(1 | Whitespace | depthBits);
+    pos++;
+  }
+  
+  // Content starts after the whitespace
   let contentStart = pos;
   
   // Find content bounds (excluding closing sequence if present)
@@ -112,6 +118,13 @@ export function scanATXHeading(input, start, end, output) {
   if (contentEnd > contentStart) {
     const contentLength = contentEnd - contentStart;
     output.push(contentLength | InlineText | depthBits);
+  }
+  
+  // Emit whitespace before closing if present
+  if (closingStart >= 0 && closingStart > contentEnd) {
+    // There's whitespace between content and closing
+    const wsLength = closingStart - contentEnd;
+    output.push(wsLength | Whitespace | depthBits);
   }
   
   // Emit closing sequence if present
