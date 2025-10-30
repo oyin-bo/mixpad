@@ -20,29 +20,29 @@ let setextBuffer = [];
  * @param {string} input - The input text
  * @param {number} underlineStart - Index where underline line begins
  * @param {number} end - End index (exclusive)
- * @returns {{ isValid: boolean, depth: number, consumedLength: number, underlineChar: number }} Result object
+ * @returns {{ isValid: boolean, depth: number, consumedLength: number, underlineTokenLength: number, underlineChar: number }} Result object
  */
 export function checkSetextUnderline(input, underlineStart, end) {
   if (underlineStart >= end) {
-    return { isValid: false, depth: 0, consumedLength: 0, underlineChar: 0 };
+    return { isValid: false, depth: 0, consumedLength: 0, underlineTokenLength: 0, underlineChar: 0 };
   }
   
   // Check line indentation (must be ≤ 3 spaces)
   const lineStart = findLineStart(input, underlineStart);
   const lineIndent = countIndentation(input, lineStart, underlineStart);
   if (lineIndent > 3) {
-    return { isValid: false, depth: 0, consumedLength: 0, underlineChar: 0 };
+    return { isValid: false, depth: 0, consumedLength: 0, underlineTokenLength: 0, underlineChar: 0 };
   }
   
   // Underline must be first non-whitespace character on line
   if (lineStart + lineIndent !== underlineStart) {
-    return { isValid: false, depth: 0, consumedLength: 0, underlineChar: 0 };
+    return { isValid: false, depth: 0, consumedLength: 0, underlineTokenLength: 0, underlineChar: 0 };
   }
   
   // Get first character - must be = or -
   const firstChar = input.charCodeAt(underlineStart);
   if (firstChar !== 61 /* = */ && firstChar !== 45 /* - */) {
-    return { isValid: false, depth: 0, consumedLength: 0, underlineChar: 0 };
+    return { isValid: false, depth: 0, consumedLength: 0, underlineTokenLength: 0, underlineChar: 0 };
   }
   
   // Scan for all matching characters
@@ -61,11 +61,13 @@ export function checkSetextUnderline(input, underlineStart, end) {
   // Must reach newline or EOF
   const ch = pos < end ? input.charCodeAt(pos) : 0;
   if (ch !== 0 && ch !== 10 /* \n */ && ch !== 13 /* \r */) {
-    return { isValid: false, depth: 0, consumedLength: 0, underlineChar: 0 };
+    return { isValid: false, depth: 0, consumedLength: 0, underlineTokenLength: 0, underlineChar: 0 };
   }
   
-  // Include newline in consumed length
+  // Include newline in consumed length (for advancing the scanner)
+  // but also calculate the underline token length (without newline)
   let consumedLength = pos - lineStart;
+  const underlineTokenLength = pos - underlineStart; // Just the underline chars + trailing spaces
   if (ch === 13 && pos + 1 < end && input.charCodeAt(pos + 1) === 10) {
     consumedLength += 2;
   } else if (ch === 10 || ch === 13) {
@@ -79,6 +81,7 @@ export function checkSetextUnderline(input, underlineStart, end) {
     isValid: true,
     depth: depth,
     consumedLength: consumedLength,
+    underlineTokenLength: underlineTokenLength,
     underlineChar: firstChar
   };
 }
