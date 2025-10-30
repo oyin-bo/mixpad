@@ -2,9 +2,8 @@
 
 Comprehensive tests for Setext-style headings (underline with = or -).
 
-## Basic Setext Headings
+## Basic Level 1
 
-Level 1 with equals
 Heading One
 1
 @1 InlineText "Heading One"
@@ -12,7 +11,10 @@ Heading One
 1
 @1 SetextHeadingUnderline "==========="
 
-Level 2 with dashes  
+<-- EOF
+
+## Basic Level 2
+
 Heading Two
 1
 @1 InlineText "Heading Two"
@@ -20,11 +22,12 @@ Heading Two
 1
 @1 SetextHeadingUnderline "-----------"
 
-## With Inline Formatting
+<-- EOF
 
-Bold in Setext heading
+## With Bold
+
 **Bold text**
-123
+1 2         3
 @1 AsteriskDelimiter "**"
 @2 InlineText "Bold text"
 @3 AsteriskDelimiter "**"
@@ -32,9 +35,12 @@ Bold in Setext heading
 1
 @1 SetextHeadingUnderline "============="
 
-Italic in Setext heading
+<-- EOF
+
+## With Italic
+
 *Italic text*
-123
+1 2          3
 @1 AsteriskDelimiter "*"
 @2 InlineText "Italic text"
 @3 AsteriskDelimiter "*"
@@ -42,9 +48,12 @@ Italic in Setext heading
 1
 @1 SetextHeadingUnderline "-------------"
 
-Mixed formatting
+<-- EOF
+
+## With Mixed Formatting
+
 **Bold** and *italic*
-123     4   567
+1 2    3 4   5 6     7
 @1 AsteriskDelimiter "**"
 @2 InlineText "Bold"
 @3 AsteriskDelimiter "**"
@@ -56,18 +65,22 @@ Mixed formatting
 1
 @1 SetextHeadingUnderline "====================="
 
-## Invalid Cases - Block Constructs
+<-- EOF
 
-List item cannot be Setext
+## List Item Not Setext
+
 - List item
-12
+1 2
 @1 BulletListMarker "-"
 @2 InlineText " List item"
 ===
 1
 @1 InlineText "==="
 
-ATX heading cannot be Setext
+<-- EOF
+
+## ATX Heading Not Setext
+
 # ATX Heading
 123
 @1 ATXHeadingOpen "#"
@@ -79,7 +92,8 @@ ATX heading cannot be Setext
 
 <-- EOF
 
-Code block (4+ spaces)
+## Code Block Not Setext
+
     Code block
 1   2
 @1 Whitespace "    "
@@ -90,9 +104,8 @@ Code block (4+ spaces)
 
 <-- EOF
 
-## Edge Cases
+## Short Underline
 
-Short underline still valid
 Text
 1
 @1 InlineText "Text"
@@ -102,7 +115,8 @@ Text
 
 <-- EOF
 
-Underline with trailing spaces
+## Underline With Trailing Spaces
+
 Text line
 1
 @1 InlineText "Text line"
@@ -112,7 +126,8 @@ Text line
 
 <-- EOF
 
-Mixed characters not valid underline
+## Mixed Characters Invalid
+
 Regular text
 1
 @1 InlineText "Regular text"
@@ -122,7 +137,8 @@ Regular text
 
 <-- EOF
 
-Blank line breaks association
+## Blank Line Breaks Association
+
 Text
 1
 @1 InlineText "Text"

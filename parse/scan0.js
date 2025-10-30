@@ -467,24 +467,26 @@ export function scan0({
 
       case 9 /* \t */:
       case 32 /* space */: {
-        // Check if we're at the start of a line with 4+ spaces indentation
-        // If so, this is a code block and line cannot be Setext text
-        if (lineTokenStartIndex === output.length) {
-          // First token on the line is whitespace
-          // Calculate total indentation so far
-          const indentCount = countIndentation(input, lineStartOffset, offset);
-          if (indentCount >= 4) {
-            // 4+ spaces indentation = code block
-            lineCouldBeSetextText = false;
-          }
-        }
-        
         // If latest token is exactly Whitespace, append to it, else emit new Whitespace token
         if (output.length > 0 && getTokenKind(output[output.length - 1]) === Whitespace) {
           output[output.length - 1]++; // Increment length (low bits)
         } else {
           output.push(Whitespace | 1 /* Whitespace, length: 1 */);
           tokenCount++;
+        }
+        
+        // After emitting whitespace, check if this is the first token on the line
+        // and if it represents 4+ spaces indentation (code block)
+        if (lineTokenStartIndex === output.length - 1) {
+          // This whitespace is the first token on the line
+          const wsLength = getTokenLength(output[output.length - 1]);
+          // Count spaces/tabs (tabs count as moving to next multiple of 4)
+          const lineStart = lineStartOffset;
+          const indentCount = countIndentation(input, lineStart, lineStart + wsLength);
+          if (indentCount >= 4) {
+            // 4+ spaces indentation = code block
+            lineCouldBeSetextText = false;
+          }
         }
         continue;
       }
