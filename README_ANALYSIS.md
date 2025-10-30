@@ -87,6 +87,7 @@ The parser cannot know "This is text" is a heading until it sees the next line.
 The critical scan0 logic for buffering and pre-scanning:
 
 ```javascript
+// Pseudocode example - not actual implementation
 // At end of line:
 if (lineCouldBeSetextText) {
   // Buffer this line's tokens
@@ -94,7 +95,7 @@ if (lineCouldBeSetextText) {
   
   // Pre-scan next line for underline
   if (nextLineIsValidUnderline) {
-    flushWithDepth();  // ← Apply depth retroactively
+    flushWithDepth();  // Apply depth retroactively
   } else {
     flushWithoutDepth();
   }
@@ -167,19 +168,19 @@ PR #54 only applies depth to tokens emitted directly by ATX scanner.
 ## Files in This Analysis
 
 ```
-EXECUTIVE_SUMMARY.md              ← Start here
-ANALYSIS_PR53_PR54.md             ← Detailed analysis
-SPECULATIVE_PARSING_TEST.md       ← Test cases
-IMPLEMENTATION_RECOMMENDATIONS.md ← How to fix
-README_ANALYSIS.md                ← This file
+EXECUTIVE_SUMMARY.md              - Start here
+ANALYSIS_PR53_PR54.md             - Detailed analysis
+SPECULATIVE_PARSING_TEST.md       - Test cases
+IMPLEMENTATION_RECOMMENDATIONS.md - How to fix
+README_ANALYSIS.md                - This file
 ```
 
 ## Related Files in Repository
 
 ```
-parse/docs/11-headings.md         ← Design specification
-parse/docs/12-scan0-reparse-points.md ← Reparse points
-parse/scan0.js                    ← Main scanner loop
+parse/docs/11-headings.md         - Design specification
+parse/docs/12-scan0-reparse-points.md - Reparse points
+parse/scan0.js                    - Main scanner loop
 ```
 
 ## Contact
