@@ -51,8 +51,8 @@ Following the project's strict allocation discipline:
 ### Heading Depth Encoding (All Tokens)
 
 **Heading depth field (3 bits = levels 0-7):**
-- Bits 28-30: Heading depth (0 = not in heading, 1-6 = ATX levels 1-6, 7 = Setext level 2, etc. — reserved for semantic layer to define)
-- All tokens emitted while inside a heading MUST carry the corresponding depth in bits 28-30
+- Bits 26-28: Heading depth (0 = not in heading, 1-6 = ATX levels 1-6, 7 reserved)
+- All tokens emitted while inside a heading MUST carry the corresponding depth in bits 26-28
 - This includes ATX opening/closing markers, underline markers, and ALL inline tokens (InlineText, emphasis delimiters, entities, code, etc.)
 
 ### ATX Heading Tokens
@@ -60,17 +60,17 @@ Following the project's strict allocation discipline:
 **ATXHeadingOpen** - Opening marker sequence
 - Bits 0-15: Length (1-6, the number of `#` characters)
 - Bits 20-27: Token type (ATXHeadingOpen = 0x2B00000)
-- Bits 28-30: Heading depth (derived from `#` count: 1-6)
+- Bits 26-28: Heading depth (derived from `#` count: 1-6)
 - Bit 31: HasClosingSequence flag (1 if optional closing `#` present)
 
 **ATXHeadingClose** - Optional closing marker sequence (if present)
 - Bits 0-15: Length (number of trailing `#` characters)
 - Bits 20-27: Token type (ATXHeadingClose = 0x2D00000)
-- Bits 28-30: Heading depth (same as opening)
+- Bits 26-28: Heading depth (same as opening)
 - Bit 31: Reserved
 
 **Inline tokens within ATX headings** (InlineText, emphasis delimiters, entities, etc.)
-- All carry the same heading depth in bits 28-30 as the ATX opening marker
+- All carry the same heading depth in bits 26-28 as the ATX opening marker
 - Scanner emits these normally but with heading-depth flags set
 
 ### Setext Heading Tokens
@@ -167,12 +167,12 @@ Tokens (all carry heading depth = 2):
 3. Require `openLen` in range [1, 6]
 4. Require `charCodeAt(pos + openLen)` is space (32) or tab (9)
 5. Compute heading depth = `openLen` (1-6)
-6. Emit `ATXHeadingOpen` token with depth = `openLen` in bits 28-30
+6. Emit `ATXHeadingOpen` token with depth = `openLen` in bits 26-28
 
 **Content scanning:**
 1. Start after opening sequence + required space
 2. Scan forward, emitting inline tokens (InlineText, emphasis, entities, code, etc.)
-3. Set heading depth in every emitted token's bits 28-30 to match opening depth
+3. Set heading depth in every emitted token's bits 26-28 to match opening depth
 4. Scan to find:
    - End of line (newline or EOF)
    - OR closing sequence (space/tab + `#` chars + space/tab/EOL)
@@ -333,10 +333,10 @@ Only **plain text lines** and **lines with safe inline formatting** are buffered
 
 When a Setext underline is confirmed:
 - All buffered tokens (inline tokens from the previous line) are flushed to the output array.
-- Before emission, the heading-depth bits (28-30) of each token are updated to the Setext depth:
+- Before emission, the heading-depth bits (26-28) of each token are updated to the Setext depth:
   - Depth 1 for `=` underline
   - Depth 2 for `-` underline
-- This is done via bit-or operation: `token |= (depth << 28)`
+- This is done via bitwise update: `token = (token & ~(0x7 << 26)) | ((depth & 0x7) << 26)`
 - No token is re-allocated; only the numeric value is modified.
 
 ### Ambiguity Resolution
@@ -462,7 +462,7 @@ Export function following Pattern B:
  * Scan ATX-style heading (# prefix)
  * 
  * Scans the opening # sequence, then scans content as inline tokens,
- * setting heading depth (bits 28-30) on all emitted tokens.
+ * setting heading depth (bits 26-28) on all emitted tokens.
  * 
  * @param {string} input - The input text
  * @param {number} start - Start index (position of first #)
@@ -487,7 +487,7 @@ export function scanATXHeading(input, start, end, output) {
  * @returns {number} Depth 1-6 for ATX, 0 if not in heading
  */
 export function getHeadingDepth(token) {
-  return (token >> 28) & 0x7;
+  return (token >> 26) & 0x7;
 }
 
 /**
@@ -557,7 +557,7 @@ export function bufferSetextToken(token) {
  */
 export function getSetextUnderlineChar(token) {
   // Derive from depth: depth 1 = '=', depth 2 = '-'
-  const depth = (token >> 28) & 0x7;
+  const depth = (token >> 26) & 0x7;
   return depth === 1 ? '=' : '-';
 }
 ```
@@ -570,7 +570,7 @@ if (isPlainTextLine(lastTokens)) {
   if (setextResult.isValid) {
     flushSetextBuffer(output, setextResult.depth);
     // Emit underline token
-    const underlineToken = SetextHeadingUnderline | (setextResult.depth << 28) | setextResult.consumedLength;
+  const underlineToken = SetextHeadingUnderline | ((setextResult.depth & 0x7) << 26) | setextResult.consumedLength;
     output.push(underlineToken);
     pos += setextResult.consumedLength;
   } else {
@@ -599,7 +599,7 @@ Test coverage:
 - Edge cases (trailing spaces, closing sequence detection)
 - Inline formatting within heading text (all tokens carry depth flags)
 
-Example test format (all tokens within heading carry depth in bits 28-30):
+Example test format (all tokens within heading carry depth in bits 26-28):
 ```markdown
 # Level 1
 1       2
@@ -826,7 +826,7 @@ This design ensures the overhead of buffering is only paid for candidate lines, 
 
 ### Token Depth Propagation
 
-All tokens emitted within a heading (ATX or Setext) carry a 3-bit depth field in bits 28-30:
+All tokens emitted within a heading (ATX or Setext) carry a 3-bit depth field in bits 26-28:
 
 - **ATX:** Depth is set immediately when emitting the opening marker and applies to all subsequent tokens on that line.
 - **Setext:** Tokens are buffered without depth during the first line scan. If the next line's pre-scan confirms a valid underline, the buffered tokens are flushed with depth bits applied (depth 1 for `=`, depth 2 for `-`).

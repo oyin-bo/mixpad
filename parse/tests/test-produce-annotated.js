@@ -8,6 +8,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import { getTokenFlags, getTokenKind, getTokenLength } from '../scan-core.js';
+import { HeadingDepthMask } from '../scan-token-flags.js';
 import * as TOKEN_KIND_VALUES from '../scan-tokens.js';
 import * as TOKEN_FLAG_VALUES from '../scan-token-flags.js';
 import { scan0 } from '../scan0.js';
@@ -247,11 +248,12 @@ function parseAndGetTokens(markdown) {
     });
     for (let i = 0; i < tokenCount; i++) {
       const token = tokenBuf[i];
+      const flags = getTokenFlags(token) | (token & HeadingDepthMask);
       tokens.push({
         offset: pos,
         length: getTokenLength(token),
         kind: getTokenKind(token),
-        flags: getTokenFlags(token),
+        flags,
         text: markdown.slice(pos, pos + getTokenLength(token))
       });
       pos += getTokenLength(token);

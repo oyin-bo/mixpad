@@ -1,24 +1,26 @@
 // @ts-check
 
+import { scanATXHeading } from './scan-atx-heading.js';
 import { scanBacktickInline } from './scan-backtick-inline.js';
-import { getTokenFlags, getTokenKind, getTokenLength, isAsciiAlphaNum } from './scan-core.js';
+import { countIndentation, findLineStart, getTokenFlags, getTokenKind, getTokenLength, isAsciiAlphaNum } from './scan-core.js';
 import { scanEmphasis } from './scan-emphasis.js';
 import { scanEntity } from './scan-entity.js';
 import { scanEscaped } from './scan-escaped.js';
 import { scanFencedBlock } from './scan-fences.js';
-import { scanInlineText } from './scan-inline-text.js';
 import { scanHTMLCData } from './scan-html-cdata.js';
 import { scanHTMLComment } from './scan-html-comment.js';
 import { scanHTMLDocType } from './scan-html-doctype.js';
 import { scanHTMLRawText } from './scan-html-raw-text.js';
-import { scanTextarea } from './scan-textarea.js';
-import { scanHTMLTag, isRawTextElement } from './scan-html-tag.js';
-import { scanXMLProcessingInstruction } from './scan-xml-pi.js';
+import { isRawTextElement, scanHTMLTag } from './scan-html-tag.js';
+import { scanInlineText } from './scan-inline-text.js';
 import { scanBulletListMarker } from './scan-list-bullet.js';
 import { scanOrderedListMarker } from './scan-list-ordered.js';
 import { scanTaskListMarker } from './scan-list-task.js';
-import { BacktickBoundary, InlineCode, InlineText, NewLine, Whitespace, HTMLTagName, HTMLTagClose, HTMLTagOpen } from './scan-tokens.js';
-import { IsSafeReparsePoint, ErrorUnbalancedToken } from './scan-token-flags.js';
+import { bufferSetextToken, checkSetextUnderline, flushSetextBuffer } from './scan-setext-heading.js';
+import { scanTextarea } from './scan-textarea.js';
+import { ErrorUnbalancedToken, IsSafeReparsePoint } from './scan-token-flags.js';
+import { BacktickBoundary, HTMLTagClose, HTMLTagName, HTMLTagOpen, InlineCode, InlineText, NewLine, SetextHeadingUnderline, Whitespace } from './scan-tokens.js';
+import { scanXMLProcessingInstruction } from './scan-xml-pi.js';
 
 /**
  * ProvisionalToken: 32-bit packed representation.
@@ -49,38 +51,125 @@ export function scan0({
 
   let tokenCount = 0;
   let offset = startOffset;
-  
+
   // Safe reparse point tracking
   // Initialize to true for the start of file (offset 0)
   let next_token_is_reparse_start = (startOffset === 0);
   let error_recovery_mode = false;
-  
+
+  // Setext heading speculative parsing state
+  let lineStartOffset = startOffset;
+  let lineTokenStartIndex = 0;
+  let lineCouldBeSetextText = true; // Assume eligible until proven otherwise
+  let isInSetextBufferMode = false; // Are we buffering tokens for potential Setext?
+
   while (offset < endOffset) {
     // Record the index where the next token(s) will be added
     const tokenStartIndex = output.length;
     const shouldMarkAsReparsePoint = next_token_is_reparse_start && !error_recovery_mode;
-    
+
     // Reset the flag; it will be set again if this token creates a safe boundary
     next_token_is_reparse_start = false;
-    
+
     const ch = input.charCodeAt(offset++);
 
     switch (ch) {
       case 10 /* \n */:
       case 0: {
+        // Before emitting newline, check if we should do Setext speculative parsing
+        if (lineCouldBeSetextText && lineTokenStartIndex < output.length) {
+          // This line could be Setext heading text
+          // Look ahead to check if next line is a valid underline
+          const nextLineStart = offset; // Position after the newline we're about to emit
+          const setextCheck = checkSetextUnderline(input, nextLineStart, endOffset);
+
+          if (setextCheck.isValid) {
+            // Valid Setext underline found!
+            // Apply depth to all tokens on the current line (from lineTokenStartIndex to current)
+            const depth = setextCheck.depth;
+            const depthBits = (depth & 0x7) << 26;
+            for (let i = lineTokenStartIndex; i < output.length; i++) {
+              output[i] = (output[i] & ~(0x7 << 26)) | depthBits;
+            }
+
+            // Emit the newline (without depth - newlines don't carry heading depth)
+            output.push(NewLine | 1 /* NewLine, length: 1 */);
+            tokenCount++;
+
+            // Emit the Setext underline token (without newline)
+            const underlineLength = setextCheck.underlineTokenLength;
+            output.push(underlineLength | SetextHeadingUnderline | depthBits);
+            tokenCount++;
+
+            // Skip past the underline in the input (including newline)
+            offset += setextCheck.consumedLength;
+
+            // Reset line state for next line
+            lineStartOffset = offset;
+            lineTokenStartIndex = output.length;
+            lineCouldBeSetextText = true;
+            break;
+          }
+        }
+
+        // Not a Setext heading (or line doesn't qualify) - emit newline normally
         output.push(NewLine | 1 /* NewLine, length: 1 */);
         tokenCount++;
+
+        // Reset line state for next line
+        lineStartOffset = offset;
+        lineTokenStartIndex = output.length;
+        lineCouldBeSetextText = true;
         break;
       }
 
       case 13 /* \r */: {
-        if (offset < endOffset && input.charCodeAt(offset) === 10 /* \n */) {
-          offset++;
-          output.push(NewLine | 2 /* NewLine, length: 2 */);
-        } else {
-          output.push(NewLine | 1 /* NewLine, length: 1 */);
+        // Similar logic for \r\n and \r
+        const isLF = (offset < endOffset && input.charCodeAt(offset) === 10 /* \n */);
+        const newlineLength = isLF ? 2 : 1;
+        if (isLF) offset++;
+
+        // Before emitting newline, check for Setext
+        if (lineCouldBeSetextText && lineTokenStartIndex < output.length) {
+          const nextLineStart = offset;
+          const setextCheck = checkSetextUnderline(input, nextLineStart, endOffset);
+
+          if (setextCheck.isValid) {
+            // Apply depth to current line tokens
+            const depth = setextCheck.depth;
+            const depthBits = (depth & 0x7) << 26;
+            for (let i = lineTokenStartIndex; i < output.length; i++) {
+              output[i] = (output[i] & ~(0x7 << 26)) | depthBits;
+            }
+
+            // Emit newline
+            output.push(NewLine | newlineLength);
+            tokenCount++;
+
+            // Emit underline token (without newline)
+            const underlineLength = setextCheck.underlineTokenLength;
+            output.push(underlineLength | SetextHeadingUnderline | depthBits);
+            tokenCount++;
+
+            // Skip underline (including newline)
+            offset += setextCheck.consumedLength;
+
+            // Reset line state
+            lineStartOffset = offset;
+            lineTokenStartIndex = output.length;
+            lineCouldBeSetextText = true;
+            break;
+          }
         }
+
+        // Not Setext - emit newline normally
+        output.push(NewLine | newlineLength);
         tokenCount++;
+
+        // Reset line state
+        lineStartOffset = offset;
+        lineTokenStartIndex = output.length;
+        lineCouldBeSetextText = true;
         break;
       }
 
@@ -132,6 +221,8 @@ export function scan0({
         // Try fenced block first if we could be at line start
         const consumed = scanFencedBlock(input, offset - 1, endOffset, output);
         if (consumed > 0) {
+          // Fenced block detected - line cannot be Setext text
+          lineCouldBeSetextText = false;
           // Apply reparse flag to first token if needed
           if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
             output[tokenStartIndex] |= IsSafeReparsePoint;
@@ -170,6 +261,8 @@ export function scan0({
         // Try fenced block first
         const consumedFence = scanFencedBlock(input, offset - 1, endOffset, output);
         if (consumedFence > 0) {
+          // Fenced block detected - line cannot be Setext text
+          lineCouldBeSetextText = false;
           // Apply reparse flag to first token if needed
           if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
             output[tokenStartIndex] |= IsSafeReparsePoint;
@@ -215,7 +308,7 @@ export function scan0({
           offset += listConsumed - 1;
           continue;
         }
-        
+
         // Try emphasis delimiter (Pattern B: returns consumed length)
         const consumedEmphasis = scanEmphasis(input, offset - 1, endOffset, output);
         if (consumedEmphasis > 0) {
@@ -272,23 +365,36 @@ export function scan0({
         // Try comment: <!--
         if (offset < endOffset && input.charCodeAt(offset) === 33 /* ! */) {
           if (offset + 1 < endOffset && input.charCodeAt(offset + 1) === 45 /* - */ &&
-              offset + 2 < endOffset && input.charCodeAt(offset + 2) === 45 /* - */) {
+            offset + 2 < endOffset && input.charCodeAt(offset + 2) === 45 /* - */) {
             htmlConsumed = scanHTMLComment(input, offset - 1, endOffset, output);
+            if (htmlConsumed > 0) {
+              // HTML comment at line start - disqualify from Setext
+              lineCouldBeSetextText = false;
+            }
           } else if (offset + 1 < endOffset && input.charCodeAt(offset + 1) === 91 /* [ */) {
             // Try CDATA: <![CDATA[
             htmlConsumed = scanHTMLCData(input, offset - 1, endOffset, output);
+            if (htmlConsumed > 0) {
+              lineCouldBeSetextText = false;
+            }
           } else {
             // Try DOCTYPE: <!DOCTYPE
             htmlConsumed = scanHTMLDocType(input, offset - 1, endOffset, output);
+            if (htmlConsumed > 0) {
+              lineCouldBeSetextText = false;
+            }
           }
         } else if (offset < endOffset && input.charCodeAt(offset) === 63 /* ? */) {
           // Try XML PI: <?
           htmlConsumed = scanXMLProcessingInstruction(input, offset - 1, endOffset, output);
+          if (htmlConsumed > 0) {
+            lineCouldBeSetextText = false;
+          }
         } else {
           // Try HTML tag: < or </
           const outputLengthBefore = output.length;
           htmlConsumed = scanHTMLTag(input, offset - 1, endOffset, output);
-          
+
           // Check if we just parsed an opening tag for a raw text element
           if (htmlConsumed > 0 && output.length > outputLengthBefore) {
             // Look for HTMLTagOpen token to check if this is an opening tag (not closing tag)
@@ -304,11 +410,11 @@ export function scan0({
                 tagNameIndex = i;
               }
             }
-            
+
             // Check if this is an opening tag (HTMLTagOpen length 1 for '<', not 2 for '</')
             // and ends with HTMLTagClose (not self-closing)
-            if (tagOpenToken >= 0 && getTokenLength(tagOpenToken) === 1 && 
-                tagNameToken >= 0 && output.length > 0) {
+            if (tagOpenToken >= 0 && getTokenLength(tagOpenToken) === 1 &&
+              tagNameToken >= 0 && output.length > 0) {
               const lastToken = output[output.length - 1];
               if (getTokenKind(lastToken) === HTMLTagClose) {
                 // Calculate actual position of tag name
@@ -316,9 +422,9 @@ export function scan0({
                 for (let i = outputLengthBefore; i < tagNameIndex; i++) {
                   actualOffset += getTokenLength(output[i]);
                 }
-                
+
                 const tagNameLength = getTokenLength(tagNameToken);
-                
+
                 // Check if it's a raw text element (no allocation!)
                 if (isRawTextElement(input, actualOffset, tagNameLength)) {
                   // Scan raw text content
@@ -368,6 +474,47 @@ export function scan0({
           output.push(Whitespace | 1 /* Whitespace, length: 1 */);
           tokenCount++;
         }
+
+        // After emitting whitespace, check if this is the first token on the line
+        // and if it represents 4+ spaces indentation (code block)
+        if (lineTokenStartIndex === output.length - 1) {
+          // This whitespace is the first token on the line
+          const wsLength = getTokenLength(output[output.length - 1]);
+          // Count spaces/tabs (tabs count as moving to next multiple of 4)
+          const lineStart = lineStartOffset;
+          const indentCount = countIndentation(input, lineStart, lineStart + wsLength);
+          if (indentCount >= 4) {
+            // 4+ spaces indentation = code block
+            lineCouldBeSetextText = false;
+          }
+        }
+        continue;
+      }
+
+      case 35 /* # hash */: {
+        // Try ATX heading
+        const headingConsumed = scanATXHeading(input, offset - 1, endOffset, output);
+        if (headingConsumed > 0) {
+          // ATX heading detected - line cannot be Setext text
+          lineCouldBeSetextText = false;
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          return tokenCount; // Return after processing heading
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
         continue;
       }
 
@@ -375,6 +522,8 @@ export function scan0({
         // Try bullet list marker
         const listConsumed = scanBulletListMarker(input, offset - 1, endOffset, output);
         if (listConsumed > 0) {
+          // List marker detected - line cannot be Setext text
+          lineCouldBeSetextText = false;
           // Apply reparse flag to first token if needed
           if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
             output[tokenStartIndex] |= IsSafeReparsePoint;
@@ -401,6 +550,8 @@ export function scan0({
         // Try bullet list marker
         const listConsumed = scanBulletListMarker(input, offset - 1, endOffset, output);
         if (listConsumed > 0) {
+          // List marker detected - line cannot be Setext text
+          lineCouldBeSetextText = false;
           // Apply reparse flag to first token if needed
           if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
             output[tokenStartIndex] |= IsSafeReparsePoint;
@@ -436,6 +587,8 @@ export function scan0({
         // Try ordered list marker
         const listConsumed = scanOrderedListMarker(input, offset - 1, endOffset, output);
         if (listConsumed > 0) {
+          // Ordered list marker detected - line cannot be Setext text
+          lineCouldBeSetextText = false;
           tokenCount = output.length;
           offset += listConsumed - 1;
           continue;
@@ -454,6 +607,8 @@ export function scan0({
         // Try task list marker
         const taskConsumed = scanTaskListMarker(input, offset - 1, endOffset, output);
         if (taskConsumed > 0) {
+          // Task list marker detected - line cannot be Setext text
+          lineCouldBeSetextText = false;
           tokenCount = output.length;
           offset += taskConsumed - 1;
           continue;
@@ -476,12 +631,12 @@ export function scan0({
         }
       }
     }
-    
+
     // Apply safe reparse point flag if needed (to the first token emitted in this iteration)
     if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
       output[tokenStartIndex] |= IsSafeReparsePoint;
     }
-    
+
     // Check if we just emitted tokens that create a safe boundary
     // A safe boundary is created by a blank line pattern:
     // - NewLine followed by NewLine (blank line)
@@ -490,12 +645,12 @@ export function scan0({
       const lastToken = output[output.length - 1];
       const lastTokenKind = getTokenKind(lastToken);
       const lastTokenFlags = getTokenFlags(lastToken);
-      
+
       // Update error recovery mode based on last token
       if (lastTokenFlags & ErrorUnbalancedToken) {
         error_recovery_mode = true;
       }
-      
+
       // Check for blank line pattern
       if (lastTokenKind === NewLine) {
         // Look at the token before the one we just emitted
@@ -503,7 +658,7 @@ export function scan0({
         if (output.length >= 2) {
           const prevToken = output[output.length - 2];
           const prevTokenKind = getTokenKind(prevToken);
-          
+
           // NewLine after NewLine or Whitespace = blank line
           if (prevTokenKind === NewLine || prevTokenKind === Whitespace) {
             // Only set reparse point if not in error recovery

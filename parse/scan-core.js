@@ -1,4 +1,5 @@
 // @ts-check
+import { HeadingDepthMask, HeadingDepthShift } from './scan-token-flags.js';
 
 /**
  * @typedef {import('./scan-tokens.js')[keyof import('./scan-tokens.js')]} TokenKind
@@ -86,14 +87,6 @@ export function isPunctuation(ch) {
     (ch >= 123 && ch <= 126);   // { | } ~
 }
 
-/**
- * Derives a Unicode range check function from a regular expression.
- * @param {RegExp} REGEX
- */
-function deriveUnicodeRangeCheck(REGEX) {
-  
-}
-
 /** @param {import('./scan0.js').ProvisionalToken} token */
 export function getTokenLength(token) {
   return token & 0xFFFF; // lower 16 bits
@@ -111,6 +104,16 @@ export function getTokenFlags(token) {
   return /** @type {TokenFlags} */(
     token & 0x60000000
   ); // bits 29-30 (0x60000000)
+}
+
+/**
+ * Extract heading depth (0-7) from token's dedicated field (bits 26–28).
+ * 0 means not in heading; 1..6 typically represent heading levels.
+ * @param {import('./scan0.js').ProvisionalToken} token
+ * @returns {number}
+ */
+export function getHeadingDepth(token) {
+  return (token & HeadingDepthMask) >>> HeadingDepthShift;
 }
 
 /**
