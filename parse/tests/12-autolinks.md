@@ -107,32 +107,36 @@ These should NOT be recognized as autolinks due to invalid format.
 ### Space in URL
 
 <http://example .com>
-1
-@1 InlineText
+1     2
+@1 HTMLTagOpen
+@2 HTMLTagName
 
 ### Space in email
 
 <user @example.com>
-1
-@1 InlineText
+1    2
+@1 HTMLTagOpen
+@2 HTMLTagName
 
 ### No valid scheme
 
 <not-a-url>
-1
-@1 InlineText
+1   2
+@1 HTMLTagOpen
+@2 HTMLTagName
 
 ### Empty angle brackets
 
 <>
 1
-@1 InlineText
+@1 HTMLTagOpen
 
 ### Multiple @ in email
 
 <user@@example.com>
-1
-@1 InlineText
+1    2
+@1 HTMLTagOpen
+@2 HTMLTagName
 
 ## Raw URL Autolinks (GFM Extension)
 
@@ -141,26 +145,32 @@ Raw URLs starting with http:// or https:// are recognized without angle brackets
 ### Simple HTTP URL
 
 Visit http://example.com today.
-1     2                   3
+1    23                  45
 @1 InlineText
-@2 AutolinkRawURL
-@3 InlineText
+@2 Whitespace
+@3 AutolinkRawURL
+@4 Whitespace
+@5 InlineText
 
 ### Simple HTTPS URL
 
 Check https://github.com now.
-1     2                 3
+1    23                 45
 @1 InlineText
-@2 AutolinkRawURL
-@3 InlineText
+@2 Whitespace
+@3 AutolinkRawURL
+@4 Whitespace
+@5 InlineText
 
 ### URL with path
 
 See http://example.com/path/to/page here.
-1   2                             3
+1  23                             45
 @1 InlineText
-@2 AutolinkRawURL
-@3 InlineText
+@2 Whitespace
+@3 AutolinkRawURL
+@4 Whitespace
+@5 InlineText
 
 ### URL with query
 
@@ -186,15 +196,16 @@ http://first.com and http://second.com
 ### URL with trailing punctuation trimmed
 
 See http://example.com.
-1   2                 3
+1  23                 4
 @1 InlineText
-@2 AutolinkRawURL
-@3 InlineText
+@2 Whitespace
+@3 AutolinkRawURL
+@4 InlineText
 
 ### URL with parentheses
 
 Link (http://example.com) here.
-1    2                   3
+1     2                  3
 @1 InlineText
 @2 AutolinkRawURL
 @3 InlineText
@@ -206,10 +217,12 @@ WWW autolinks start with www. and are recognized without a scheme.
 ### Simple WWW link
 
 Visit www.example.com today.
-1     2              3
+1    23              45
 @1 InlineText
-@2 AutolinkWWW
-@3 InlineText
+@2 Whitespace
+@3 AutolinkWWW
+@4 Whitespace
+@5 InlineText
 
 ### WWW link at start
 
@@ -220,18 +233,22 @@ www.example.com
 ### WWW link with path
 
 See www.example.com/path here.
-1   2                  3
+1  23                  45
 @1 InlineText
-@2 AutolinkWWW
-@3 InlineText
+@2 Whitespace
+@3 AutolinkWWW
+@4 Whitespace
+@5 InlineText
 
 ### WWW link after whitespace
 
 Check www.github.com now.
-1     2            3
+1    23            45
 @1 InlineText
-@2 AutolinkWWW
-@3 InlineText
+@2 Whitespace
+@3 AutolinkWWW
+@4 Whitespace
+@5 InlineText
 
 ### Not WWW (in middle of domain)
 
@@ -242,10 +259,11 @@ foo.www.bar.com
 ### WWW with trailing dot trimmed
 
 Visit www.example.com.
-1     2              3
+1    23              4
 @1 InlineText
-@2 AutolinkWWW
-@3 InlineText
+@2 Whitespace
+@3 AutolinkWWW
+@4 InlineText
 
 ## Mixed Content
 
@@ -264,11 +282,14 @@ Visit www.example.com.
 ### Multiple autolink types
 
 Visit http://example.com or www.example.org
-1     2                  3  4
+1    23                  45 67
 @1 InlineText
-@2 AutolinkRawURL
-@3 InlineText
-@4 AutolinkWWW
+@2 Whitespace
+@3 AutolinkRawURL
+@4 Whitespace
+@5 InlineText
+@6 Whitespace
+@7 AutolinkWWW
 
 ## Edge Cases
 

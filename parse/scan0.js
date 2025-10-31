@@ -662,7 +662,8 @@ export function scan0({
         continue;
       }
 
-      case 119 /* w */: {
+      case 119 /* w */:
+      case 87 /* W */: {
         // Try WWW autolink (www.example.com)
         // WWW autolinks must be preceded by start of line or whitespace
         let isPrecededByWhitespace = false;
