@@ -55,10 +55,11 @@ export function scan0({
 
   // Check for front matter at absolute position 0
   if (startOffset === 0) {
+    const outputLengthBefore = output.length;
     const frontmatterConsumed = scanFrontmatter(input, offset, endOffset, output);
     if (frontmatterConsumed > 0) {
       offset += frontmatterConsumed;
-      tokenCount += output.length;
+      tokenCount += (output.length - outputLengthBefore);
     }
   }
 

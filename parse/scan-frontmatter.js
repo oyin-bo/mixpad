@@ -67,33 +67,53 @@ function scanYAMLorTOMLFrontmatter(input, startOffset, endOffset, output, fenceC
   // Must be exactly 3 characters
   if (openLen !== 3) return 0;
   
+  // Track if there's a newline after the fence (to include in opening token length)
+  let openingTotalLen = 3;
+  
   // Must be followed by newline, space/tab, or EOF
   if (pos < endOffset) {
     const nextChar = input.charCodeAt(pos);
     // Allow newline, or spaces/tabs followed by newline
     if (nextChar === 10 /* \n */ || nextChar === 13 /* \r */) {
       // Valid - newline immediately after fence
+      // Include newline in opening token
+      if (nextChar === 13 /* \r */ && pos + 1 < endOffset && input.charCodeAt(pos + 1) === 10 /* \n */) {
+        openingTotalLen += 2; // CRLF
+        pos += 2;
+      } else {
+        openingTotalLen += 1; // LF or CR
+        pos += 1;
+      }
     } else if (nextChar === 32 /* space */ || nextChar === 9 /* tab */) {
       // Allow trailing spaces/tabs, must find newline
-      while (pos < endOffset) {
-        const ch = input.charCodeAt(pos);
-        if (ch === 10 /* \n */ || ch === 13 /* \r */) break;
+      let tmpPos = pos;
+      while (tmpPos < endOffset) {
+        const ch = input.charCodeAt(tmpPos);
+        if (ch === 10 /* \n */ || ch === 13 /* \r */) {
+          // Found newline after spaces
+          // Include spaces and newline in opening token
+          const spaceCount = tmpPos - pos;
+          openingTotalLen += spaceCount;
+          if (ch === 13 /* \r */ && tmpPos + 1 < endOffset && input.charCodeAt(tmpPos + 1) === 10 /* \n */) {
+            openingTotalLen += 2;
+            pos = tmpPos + 2;
+          } else {
+            openingTotalLen += 1;
+            pos = tmpPos + 1;
+          }
+          break;
+        }
         if (ch !== 32 /* space */ && ch !== 9 /* tab */) return 0; // Invalid char after fence
-        pos++;
+        tmpPos++;
+      }
+      if (tmpPos >= endOffset) {
+        // EOF after spaces - include spaces in opening token
+        openingTotalLen += (tmpPos - pos);
+        pos = tmpPos;
       }
     } else {
       // Invalid - content on same line as opening fence
       return 0;
-    }
-  }
-  
-  // Skip the newline after opening fence
-  if (pos < endOffset) {
-    const ch = input.charCodeAt(pos);
-    if (ch === 13 /* \r */ && pos + 1 < endOffset && input.charCodeAt(pos + 1) === 10 /* \n */) {
-      pos += 2; // CRLF
-    } else if (ch === 10 /* \n */ || ch === 13 /* \r */) {
-      pos += 1; // LF or CR
     }
   }
   
@@ -146,6 +166,31 @@ function scanYAMLorTOMLFrontmatter(input, startOffset, endOffset, output, fenceC
         closingPos = lineStart;
         closingLen = 3;
         pos = testPos;
+        
+        // Include trailing newline/spaces in closing token length
+        while (pos < endOffset) {
+          const ch = input.charCodeAt(pos);
+          if (ch === 10 /* \n */) {
+            closingLen++;
+            pos++;
+            break;
+          }
+          if (ch === 13 /* \r */) {
+            closingLen++;
+            pos++;
+            if (pos < endOffset && input.charCodeAt(pos) === 10 /* \n */) {
+              closingLen++;
+              pos++;
+            }
+            break;
+          }
+          if (ch === 32 /* space */ || ch === 9 /* tab */) {
+            closingLen++;
+            pos++;
+          } else {
+            break;
+          }
+        }
         break;
       }
     }
@@ -167,7 +212,7 @@ function scanYAMLorTOMLFrontmatter(input, startOffset, endOffset, output, fenceC
   
   if (closingPos >= 0) {
     // Balanced frontmatter
-    output.push(FrontmatterOpen | typeBits | 3); // Opening fence length is 3
+    output.push(FrontmatterOpen | typeBits | openingTotalLen);
     
     const contentLength = closingPos - contentStart;
     if (contentLength > 0) {
@@ -176,26 +221,10 @@ function scanYAMLorTOMLFrontmatter(input, startOffset, endOffset, output, fenceC
     
     output.push(FrontmatterClose | typeBits | closingLen);
     
-    // Skip past closing fence and any trailing whitespace/newline
-    while (pos < endOffset) {
-      const ch = input.charCodeAt(pos);
-      if (ch === 10 /* \n */) {
-        pos++;
-        break;
-      }
-      if (ch === 13 /* \r */) {
-        pos++;
-        if (pos < endOffset && input.charCodeAt(pos) === 10 /* \n */) pos++;
-        break;
-      }
-      if (ch !== 32 /* space */ && ch !== 9 /* tab */) break;
-      pos++;
-    }
-    
     return pos - startOffset;
   } else {
     // Unbalanced - no closing fence found
-    output.push(FrontmatterOpen | typeBits | ErrorUnbalancedToken | 3);
+    output.push(FrontmatterOpen | typeBits | ErrorUnbalancedToken | openingTotalLen);
     
     const contentLength = pos - contentStart;
     if (contentLength > 0) {
@@ -221,12 +250,17 @@ function scanJSONFrontmatter(input, startOffset, endOffset, output) {
   if (input.charCodeAt(pos) !== 123 /* { */) return 0;
   pos++;
   
-  // Skip the newline after opening brace if present
+  // Track opening token length (brace + newline if present)
+  let openingTotalLen = 1;
+  
+  // Include newline after opening brace in the opening token
   if (pos < endOffset) {
     const ch = input.charCodeAt(pos);
     if (ch === 13 /* \r */ && pos + 1 < endOffset && input.charCodeAt(pos + 1) === 10 /* \n */) {
+      openingTotalLen += 2;
       pos += 2;
     } else if (ch === 10 /* \n */ || ch === 13 /* \r */) {
+      openingTotalLen += 1;
       pos += 1;
     }
   }
@@ -278,31 +312,38 @@ function scanJSONFrontmatter(input, startOffset, endOffset, output) {
   
   if (closingPos >= 0) {
     // Balanced
-    output.push(FrontmatterOpen | typeBits | 1); // Opening brace length is 1
+    output.push(FrontmatterOpen | typeBits | openingTotalLen);
     
     const contentLength = closingPos - contentStart;
     if (contentLength > 0) {
       output.push(FrontmatterContent | typeBits | contentLength);
     }
     
-    output.push(FrontmatterClose | typeBits | 1); // Closing brace length is 1
+    // Closing token: brace + newline if present
+    let closingLen = 1;
+    pos = closingPos + 1; // After closing brace
     
-    // Skip past closing brace and any trailing newline
-    pos = closingPos + 1;
     if (pos < endOffset) {
       const ch = input.charCodeAt(pos);
       if (ch === 10 /* \n */) {
+        closingLen++;
         pos++;
       } else if (ch === 13 /* \r */) {
+        closingLen++;
         pos++;
-        if (pos < endOffset && input.charCodeAt(pos) === 10 /* \n */) pos++;
+        if (pos < endOffset && input.charCodeAt(pos) === 10 /* \n */) {
+          closingLen++;
+          pos++;
+        }
       }
     }
+    
+    output.push(FrontmatterClose | typeBits | closingLen);
     
     return pos - startOffset;
   } else {
     // Unbalanced
-    output.push(FrontmatterOpen | typeBits | ErrorUnbalancedToken | 1);
+    output.push(FrontmatterOpen | typeBits | ErrorUnbalancedToken | openingTotalLen);
     
     const contentLength = pos - contentStart;
     if (contentLength > 0) {

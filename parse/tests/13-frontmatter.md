@@ -2,9 +2,12 @@
 
 Comprehensive tests for YAML, TOML, and JSON front matter blocks.
 
-## YAML Front Matter - Basic
+## Test Cases
 
-Valid YAML front matter at document start:
+This file tests frontmatter scanning for YAML (`---`), TOML (`+++`), and JSON (`{`) formats.
+Each test case is separated by `<--EOF` markers to ensure frontmatter is at position 0.
+
+<--EOF
 ---
 1
 @1 FrontmatterOpen
@@ -15,9 +18,7 @@ title: "Test"
 1
 @1 FrontmatterClose
 
-## YAML Front Matter - Multiple Fields
-
-YAML with multiple fields:
+<--EOF
 ---
 1
 @1 FrontmatterOpen
@@ -31,9 +32,7 @@ tags: [markdown, parser]
 1
 @1 FrontmatterClose
 
-## YAML Front Matter - Empty
-
-Empty YAML front matter (no content):
+<--EOF
 ---
 1
 @1 FrontmatterOpen
@@ -41,9 +40,7 @@ Empty YAML front matter (no content):
 1
 @1 FrontmatterClose
 
-## YAML Front Matter - With Content After
-
-YAML front matter followed by content:
+<--EOF
 ---
 1
 @1 FrontmatterOpen
@@ -58,9 +55,7 @@ title: "Test"
 @1 ATXHeadingOpen
 @2 Whitespace
 
-## TOML Front Matter - Basic
-
-Valid TOML front matter at document start:
+<--EOF
 +++
 1
 @1 FrontmatterOpen
@@ -71,9 +66,7 @@ title = "Test"
 1
 @1 FrontmatterClose
 
-## TOML Front Matter - Multiple Fields
-
-TOML with multiple fields:
+<--EOF
 +++
 1
 @1 FrontmatterOpen
@@ -87,9 +80,7 @@ tags = ["markdown", "parser"]
 1
 @1 FrontmatterClose
 
-## TOML Front Matter - Empty
-
-Empty TOML front matter:
+<--EOF
 +++
 1
 @1 FrontmatterOpen
@@ -97,9 +88,7 @@ Empty TOML front matter:
 1
 @1 FrontmatterClose
 
-## JSON Front Matter - Basic
-
-Valid JSON front matter at document start:
+<--EOF
 {
 1
 @1 FrontmatterOpen
@@ -110,9 +99,7 @@ Valid JSON front matter at document start:
 1
 @1 FrontmatterClose
 
-## JSON Front Matter - Multiple Fields
-
-JSON with multiple fields:
+<--EOF
 {
 1
 @1 FrontmatterOpen
@@ -126,9 +113,7 @@ JSON with multiple fields:
 1
 @1 FrontmatterClose
 
-## JSON Front Matter - Empty
-
-Empty JSON object:
+<--EOF
 {
 1
 @1 FrontmatterOpen
@@ -136,17 +121,15 @@ Empty JSON object:
 1
 @1 FrontmatterClose
 
-## Not Front Matter - YAML Not at Start
-
-YAML fence not at position 0 should be thematic break:
+<--EOF
 Text before
----
 1
 @1 InlineText
+---
+1
+@1 SetextHeadingUnderline
 
-## Not Front Matter - Four Dashes
-
-Four dashes is not valid front matter:
+<--EOF
 ----
 1
 @1 InlineText
@@ -154,32 +137,24 @@ content
 1
 @1 InlineText
 
-## Not Front Matter - Content After Opening Fence
-
-Content on same line as opening fence invalidates front matter:
+<--EOF
 --- invalid
 1
 @1 InlineText
 
-## Not Front Matter - TOML Not at Start
-
-TOML fence not at position 0:
+<--EOF
 Text before
 +++
 1
 @1 InlineText
 
-## Not Front Matter - JSON Not at Start
-
-JSON brace not at position 0:
+<--EOF
 Text before
 {
 1
 @1 InlineText
 
-## Edge Case - YAML with Blank Lines
-
-YAML with blank lines in content:
+<--EOF
 ---
 1
 @1 FrontmatterOpen
@@ -192,9 +167,7 @@ description: "Multi-line"
 1
 @1 FrontmatterClose
 
-## Edge Case - YAML with Indentation
-
-YAML with indented content:
+<--EOF
 ---
 1
 @1 FrontmatterOpen
@@ -209,9 +182,7 @@ nested:
 1
 @1 FrontmatterClose
 
-## Edge Case - TOML with Tables
-
-TOML with table syntax:
+<--EOF
 +++
 1
 @1 FrontmatterOpen
@@ -223,9 +194,7 @@ key = "value"
 1
 @1 FrontmatterClose
 
-## Edge Case - JSON with Nested Objects
-
-JSON with nested structure:
+<--EOF
 {
 1
 @1 FrontmatterOpen
@@ -241,9 +210,7 @@ JSON with nested structure:
 1
 @1 FrontmatterClose
 
-## Edge Case - YAML Trailing Spaces on Fence
-
-YAML fence with trailing spaces (should be valid):
+<--EOF
 ---   
 1
 @1 FrontmatterOpen
@@ -253,3 +220,5 @@ title: "Test"
 ---   
 1
 @1 FrontmatterClose
+
+<--EOF
