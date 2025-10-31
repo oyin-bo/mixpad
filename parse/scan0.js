@@ -19,8 +19,9 @@ import { scanTaskListMarker } from './scan-list-task.js';
 import { bufferSetextToken, checkSetextUnderline, flushSetextBuffer } from './scan-setext-heading.js';
 import { scanTextarea } from './scan-textarea.js';
 import { ErrorUnbalancedToken, IsSafeReparsePoint } from './scan-token-flags.js';
-import { BacktickBoundary, HTMLTagClose, HTMLTagName, HTMLTagOpen, InlineCode, InlineText, NewLine, SetextHeadingUnderline, Whitespace } from './scan-tokens.js';
+import { BacktickBoundary, HTMLTagClose, HTMLTagName, HTMLTagOpen, InlineCode, InlineText, NewLine, SetextHeadingUnderline, TablePipe, Whitespace } from './scan-tokens.js';
 import { scanXMLProcessingInstruction } from './scan-xml-pi.js';
+import { scanTableDelimiterRow, scanTablePipe } from './scan-table.js';
 
 /**
  * ProvisionalToken: 32-bit packed representation.
@@ -519,6 +520,20 @@ export function scan0({
       }
 
       case 45 /* - hyphen-minus */: {
+        // Try table delimiter row first
+        const tableConsumed = scanTableDelimiterRow(input, offset - 1, endOffset, output);
+        if (tableConsumed > 0) {
+          // Table delimiter detected - line cannot be Setext text
+          lineCouldBeSetextText = false;
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += tableConsumed - 1;
+          continue;
+        }
+
         // Try bullet list marker
         const listConsumed = scanBulletListMarker(input, offset - 1, endOffset, output);
         if (listConsumed > 0) {
@@ -611,6 +626,62 @@ export function scan0({
           lineCouldBeSetextText = false;
           tokenCount = output.length;
           offset += taskConsumed - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 58 /* : colon */: {
+        // Try table delimiter row (for alignments like :--- | :---:)
+        const tableConsumed = scanTableDelimiterRow(input, offset - 1, endOffset, output);
+        if (tableConsumed > 0) {
+          // Table delimiter detected - line cannot be Setext text
+          lineCouldBeSetextText = false;
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += tableConsumed - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 124 /* | pipe */: {
+        // Try table delimiter row first (only at line start)
+        const tableConsumed = scanTableDelimiterRow(input, offset - 1, endOffset, output);
+        if (tableConsumed > 0) {
+          // Table delimiter detected - line cannot be Setext text
+          lineCouldBeSetextText = false;
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += tableConsumed - 1;
+          continue;
+        }
+
+        // Otherwise, just emit a table pipe token
+        const pipeConsumed = scanTablePipe(input, offset - 1, endOffset, output);
+        if (pipeConsumed > 0) {
+          tokenCount = output.length;
+          offset += pipeConsumed - 1;
           continue;
         }
 
