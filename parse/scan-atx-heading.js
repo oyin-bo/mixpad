@@ -68,14 +68,13 @@ export function scanATXHeading(input, start, end, output) {
   // Emit ATXHeadingOpen (just the # characters)
   output.push(hashCount | ATXHeadingOpen | depthBits);
   
-  // Check if there's a space/tab after opening
-  let hasSpace = false;
+  // Emit Whitespace token for the space/tab after opening if present
   if (pos < end && (input.charCodeAt(pos) === 32 || input.charCodeAt(pos) === 9)) {
-    hasSpace = true;
+    output.push(1 | Whitespace | depthBits);
     pos++;
   }
   
-  // Content starts after the space (if any)
+  // Content starts after the whitespace
   let contentStart = pos;
   
   // Find content bounds (excluding closing sequence if present)
@@ -119,9 +118,6 @@ export function scanATXHeading(input, start, end, output) {
   if (contentEnd > contentStart) {
     const contentLength = contentEnd - contentStart;
     output.push(contentLength | InlineText | depthBits);
-  } else if (hasSpace && contentStart === pos) {
-    // Empty heading with just a space - emit the space as Whitespace
-    output.push(1 | Whitespace | depthBits);
   }
   
   // Emit whitespace before closing if present

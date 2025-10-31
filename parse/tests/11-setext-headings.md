@@ -27,7 +27,7 @@ Heading Two
 ## With Bold
 
 **Bold text**
-1 2         3
+1 2        3
 @1 AsteriskDelimiter "**"
 @2 InlineText "Bold text"
 @3 AsteriskDelimiter "**"
@@ -40,7 +40,7 @@ Heading Two
 ## With Italic
 
 *Italic text*
-1 2          3
+12          3
 @1 AsteriskDelimiter "*"
 @2 InlineText "Italic text"
 @3 AsteriskDelimiter "*"
@@ -53,14 +53,16 @@ Heading Two
 ## With Mixed Formatting
 
 **Bold** and *italic*
-1 2    3 4   5 6     7
+1 2   3 45  678     9
 @1 AsteriskDelimiter "**"
 @2 InlineText "Bold"
 @3 AsteriskDelimiter "**"
-@4 InlineText " and "
-@5 AsteriskDelimiter "*"
-@6 InlineText "italic"
+@4 Whitespace " "
+@5 InlineText "and"
+@6 Whitespace " "
 @7 AsteriskDelimiter "*"
+@8 InlineText "italic"
+@9 AsteriskDelimiter "*"
 =====================
 1
 @1 SetextHeadingUnderline "====================="
@@ -70,9 +72,10 @@ Heading Two
 ## List Item Not Setext
 
 - List item
-1 2
+123
 @1 BulletListMarker "-"
-@2 InlineText " List item"
+@2 Whitespace " "
+@3 InlineText "List item"
 ===
 1
 @1 InlineText "==="
