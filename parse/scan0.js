@@ -17,6 +17,7 @@ import { scanBulletListMarker } from './scan-list-bullet.js';
 import { scanOrderedListMarker } from './scan-list-ordered.js';
 import { scanTaskListMarker } from './scan-list-task.js';
 import { bufferSetextToken, checkSetextUnderline, flushSetextBuffer } from './scan-setext-heading.js';
+import { scanTableDelimiterRow } from './scan-table.js';
 import { scanTextarea } from './scan-textarea.js';
 import { ErrorUnbalancedToken, IsSafeReparsePoint } from './scan-token-flags.js';
 import { BacktickBoundary, HTMLTagClose, HTMLTagName, HTMLTagOpen, InlineCode, InlineText, NewLine, SetextHeadingUnderline, Whitespace } from './scan-tokens.js';
@@ -617,6 +618,34 @@ export function scan0({
         // Fall back to inline text
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 124 /* | pipe */: {
+        // Try table delimiter row (must be at line start or after whitespace)
+        const tableConsumed = scanTableDelimiterRow(input, offset - 1, endOffset, output);
+        if (tableConsumed > 0) {
+          // Table delimiter detected - line cannot be Setext text
+          lineCouldBeSetextText = false;
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += tableConsumed - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += consumed - 1;
         }
