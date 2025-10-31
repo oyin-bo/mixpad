@@ -1,6 +1,17 @@
-# Front Matter — High-Level Definition
+# Front Matter — Implementation and Scanner Design
 
-This document provides a high-level definition of front matter support needed for MixPad. Front matter is metadata at the start of a document, typically containing configuration, titles, dates, tags, and other structured data. This will be expanded into detailed implementation and test plans later.
+This document defines the frontmatter parsing implementation for MixPad. Front matter is metadata at the start of a document, typically containing configuration, titles, dates, tags, and other structured data.
+
+## Executive Summary
+
+Front matter support enables documents to carry structured metadata in YAML, TOML, or JSON format at the absolute beginning (position 0). MixPad's scanner treats frontmatter content as opaque slices, delegating actual parsing to external libraries while ensuring correct tokenization for the semantic layer.
+
+**Key implementation principles:**
+1. **Position 0 requirement:** Frontmatter is ONLY valid at absolute position 0 of the input
+2. **Opaque content:** Scanner does not validate YAML/TOML/JSON syntax — content is captured as raw text
+3. **Zero allocation:** Use position indices only; no string extraction during scanning
+4. **Three formats:** YAML (`---`), TOML (`+++`), and JSON (`{...}`)
+5. **Disambiguation:** Position 0 requirement eliminates ambiguity with thematic breaks and Setext headings
 
 ## Goals
 
@@ -230,13 +241,249 @@ When this document is expanded, deliver:
 5. **scan0.js** updated to delegate to frontmatter scanner at position 0
 6. Tests passing via `npm test`
 
-## Open Questions (To Resolve Later)
+## Implementation Status
 
-1. Should we support UTF-8 BOM before front matter?
-2. How strict should fence validation be? (trailing spaces, tabs, etc.)
-3. Should unclosed front matter be fatal error or graceful degradation?
-4. Do we expose front matter in provisional tokens or defer to semantic layer entirely?
-5. Should scanner validate that content is well-formed YAML/TOML/JSON, or remain completely opaque?
+**Status**: ✅ Fully implemented and tested (339/339 tests passing)
+
+### Completed Items
+
+1. ✅ **Token definitions** - FrontmatterOpen, FrontmatterContent, FrontmatterClose tokens added to scan-tokens.js
+2. ✅ **YAML scanner** - Detects `---` fences, captures opaque content, handles unclosed blocks
+3. ✅ **TOML scanner** - Detects `+++` fences with same logic as YAML
+4. ✅ **JSON scanner** - Tracks brace balance, handles string escaping, finds matching closer
+5. ✅ **scan0 integration** - Early detection at position 0, proper line tracking after frontmatter
+6. ✅ **Comprehensive tests** - 38 annotated markdown tests covering all formats and edge cases
+7. ✅ **Error handling** - Unclosed frontmatter emits ErrorUnbalancedToken flag
+8. ✅ **Disambiguation** - Position 0 requirement prevents conflicts with Setext headings
+
+### Scanner Implementation Details
+
+#### scan-frontmatter.js Module
+
+The frontmatter scanner is implemented in `parse/scan-frontmatter.js` following Pattern B (complex scanner that pushes tokens and returns consumed length).
+
+**Main entry point:**
+```javascript
+export function scanFrontmatter(input, startOffset, endOffset, output)
+```
+
+**Key characteristics:**
+- Returns 0 immediately if `startOffset !== 0` (frontmatter only valid at document start)
+- Dispatches to format-specific scanners based on first character
+- No allocations during scan — uses `charCodeAt()` for character inspection
+- Emits 2-3 tokens: FrontmatterOpen, [FrontmatterContent], FrontmatterClose
+
+#### YAML/TOML Scanner Algorithm
+
+Both YAML (`---`) and TOML (`+++`) use nearly identical logic:
+
+1. **Validate opening fence:**
+   - Must be exactly 3 characters (`---` or `+++`)
+   - Must be at position 0
+   - Must be followed by newline, space/tab, or EOF
+   - Content on same line as fence invalidates frontmatter
+
+2. **Capture content:**
+   - Scan forward line-by-line looking for closing fence
+   - Closing fence must be at line start (beginning of a line)
+   - Closing fence must match opening character (can't mix `---` and `+++`)
+   - Content between fences is opaque — preserved exactly as-is
+
+3. **Emit tokens:**
+   - FrontmatterOpen: includes opening fence + newline
+   - FrontmatterContent: all content between fences (may be empty)
+   - FrontmatterClose: includes closing fence + newline
+
+4. **Error handling:**
+   - If no closer found by EOF, emit FrontmatterContent with ErrorUnbalancedToken flag
+
+#### JSON Scanner Algorithm
+
+JSON frontmatter has different structure due to brace balancing:
+
+1. **Validate opening brace:**
+   - Must be `{` at position 0
+   - No position validation for content after brace
+
+2. **Track brace balance:**
+   - Maintain `braceDepth` counter (starts at 1 after opening `{`)
+   - Respect string literals (don't count braces inside quoted strings)
+   - Handle escape sequences (`\"` doesn't end string)
+   - Track `inString` state and `escapeNext` flag
+
+3. **Find matching closer:**
+   - Scan forward character by character
+   - Increment depth on `{`, decrement on `}`
+   - When depth reaches 0, found matching closer
+
+4. **Emit tokens:**
+   - FrontmatterOpen: just `{` (length 1)
+   - FrontmatterContent: everything between braces (includes newlines and indentation)
+   - FrontmatterClose: just `}` (length 1)
+   - Note: Unlike YAML/TOML, newlines are NOT included in opening/closing tokens
+
+#### scan0.js Integration
+
+Frontmatter detection happens before the main scanning loop:
+
+```javascript
+// Check for frontmatter at absolute position 0
+if (startOffset === 0) {
+  const frontmatterConsumed = scanFrontmatter(input, startOffset, endOffset, output);
+  if (frontmatterConsumed > 0) {
+    offset += frontmatterConsumed;
+    tokenCount += output.length;
+    // Update line tracking to skip past frontmatter
+    lineStartOffset = offset;
+    lineTokenStartIndex = output.length;
+    lineCouldBeSetextText = false;
+  }
+}
+```
+
+**Key integration points:**
+- Runs BEFORE any other scanning (even before newline detection)
+- Updates `offset` to skip past consumed frontmatter
+- Resets Setext heading state to prevent treating post-frontmatter content as Setext text
+- Only invoked when `startOffset === 0` (document start)
+
+## Performance Characteristics
+
+### Zero-Allocation Compliance
+
+✅ **Fully compliant** with project's zero-allocation principles:
+- All character inspection via `charCodeAt(pos)`
+- No `substring()`, `slice()`, or `charAt()` calls
+- No string allocations during scanning
+- Token positions recorded as numeric indices only
+- Content extraction deferred to semantic layer
+
+### Time Complexity
+
+- **YAML/TOML:** O(n) where n = frontmatter length
+  - Linear scan for closing fence
+  - Each character visited at most once
+  
+- **JSON:** O(n) where n = frontmatter length
+  - Linear scan with state tracking
+  - Each character visited exactly once
+  - String escape handling adds minimal overhead
+
+### Space Complexity
+
+- **Scanner state:** O(1) constant space
+  - Small number of integer variables (pos, depth, flags)
+  - No buffers or accumulators
+  
+- **Output tokens:** O(1) for frontmatter
+  - Always emits 2-3 tokens regardless of content size
+  - Token array provided by caller
+
+## Edge Cases and Special Handling
+
+### Fence Validation (YAML/TOML)
+
+**Valid opening fences:**
+```markdown
+---
+--- 
+---  (trailing spaces)
+---	(trailing tab)
+```
+
+**Invalid opening fences:**
+```markdown
+---- (four dashes - not frontmatter)
+--- content (content on same line)
+ --- (leading space - not at position 0)
+```
+
+**Valid closing fences:**
+```markdown
+---
+---  (trailing spaces allowed)
+```
+
+**Invalid closing fences:**
+```markdown
+---- (different length - not a fence)
+--- content (content after fence)
+```
+
+### Content Rules
+
+**Empty frontmatter is valid:**
+```markdown
+---
+---
+```
+Emits: FrontmatterOpen, FrontmatterClose (no content token)
+
+**Fence-like sequences inside content are preserved:**
+```markdown
+---
+title: "Test with --- inside"
+description: "Another --- here"
+---
+```
+Only the first `---` at line start after the opening closes the block.
+
+**Blank lines and indentation preserved:**
+```markdown
+---
+nested:
+  key: value
+  
+  another: data
+---
+```
+All whitespace, newlines, and indentation in content is preserved exactly.
+
+### JSON Brace Balancing
+
+**Nested objects allowed:**
+```json
+{
+  "outer": {
+    "inner": {
+      "deep": "value"
+    }
+  }
+}
+```
+
+**Braces in strings ignored:**
+```json
+{
+  "text": "This { is not a brace",
+  "valid": true
+}
+```
+
+**Escape sequences handled:**
+```json
+{
+  "quote": "She said \"hello\"",
+  "backslash": "Path: C:\\Users"
+}
+```
+
+## Open Questions (Resolved)
+
+1. **Should we support UTF-8 BOM before front matter?**  
+   → **Decision:** No. Frontmatter must start at absolute position 0. BOM support can be added as a preprocessing step if needed.
+
+2. **How strict should fence validation be? (trailing spaces, tabs, etc.)**  
+   → **Decision:** Allow trailing whitespace after fences. Content on same line as opening fence invalidates frontmatter.
+
+3. **Should unclosed front matter be fatal error or graceful degradation?**  
+   → **Decision:** Graceful degradation. Emit FrontmatterContent with ErrorUnbalancedToken flag, allowing semantic layer to decide handling.
+
+4. **Do we expose front matter in provisional tokens or defer to semantic layer entirely?**  
+   → **Decision:** Expose via provisional tokens (FrontmatterOpen, Content, Close). Semantic layer extracts and parses content using external libraries.
+
+5. **Should scanner validate that content is well-formed YAML/TOML/JSON, or remain completely opaque?**  
+   → **Decision:** Remain completely opaque. Scanner's job is tokenization only. Syntax validation happens in semantic layer.
 
 ## References
 
