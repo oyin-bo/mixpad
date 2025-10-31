@@ -64,3 +64,12 @@ export const TaskListMarker = 0x2A0000;
 export const ATXHeadingOpen = 0x2B0000;
 export const ATXHeadingClose = 0x2C0000;
 export const SetextHeadingUnderline = 0x2D0000;
+
+// Autolink Tokens
+export const AngleLinkOpen = 0x2E0000;
+export const AngleLinkURL = 0x2F0000;
+export const AngleLinkEmail = 0x300000;
+export const AngleLinkClose = 0x310000;
+export const RawURL = 0x320000;
+export const WWWAutolink = 0x330000;
+export const EmailAutolink = 0x340000;
