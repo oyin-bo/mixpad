@@ -30,9 +30,10 @@ Renders as: This is <del>deleted text</del>.
    - `~~~triple~~~` → treated as `~~` delimiter with extra `~` as content
 
 2. **No Spaces Between Delimiters and Content**: 
-   - Delimiters must be adjacent to the text
-   - `~~ text~~` or `~~text ~~` with spaces inside may not be parsed correctly
-   - The GFM spec follows standard emphasis flanking rules
+   - Delimiters must be adjacent to the text for proper flanking
+   - `~~ text~~` has a space after the opening delimiter - the opening `~~` is not left-flanking
+   - `~~text ~~` has a space before the closing delimiter - the closing `~~` is not right-flanking
+   - Space-flanked runs like ` ~~ ` (spaces on both sides) are demoted to plain text
 
 3. **Matching Pairs**: Opening `~~` must be closed with `~~`
    - `~~strikethrough~` → not matched (only one closing tilde)
@@ -80,9 +81,9 @@ text ~~strike~~     ← This is inline strikethrough
 
 The first line above starts with `~~~` at line position 0, so `scan0` delegates to `scanFencedBlock` before checking `scanEmphasis`. The fence scanner consumes it as a fence opener, looking for a closing fence on its own line.
 
-For inline strikethrough to work with 3+ tildes, the tildes must NOT be at line start:
-- `text ~~~strike~~~` would be inline (though unusual - typically use `~~`)
-- ` ~~~not fence~~~` with leading space might be inline depending on indent rules
+For inline strikethrough, the tildes must NOT be at line start:
+- `text ~~~strike~~~` would be inline strikethrough (not at line start)
+- ` ~~~indented~~~` with 1 leading space is still treated as a fence block (fence blocks allow up to 3 leading spaces)
 
 This is correct GFM behavior and matches the specification's precedence rules.
 
