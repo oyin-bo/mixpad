@@ -1,7 +1,6 @@
 // @ts-check
 
 import { TablePipe, TableDelimiterCell } from './scan-tokens.js';
-import { findLineStart, countIndentation } from './scan-core.js';
 
 /**
  * Scan table pipe character |
@@ -108,17 +107,18 @@ export function scanTableDelimiterCell(input, start, end, output) {
   }
   
   // Determine alignment
-  // 0 = left (default), 1 = center, 2 = right, 3 = default/unspecified
-  let alignment = 3; // default
+  // 0 = explicit left (:---), 1 = center (:---:), 2 = right (---:), 3 = default/unspecified (---)
+  let alignment = 3; // default/unspecified
   if (hasLeadingColon && hasTrailingColon) {
     alignment = 1; // center
   } else if (hasLeadingColon) {
-    alignment = 0; // left
+    alignment = 0; // explicit left
   } else if (hasTrailingColon) {
     alignment = 2; // right
   }
   
   const length = pos - start;
+  // alignment is guaranteed to be 0-3, safe for 2-bit encoding
   const alignmentBits = alignment << 26;
   
   output.push(length | TableDelimiterCell | alignmentBits);
