@@ -79,7 +79,7 @@ Leading whitespace (1 space):
 
 Leading whitespace (3 spaces):
    | --- | --- |
-1  -2
+1  2
 @1 Whitespace
 @2 TableDelimiterRow
 
@@ -132,10 +132,8 @@ No dashes:
 
 Only pipes:
 |||
-123
-@0 TablePipe
-@1 TablePipe
-@2 TablePipe
+1
+@1 InlineText
 
 Mixed with text:
 | --- | text |
@@ -150,7 +148,7 @@ Dashes without pipes:
 Single pipe, no dashes:
 |
 1
-@0 TablePipe
+@1 InlineText
 
 Colons without dashes:
 | : | : |

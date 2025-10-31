@@ -677,14 +677,6 @@ export function scan0({
           continue;
         }
 
-        // Otherwise, just emit a table pipe token
-        const pipeConsumed = scanTablePipe(input, offset - 1, endOffset, output);
-        if (pipeConsumed > 0) {
-          tokenCount = output.length;
-          offset += pipeConsumed - 1;
-          continue;
-        }
-
         // Fall back to inline text
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
