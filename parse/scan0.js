@@ -17,6 +17,7 @@ import { scanBulletListMarker } from './scan-list-bullet.js';
 import { scanOrderedListMarker } from './scan-list-ordered.js';
 import { scanTaskListMarker } from './scan-list-task.js';
 import { bufferSetextToken, checkSetextUnderline, flushSetextBuffer } from './scan-setext-heading.js';
+import { scanTablePipe } from './scan-table.js';
 import { scanTextarea } from './scan-textarea.js';
 import { ErrorUnbalancedToken, IsSafeReparsePoint } from './scan-token-flags.js';
 import { BacktickBoundary, HTMLTagClose, HTMLTagName, HTMLTagOpen, InlineCode, InlineText, NewLine, SetextHeadingUnderline, Whitespace } from './scan-tokens.js';
@@ -617,6 +618,32 @@ export function scan0({
         // Fall back to inline text
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 124 /* | pipe */: {
+        // Scan table pipe - the semantic phase will determine if this is part of a table
+        const pipeConsumed = scanTablePipe(input, offset - 1, endOffset, output);
+        if (pipeConsumed > 0) {
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += pipeConsumed - 1;
+          continue;
+        }
+
+        // Fall back to inline text if not recognized as table pipe
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += consumed - 1;
         }

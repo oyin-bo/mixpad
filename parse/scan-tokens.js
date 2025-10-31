@@ -64,3 +64,7 @@ export const TaskListMarker = 0x2A0000;
 export const ATXHeadingOpen = 0x2B0000;
 export const ATXHeadingClose = 0x2C0000;
 export const SetextHeadingUnderline = 0x2D0000;
+
+// Table Tokens
+export const TablePipe = 0x2E0000;
+export const TableDelimiterCell = 0x2F0000;
