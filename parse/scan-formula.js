@@ -79,7 +79,56 @@ function scanBlockFormula(input, startOffset, endOffset, output, afterOpener) {
   }
 
   // Scan forward line-by-line looking for closing $$
+  // First check if contentStart itself is at a valid closing position
+  // (handles empty formula blocks where closer is on the next line after opener)
   let pos = contentStart;
+  let spaceCount = 0;
+  while (pos < endOffset && input.charCodeAt(pos) === 32 /* space */ && spaceCount < 3) {
+    spaceCount++;
+    pos++;
+  }
+  
+  if (pos + 1 < endOffset && 
+      input.charCodeAt(pos) === 36 /* $ */ && 
+      input.charCodeAt(pos + 1) === 36 /* $ */) {
+    // Check if rest of line is whitespace
+    let validCloser = true;
+    let checkPos = pos + 2;
+    while (checkPos < endOffset) {
+      const ch = input.charCodeAt(checkPos);
+      if (ch === 10 /* \n */ || ch === 13 /* \r */) break;
+      if (ch !== 32 /* space */ && ch !== 9 /* \t */) {
+        validCloser = false;
+        break;
+      }
+      checkPos++;
+    }
+    
+    if (validCloser) {
+      // Found valid closer immediately at contentStart (empty content)
+      const openTokenLen = contentStart - startOffset;
+      const contentLength = 0; // Empty content
+      
+      let closeLineEnd = checkPos;
+      if (checkPos < endOffset) {
+        const nc = input.charCodeAt(checkPos);
+        if (nc === 13 /* \r */ && checkPos + 1 < endOffset && input.charCodeAt(checkPos + 1) === 10 /* \n */) {
+          closeLineEnd = checkPos + 2;
+        } else if (nc === 10 /* \n */ || nc === 13 /* \r */) {
+          closeLineEnd = checkPos + 1;
+        }
+      }
+      const closeTokenLen = closeLineEnd - pos;
+      
+      output.push(FormulaBlockOpen | openTokenLen);
+      // No content token for empty formulas
+      output.push(FormulaBlockClose | closeTokenLen);
+      return closeLineEnd - startOffset;
+    }
+  }
+  
+  // Not at a closer yet, scan forward line-by-line
+  pos = contentStart;
   while (pos < endOffset) {
     // Find the next newline
     let newlinePos = -1;
@@ -102,7 +151,7 @@ function scanBlockFormula(input, startOffset, endOffset, output, afterOpener) {
 
     // Now at the start of a line; skip up to 3 leading spaces
     let linePos = pos;
-    let spaceCount = 0;
+    spaceCount = 0;
     while (linePos < endOffset && input.charCodeAt(linePos) === 32 /* space */ && spaceCount < 3) {
       spaceCount++;
       linePos++;

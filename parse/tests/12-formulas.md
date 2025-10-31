@@ -118,25 +118,33 @@ $$Cost = $50$$
 
 Formula with one leading space
  $$
- 1
- @1 FormulaBlockOpen
+ 12
+@1 Whitespace
+@2 FormulaBlockOpen
 x = 1
 1
 @1 FormulaBlockContent "x = 1\n"
  $$
- 1
- @1 FormulaBlockClose
+ 12
+@1 Whitespace
+@2 FormulaBlockClose
 
 Formula with three leading spaces
    $$
-   1
-   @1 FormulaBlockOpen
+   1234
+@1 Whitespace
+@2 Whitespace
+@3 Whitespace
+@4 FormulaBlockOpen
 y = 2
 1
 @1 FormulaBlockContent "y = 2\n"
    $$
-   1
-   @1 FormulaBlockClose
+   1234
+@1 Whitespace
+@2 Whitespace
+@3 Whitespace
+@4 FormulaBlockClose
 
 ## Edge Cases with Three Dollar Signs
 
