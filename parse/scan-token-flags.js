@@ -6,6 +6,13 @@
 export const IsSafeReparsePoint = 0x40000000; // bit 30
 export const ErrorUnbalancedToken = 0x20000000; // bit 29
 
+// Autolink scheme flags (use bits 26-28, same space as heading depth, 
+// since autolinks don't use heading depth)
+export const IsAutolinkHTTP = 0x04000000; // 1 << 26
+export const IsAutolinkHTTPS = 0x08000000; // 2 << 26
+export const IsAutolinkFTP = 0x0C000000; // 3 << 26
+export const IsAutolinkMailto = 0x10000000; // 4 << 26
+
 // Heading depth field (3 bits) — bits 26–28
 export const HeadingDepthShift = 26;
 export const HeadingDepthMask = 0x1C000000; // 0b111 << 26
