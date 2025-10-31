@@ -69,6 +69,23 @@ Strikethrough can be combined with other formatting:
    - `~~one~~ and ~~two~~` → both segments get strikethrough
    - Each `~~` pair is independent
 
+## Important: Fence Blocks vs Inline Strikethrough
+
+A critical distinction in GFM: tildes at the **start of a line** with 3+ characters are treated as **fence block openers**, NOT inline strikethrough delimiters.
+
+```markdown
+~~~code fence~~~    ← This is a fence block (unbalanced)
+text ~~strike~~     ← This is inline strikethrough
+```
+
+The first line above starts with `~~~` at line position 0, so `scan0` delegates to `scanFencedBlock` before checking `scanEmphasis`. The fence scanner consumes it as a fence opener, looking for a closing fence on its own line.
+
+For inline strikethrough to work with 3+ tildes, the tildes must NOT be at line start:
+- `text ~~~strike~~~` would be inline (though unusual - typically use `~~`)
+- ` ~~~not fence~~~` with leading space might be inline depending on indent rules
+
+This is correct GFM behavior and matches the specification's precedence rules.
+
 ## Implementation in MixPad
 
 ### Scanner Layer (`scan-emphasis.js`)
@@ -109,14 +126,16 @@ The semantic phase (not yet implemented for strikethrough) would:
 - `~~standard~~` → strikethrough
 - `word~~can close` → `~~` is right-flanking (can close)
 - `~~can open~~word` → both `~~` are valid delimiters
-- `~~nested **bold**~~` → valid nesting
+- `~~nested **bold**~~` → valid nesting (semantic phase handles nesting)
+- `~~a~~ and ~~b~~` → multiple independent strikethroughs on same line
 
 ### Not Strikethrough (Plain Text)
 
-- `~single tilde~` → single tildes are plain text
-- ` ~~ ` → space-flanked runs are plain text
-- `~~~` → treated as `~~` delimiter (run length 2)
-- `~~unmatched` → no closing delimiter (unmatched)
+- `~single tilde~` → single tildes are plain text (run length < 2)
+- ` ~~ ` → space-flanked runs are demoted to plain text
+- `~~~triple~~~` → at line start, treated as fence block opener (not inline strikethrough)
+- `~~~~quad~~~~` → at line start, treated as fence block opener (not inline strikethrough)
+- `~~unmatched` → no closing delimiter (remains as unmatched opener in scan phase)
 
 ### Character-Level vs Semantic Demotions
 
@@ -147,10 +166,32 @@ Strikethrough is tested through annotated Markdown files in `parse/tests/6-empha
 ```
 
 See `parse/tests/6-emphasis.md` for comprehensive test cases covering:
-- Basic strikethrough
-- Right-flanking only cases
-- Single tilde demotion
-- Edge cases with spacing and nesting
+- Basic strikethrough (`~~text~~`)
+- Multiple strikethroughs on same line (`~~one~~ and ~~two~~`)
+- Right-flanking only cases (`text~~`)
+- Left-flanking cases (`~~text more`)
+- Single tilde demotion (`~text~` → plain text)
+- Space-flanked demotion (` ~~ ` → plain text)
+- Unmatched delimiters (`~~no closing`)
+- Edge cases with mixed tilde counts (`~~a~`, `~a~~`)
+- Whitespace handling (`text ~~strike~~ more` with proper token separation)
+
+### Running Tests
+
+Run all tests:
+```bash
+npm test
+```
+
+Run only strikethrough-related tests:
+```bash
+node --test --test-name-pattern="~~" parse/tests/test-produce-annotated.js
+```
+
+Run a specific test:
+```bash
+node --test --test-name-pattern="~~word~~" parse/tests/test-produce-annotated.js
+```
 
 ## References
 

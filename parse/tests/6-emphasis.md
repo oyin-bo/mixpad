@@ -118,3 +118,21 @@ no opening~~
 1 2
 @1 InlineText "~a"
 @2 TildeDelimiter "~~" CanClose
+
+ ~~ 
+12 3
+@1 Whitespace " "
+@2 InlineText "~~"
+@3 Whitespace " "
+
+~~a~~ and ~~b~~
+1 23 45  67 89
+@1 TildeDelimiter|IsSafeReparsePoint "~~" CanOpen
+@2 InlineText "a"
+@3 TildeDelimiter "~~" CanClose
+@4 Whitespace " "
+@5 InlineText "and"
+@6 Whitespace " "
+@7 TildeDelimiter "~~" CanOpen
+@8 InlineText "b"
+@9 TildeDelimiter "~~" CanClose
