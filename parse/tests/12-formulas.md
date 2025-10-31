@@ -55,7 +55,7 @@ $$
 
 Empty display math
 $$$$
-1  2
+1 2
 @1 FormulaBlockOpen
 @2 FormulaBlockClose
 

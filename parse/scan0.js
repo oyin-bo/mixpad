@@ -185,8 +185,7 @@ export function scan0({
             output[tokenStartIndex] |= IsSafeReparsePoint;
           }
           tokenCount = output.length;
-          offset += consumed - 1;
-          continue;
+          return tokenCount; // Return after handling formula block
         }
         
         // Not a formula block; fall back to inline text handling
