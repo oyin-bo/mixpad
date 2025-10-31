@@ -33,3 +33,23 @@ before | after
 @1 InlineText "before"
 @2 Whitespace
 @3 TablePipe
+
+## Escaped Pipe
+
+Backslash escapes pipe characters:
+
+text\|more
+1   2 3
+@1 InlineText "text"
+@2 Escaped
+@3 InlineText "more"
+
+## Pipe in Code
+
+Pipe inside inline code is literal:
+
+`code|pipe`
+12        3
+@1 BacktickBoundary
+@2 InlineCode "code|pipe"
+@3 BacktickBoundary
