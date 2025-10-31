@@ -7,6 +7,7 @@ import { scanEmphasis } from './scan-emphasis.js';
 import { scanEntity } from './scan-entity.js';
 import { scanEscaped } from './scan-escaped.js';
 import { scanFencedBlock } from './scan-fences.js';
+import { scanFormulaBlock } from './scan-formula.js';
 import { scanHTMLCData } from './scan-html-cdata.js';
 import { scanHTMLComment } from './scan-html-comment.js';
 import { scanHTMLDocType } from './scan-html-doctype.js';
@@ -284,6 +285,33 @@ export function scan0({
         }
 
         // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 36 /* $ dollar */: {
+        // Try formula block first
+        const consumedFormula = scanFormulaBlock(input, offset - 1, endOffset, output);
+        if (consumedFormula > 0) {
+          // Formula block detected - line cannot be Setext text
+          lineCouldBeSetextText = false;
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          return tokenCount; // Return after handling block formula
+        }
+
+        // Fall back to inline text (single $ or non-block context)
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
           // Apply reparse flag to first token if needed
