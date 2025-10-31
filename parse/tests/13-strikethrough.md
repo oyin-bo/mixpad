@@ -23,7 +23,7 @@ Simple strikethrough with double tildes:
 Strikethrough can span multiple words:
 
 ~~this is struck~~
- 1              23
+1 2              3
 @1 TildeDelimiter|IsSafeReparsePoint "~~" CanOpen
 @2 InlineText "this is struck"
 @3 TildeDelimiter "~~" CanClose
@@ -33,7 +33,7 @@ Strikethrough can span multiple words:
 Multiple strikethroughs in one line:
 
 ~~first~~ and ~~second~~
- 1     2    3 45      67
+1 2      3   45 6      7
 @1 TildeDelimiter|IsSafeReparsePoint "~~" CanOpen
 @2 InlineText "first"
 @3 TildeDelimiter "~~" CanClose
@@ -95,7 +95,7 @@ Opening delimiter without closing:
 Strikethrough with bold inside:
 
 ~~**bold**~~
- 12 3   45 6
+1 2 3    45  6
 @1 TildeDelimiter|IsSafeReparsePoint "~~" CanOpen
 @2 AsteriskDelimiter "**" CanOpen
 @3 InlineText "bold"
@@ -105,7 +105,7 @@ Strikethrough with bold inside:
 Strikethrough with italic inside:
 
 ~~*italic*~~
- 1 23     45
+1 2 3      45
 @1 TildeDelimiter|IsSafeReparsePoint "~~" CanOpen
 @2 AsteriskDelimiter "*" CanOpen
 @3 InlineText "italic"
@@ -115,7 +115,7 @@ Strikethrough with italic inside:
 Bold with strikethrough inside:
 
 **~~struck~~**
- 12 3     45 6
+1 2 3      45  6
 @1 AsteriskDelimiter|IsSafeReparsePoint "**" CanOpen
 @2 TildeDelimiter "~~" CanOpen
 @3 InlineText "struck"
@@ -127,7 +127,7 @@ Bold with strikethrough inside:
 Three tildes on each side:
 
 ~~~word~~~
-  12   34
+1  2    3
 @1 TildeDelimiter|IsSafeReparsePoint "~~~" CanOpen
 @2 InlineText "word"
 @3 TildeDelimiter "~~~" CanClose
@@ -135,7 +135,7 @@ Three tildes on each side:
 Four tildes:
 
 ~~~~text~~~~
-   1 2  34
+1   2    3
 @1 TildeDelimiter|IsSafeReparsePoint "~~~~" CanOpen
 @2 InlineText "text"
 @3 TildeDelimiter "~~~~" CanClose
@@ -145,7 +145,7 @@ Four tildes:
 Two tildes opening, three tildes closing:
 
 ~~word~~~
- 1 2   34
+1 2    3
 @1 TildeDelimiter|IsSafeReparsePoint "~~" CanOpen
 @2 InlineText "word"
 @3 TildeDelimiter "~~~" CanClose
@@ -153,7 +153,7 @@ Two tildes opening, three tildes closing:
 Three tildes opening, two tildes closing:
 
 ~~~word~~
-  1 2  3
+1  2    3
 @1 TildeDelimiter|IsSafeReparsePoint "~~~" CanOpen
 @2 InlineText "word"
 @3 TildeDelimiter "~~" CanClose
@@ -163,13 +163,13 @@ Three tildes opening, two tildes closing:
 Strikethrough with punctuation:
 
 ~~text!~~
- 1 2   34
+1 2     3
 @1 TildeDelimiter|IsSafeReparsePoint "~~" CanOpen
 @2 InlineText "text!"
 @3 TildeDelimiter "~~" CanClose
 
 ~~hello, world~~
- 1 2          34
+1 2            3
 @1 TildeDelimiter|IsSafeReparsePoint "~~" CanOpen
 @2 InlineText "hello, world"
 @3 TildeDelimiter "~~" CanClose
