@@ -7,6 +7,7 @@ import { scanEmphasis } from './scan-emphasis.js';
 import { scanEntity } from './scan-entity.js';
 import { scanEscaped } from './scan-escaped.js';
 import { scanFencedBlock } from './scan-fences.js';
+import { scanFrontmatter } from './scan-frontmatter.js';
 import { scanHTMLCData } from './scan-html-cdata.js';
 import { scanHTMLComment } from './scan-html-comment.js';
 import { scanHTMLDocType } from './scan-html-doctype.js';
@@ -51,6 +52,16 @@ export function scan0({
 
   let tokenCount = 0;
   let offset = startOffset;
+
+  // Check for front matter at absolute position 0
+  if (startOffset === 0) {
+    const outputLengthBefore = output.length;
+    const frontmatterConsumed = scanFrontmatter(input, offset, endOffset, output);
+    if (frontmatterConsumed > 0) {
+      offset += frontmatterConsumed;
+      tokenCount += (output.length - outputLengthBefore);
+    }
+  }
 
   // Safe reparse point tracking
   // Initialize to true for the start of file (offset 0)
