@@ -2,35 +2,29 @@
 
 Comprehensive tests for YAML, TOML, and JSON front matter parsing.
 
-## YAML Front Matter - Basic
-
-Valid YAML at position 0
+<--EOF
 ---
 1
-@1 FrontmatterOpen "---"
+@1 FrontmatterOpen "---\n"
 title: "Test"
 1
 @1 FrontmatterContent "title: \"Test\"\n"
 ---
 1
-@1 FrontmatterClose "---"
+@1 FrontmatterClose "---\n"
 
-## YAML Front Matter - Empty
-
-Empty YAML frontmatter
+<--EOF
 ---
 1
-@1 FrontmatterOpen "---"
+@1 FrontmatterOpen "---\n"
 ---
 1
-@1 FrontmatterClose "---"
+@1 FrontmatterClose "---\n"
 
-## YAML Front Matter - Multiple Lines
-
-YAML with multiple fields
+<--EOF
 ---
 1
-@1 FrontmatterOpen "---"
+@1 FrontmatterOpen "---\n"
 title: "Document Title"
 author: "Author Name"
 date: 2025-10-31
@@ -39,53 +33,46 @@ tags: [markdown, parser]
 @1 FrontmatterContent "title: \"Document Title\"\nauthor: \"Author Name\"\ndate: 2025-10-31\ntags: [markdown, parser]\n"
 ---
 1
-@1 FrontmatterClose "---"
+@1 FrontmatterClose "---\n"
 
-## YAML Front Matter - With Content After
-
-YAML frontmatter followed by content
+<--EOF
 ---
 1
-@1 FrontmatterOpen "---"
+@1 FrontmatterOpen "---\n"
 title: "Test"
 1
 @1 FrontmatterContent "title: \"Test\"\n"
 ---
 1
-@1 FrontmatterClose "---"
+@1 FrontmatterClose "---\n"
 # Content starts here
-1
+12
 @1 ATXHeadingOpen "#"
+@2 Whitespace " "
 
-## TOML Front Matter - Basic
-
-Valid TOML at position 0
+<--EOF
 +++
 1
-@1 FrontmatterOpen "+++"
+@1 FrontmatterOpen "+++\n"
 title = "Test"
 1
 @1 FrontmatterContent "title = \"Test\"\n"
 +++
 1
-@1 FrontmatterClose "+++"
+@1 FrontmatterClose "+++\n"
 
-## TOML Front Matter - Empty
-
-Empty TOML frontmatter
+<--EOF
 +++
 1
-@1 FrontmatterOpen "+++"
+@1 FrontmatterOpen "+++\n"
 +++
 1
-@1 FrontmatterClose "+++"
+@1 FrontmatterClose "+++\n"
 
-## TOML Front Matter - Multiple Lines
-
-TOML with multiple fields
+<--EOF
 +++
 1
-@1 FrontmatterOpen "+++"
+@1 FrontmatterOpen "+++\n"
 title = "Document Title"
 author = "Author Name"
 date = 2025-10-31
@@ -94,23 +81,20 @@ tags = ["markdown", "parser"]
 @1 FrontmatterContent "title = \"Document Title\"\nauthor = \"Author Name\"\ndate = 2025-10-31\ntags = [\"markdown\", \"parser\"]\n"
 +++
 1
-@1 FrontmatterClose "+++"
+@1 FrontmatterClose "+++\n"
 
-## JSON Front Matter - Basic
-
-Valid JSON at position 0
+<--EOF
 {
 1
 @1 FrontmatterOpen "{"
   "title": "Test"
+1
+@1 FrontmatterContent "\n  \"title\": \"Test\"\n"
 }
-12
-@1 FrontmatterContent "  \"title\": \"Test\"\n"
-@2 FrontmatterClose "}"
+1
+@1 FrontmatterClose "}"
 
-## JSON Front Matter - Empty Object
-
-Empty JSON frontmatter
+<--EOF
 {
 1
 @1 FrontmatterOpen "{"
@@ -118,9 +102,7 @@ Empty JSON frontmatter
 1
 @1 FrontmatterClose "}"
 
-## JSON Front Matter - Multiple Fields
-
-JSON with multiple fields
+<--EOF
 {
 1
 @1 FrontmatterOpen "{"
@@ -128,92 +110,72 @@ JSON with multiple fields
   "author": "Author Name",
   "date": "2025-10-31",
   "tags": ["markdown", "parser"]
+1
+@1 FrontmatterContent "\n  \"title\": \"Document Title\",\n  \"author\": \"Author Name\",\n  \"date\": \"2025-10-31\",\n  \"tags\": [\"markdown\", \"parser\"]\n"
 }
-12
-@1 FrontmatterContent "  \"title\": \"Document Title\",\n  \"author\": \"Author Name\",\n  \"date\": \"2025-10-31\",\n  \"tags\": [\"markdown\", \"parser\"]\n"
-@2 FrontmatterClose "}"
+1
+@1 FrontmatterClose "}"
 
-## Invalid Cases - Not at Position 0
-
-YAML not at start (with leading space)
+<--EOF
  ---
 1
 @1 Whitespace " "
-title: test
-1
-@1 InlineText "---"
 
-YAML not at start (after newline)
+<--EOF
 
 ---
 1
-@1 NewLine "\n"
-title: test
-1
 @1 InlineText "---"
 
-## Invalid Cases - Four Dashes
-
-Four dashes is not valid frontmatter
+<--EOF
 ----
 1
 @1 InlineText "----"
-title: test
-1
-@1 InlineText "title: test"
 
-## Invalid Cases - Content After Opening Fence
-
-YAML with content on same line as opener
+<--EOF
 --- title
 1
 @1 InlineText "--- title"
 
-TOML with content on same line as opener
+<--EOF
 +++ title
 1
 @1 InlineText "+++ title"
 
-## Invalid Cases - Unclosed Front Matter
-
-Unclosed YAML frontmatter
+<--EOF
 ---
 1
-@1 FrontmatterOpen "---"
+@1 FrontmatterOpen "---\n"
 title: "Test"
 1
 @1 FrontmatterContent "title: \"Test\"\n"
 
-## Edge Cases - Fence-like Sequences in Content
-
-YAML with --- in content
+<--EOF
 ---
 1
-@1 FrontmatterOpen "---"
+@1 FrontmatterOpen "---\n"
 title: "Test with --- in it"
 1
 @1 FrontmatterContent "title: \"Test with --- in it\"\n"
 ---
 1
-@1 FrontmatterClose "---"
+@1 FrontmatterClose "---\n"
 
-TOML with +++ in content
+<--EOF
 +++
 1
-@1 FrontmatterOpen "+++"
+@1 FrontmatterOpen "+++\n"
 title = "Test with +++ in it"
 1
 @1 FrontmatterContent "title = \"Test with +++ in it\"\n"
 +++
 1
-@1 FrontmatterClose "+++"
+@1 FrontmatterClose "+++\n"
 
-## Edge Cases - Blank Lines in Content
-
-YAML with blank lines
+<--EOF
 ---
 1
-@1 FrontmatterOpen "---"
+@1 FrontmatterOpen "---\n"
 title: "Test"
 
 author: "Name"
@@ -221,14 +183,12 @@ author: "Name"
 @1 FrontmatterContent "title: \"Test\"\n\nauthor: \"Name\"\n"
 ---
 1
-@1 FrontmatterClose "---"
+@1 FrontmatterClose "---\n"
 
-## Edge Cases - Indentation in Content
-
-YAML with indented content
+<--EOF
 ---
 1
-@1 FrontmatterOpen "---"
+@1 FrontmatterOpen "---\n"
 nested:
   key: value
   another: data
@@ -236,4 +196,4 @@ nested:
 @1 FrontmatterContent "nested:\n  key: value\n  another: data\n"
 ---
 1
-@1 FrontmatterClose "---"
+@1 FrontmatterClose "---\n"

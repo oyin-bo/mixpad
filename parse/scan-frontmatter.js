@@ -379,20 +379,9 @@ function scanJSONFrontmatter(input, startOffset, endOffset, output) {
             output.push(FrontmatterContent | contentLength);
           }
           
-          // Emit closing brace
+          // Emit closing brace (just the brace, not any following newline)
+          pos++;  // Move past the }
           output.push(FrontmatterClose | 1);
-          
-          // Consume any trailing newline after }
-          pos++;
-          if (pos < endOffset) {
-            const nextChar = input.charCodeAt(pos);
-            if (nextChar === 13 /* \r */) {
-              pos++;
-              if (pos < endOffset && input.charCodeAt(pos) === 10 /* \n */) pos++;
-            } else if (nextChar === 10 /* \n */) {
-              pos++;
-            }
-          }
           
           return pos - startOffset;
         }
