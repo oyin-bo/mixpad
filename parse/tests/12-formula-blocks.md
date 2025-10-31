@@ -84,3 +84,36 @@ $
 $x = 1$
 1
 @1 InlineText
+
+<--EOF
+
+## Closer with shorter run than opener - NOT a closer (unclosed)
+
+$$$
+1
+@1 FormulaBlockOpen|ErrorUnbalancedToken|IsSafeReparsePoint
+content here
+$$
+
+<--EOF
+
+## Quadruple dollar sign block
+
+$$$$
+1
+@1 FormulaBlockOpen
+nested $$$ formula
+1
+@1 FormulaBlockContent "nested $$$ formula\n"
+$$$$
+1
+@1 FormulaBlockClose
+
+## Empty formula block
+
+$$
+1
+@1 FormulaBlockOpen
+$$
+1
+@1 FormulaBlockClose

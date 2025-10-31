@@ -62,27 +62,9 @@ export function scanFormulaBlock(input, startOffset, endOffset, output) {
 
   // Now scan forward line-by-line looking for a valid closing delimiter
   let p = contentStart;
+  let newlinePos = pos - 1; // Initialize to position before opener (will be updated as we scan)
+  
   while (p < endOffset) {
-    let newlinePos = -1;
-    
-    // Find the next newline
-    while (p < endOffset) {
-      const ch = input.charCodeAt(p);
-      if (ch === 10 /* \n */ || ch === 13 /* \r */) {
-        newlinePos = p;
-        // advance p to the start of the next line (handle CRLF)
-        if (ch === 13 /* \r */ && p + 1 < endOffset && input.charCodeAt(p + 1) === 10 /* \n */) {
-          p += 2;
-        } else {
-          p += 1;
-        }
-        break;
-      }
-      p++;
-    }
-
-    if (p >= endOffset) break; // no more full lines to test
-
     // Now at the start of a line; skip up to 3 leading spaces
     let linePos = p;
     let spaceCount = 0;
@@ -118,8 +100,8 @@ export function scanFormulaBlock(input, startOffset, endOffset, output) {
           // Valid closer found
           // Compute token lengths
           const openTokenLen = contentStart - startOffset;
-          // content length: up to the newline that precedes the closing delimiter
-          const contentLength = newlinePos + 1 - contentStart;
+          // content length: from contentStart to start of this line (before leading spaces)
+          const contentLength = p - contentStart;
 
           // determine end of closing line (include newline if present)
           let closeLineEnd = checkPos;
@@ -140,6 +122,24 @@ export function scanFormulaBlock(input, startOffset, endOffset, output) {
         }
       }
     }
+
+    // Find the next newline to advance to the next line
+    while (p < endOffset) {
+      const ch = input.charCodeAt(p);
+      if (ch === 10 /* \n */ || ch === 13 /* \r */) {
+        newlinePos = p;
+        // advance p to the start of the next line (handle CRLF)
+        if (ch === 13 /* \r */ && p + 1 < endOffset && input.charCodeAt(p + 1) === 10 /* \n */) {
+          p += 2;
+        } else {
+          p += 1;
+        }
+        break;
+      }
+      p++;
+    }
+    
+    if (p >= endOffset) break; // no more lines to test
   }
 
   // No closing delimiter found before EOF: fallback to unbalanced behavior
