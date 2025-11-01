@@ -158,9 +158,8 @@ function scanDelimitedFrontmatter(input, startOffset, endOffset, output, delimit
 
         const openTokenLen = contentStart - startOffset;
         const closeTokenLen = closeLineEnd - lineStart;
-        const typeBits = (type & 0x3) << 26;
 
-        output.push(FrontmatterOpen | typeBits | openTokenLen);
+        output.push(FrontmatterOpen | openTokenLen);
         if (contentLength > 0) output.push(FrontmatterContent | contentLength);
         output.push(FrontmatterClose | closeTokenLen);
         return closeLineEnd - startOffset;
@@ -182,9 +181,8 @@ function scanDelimitedFrontmatter(input, startOffset, endOffset, output, delimit
   // No closing fence found - emit unbalanced tokens
   const contentLength = endOffset - contentStart;
   const openTokenLen = contentStart - startOffset;
-  const typeBits = (type & 0x3) << 26;
 
-  output.push(FrontmatterOpen | ErrorUnbalancedToken | typeBits | openTokenLen);
+  output.push(FrontmatterOpen | ErrorUnbalancedToken | openTokenLen);
   if (contentLength > 0) output.push(FrontmatterContent | ErrorUnbalancedToken | contentLength);
   return endOffset - startOffset;
 }
@@ -311,9 +309,8 @@ function scanJSONFrontmatter(input, startOffset, endOffset, output) {
 
           const openTokenLen = contentStart - startOffset;
           const closeTokenLen = closeLineEnd - closingBracePos;
-          const typeBits = (type & 0x3) << 26;
 
-          output.push(FrontmatterOpen | typeBits | openTokenLen);
+          output.push(FrontmatterOpen | openTokenLen);
           if (contentLength > 0) output.push(FrontmatterContent | contentLength);
           output.push(FrontmatterClose | closeTokenLen);
           return closeLineEnd - startOffset;
@@ -327,9 +324,8 @@ function scanJSONFrontmatter(input, startOffset, endOffset, output) {
   // No valid closing brace found - emit unbalanced
   const contentLength = endOffset - contentStart;
   const openTokenLen = contentStart - startOffset;
-  const typeBits = (type & 0x3) << 26;
 
-  output.push(FrontmatterOpen | ErrorUnbalancedToken | typeBits | openTokenLen);
+  output.push(FrontmatterOpen | ErrorUnbalancedToken | openTokenLen);
   if (contentLength > 0) output.push(FrontmatterContent | ErrorUnbalancedToken | contentLength);
   return endOffset - startOffset;
 }

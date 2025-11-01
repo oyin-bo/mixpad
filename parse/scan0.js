@@ -63,14 +63,14 @@ export function scan0({
   }
 
   // Safe reparse point tracking
-  // Initialize to true for the start of file (offset 0)
-  let next_token_is_reparse_start = (startOffset === 0);
+  // Initialize to true for the start of file (offset 0) or after frontmatter
+  let next_token_is_reparse_start = (startOffset === 0 || offset > startOffset);
   let error_recovery_mode = false;
 
   // Setext heading speculative parsing state
-  let lineStartOffset = startOffset;
-  let lineTokenStartIndex = 0;
-  let lineCouldBeSetextText = true; // Assume eligible until proven otherwise
+  let lineStartOffset = offset; // Start from after frontmatter if present
+  let lineTokenStartIndex = output.length; // Start tracking from after frontmatter
+  let lineCouldBeSetextText = (offset === startOffset); // Only eligible if no frontmatter consumed
   let isInSetextBufferMode = false; // Are we buffering tokens for potential Setext?
 
   while (offset < endOffset) {

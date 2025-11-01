@@ -3,7 +3,7 @@
 Comprehensive tests for YAML, TOML, and JSON frontmatter blocks.
 
 ## YAML Frontmatter - Basic
-
+<--EOF
 ---
 1
 @1 FrontmatterOpen
@@ -15,9 +15,6 @@ title: "Test"
 @1 FrontmatterClose
 
 <--EOF
-
-## YAML Frontmatter - With Content
-
 ---
 1
 @1 FrontmatterOpen
@@ -31,9 +28,6 @@ date: 2025-10-31
 @1 FrontmatterClose
 
 <--EOF
-
-## YAML Frontmatter - Empty
-
 ---
 1
 @1 FrontmatterOpen
@@ -42,9 +36,6 @@ date: 2025-10-31
 @1 FrontmatterClose
 
 <--EOF
-
-## YAML Frontmatter - Multiline Content
-
 ---
 1
 @1 FrontmatterOpen
@@ -62,9 +53,6 @@ description: |
 @1 FrontmatterClose
 
 <--EOF
-
-## TOML Frontmatter - Basic
-
 +++
 1
 @1 FrontmatterOpen
@@ -76,9 +64,6 @@ title = "Test"
 @1 FrontmatterClose
 
 <--EOF
-
-## TOML Frontmatter - With Content
-
 +++
 1
 @1 FrontmatterOpen
@@ -92,9 +77,6 @@ date = 2025-10-31
 @1 FrontmatterClose
 
 <--EOF
-
-## TOML Frontmatter - Empty
-
 +++
 1
 @1 FrontmatterOpen
@@ -103,9 +85,6 @@ date = 2025-10-31
 @1 FrontmatterClose
 
 <--EOF
-
-## JSON Frontmatter - Basic
-
 {
 1
 @1 FrontmatterOpen
@@ -117,9 +96,6 @@ date = 2025-10-31
 @1 FrontmatterClose
 
 <--EOF
-
-## JSON Frontmatter - With Content
-
 {
 1
 @1 FrontmatterOpen
@@ -134,9 +110,6 @@ date = 2025-10-31
 @1 FrontmatterClose
 
 <--EOF
-
-## JSON Frontmatter - Nested Objects
-
 {
 1
 @1 FrontmatterOpen
@@ -152,9 +125,6 @@ date = 2025-10-31
 @1 FrontmatterClose
 
 <--EOF
-
-## YAML Frontmatter - Followed by Content
-
 ---
 1
 @1 FrontmatterOpen
@@ -164,40 +134,32 @@ title: "Test"
 ---
 1
 @1 FrontmatterClose
+
 # Heading
-12
-@1 NewLine
-@2 ATXHeadingOpen "#"
+123
+@1 ATXHeadingOpen "#"
+@2 Whitespace " "
+@3 InlineText "Heading"
 
 <--EOF
-
-## Invalid - Four Dashes (Not Frontmatter)
-
 ----
 1
 @1 InlineText "----"
 
 <--EOF
-
-## Invalid - Two Dashes (Not Frontmatter)
-
 --
 1
 @1 InlineText "--"
 
 <--EOF
-
-## Invalid - Not at Position 0
-
-Some text
+Some text before
+1
+@1 InlineText "Some text before"
 ---
 1
-@1 InlineText "Some text"
+@1 SetextHeadingUnderline
 
 <--EOF
-
-## YAML Frontmatter - With Trailing Spaces
-
 ---   
 1
 @1 FrontmatterOpen
@@ -209,9 +171,6 @@ content: "test"
 @1 FrontmatterClose
 
 <--EOF
-
-## YAML Frontmatter - Unclosed (EOF)
-
 ---
 1
 @1 FrontmatterOpen|ErrorUnbalancedToken
@@ -220,9 +179,6 @@ title: "Test"
 @1 FrontmatterContent|ErrorUnbalancedToken "title: \"Test\"\n"
 
 <--EOF
-
-## TOML Frontmatter - Unclosed (EOF)
-
 +++
 1
 @1 FrontmatterOpen|ErrorUnbalancedToken
@@ -231,9 +187,6 @@ title = "Test"
 @1 FrontmatterContent|ErrorUnbalancedToken "title = \"Test\"\n"
 
 <--EOF
-
-## JSON Frontmatter - Unclosed (EOF)
-
 {
 1
 @1 FrontmatterOpen|ErrorUnbalancedToken
@@ -242,9 +195,6 @@ title = "Test"
 @1 FrontmatterContent|ErrorUnbalancedToken "  \"title\": \"Test\"\n"
 
 <--EOF
-
-## YAML Frontmatter - Contains Fence-like Content
-
 ---
 1
 @1 FrontmatterOpen
@@ -257,9 +207,6 @@ note: "This has --- in content"
 @1 FrontmatterClose
 
 <--EOF
-
-## TOML Frontmatter - Contains Fence-like Content
-
 +++
 1
 @1 FrontmatterOpen
@@ -272,9 +219,6 @@ note = "This has +++ in content"
 @1 FrontmatterClose
 
 <--EOF
-
-## JSON Frontmatter - With Escaped Quotes
-
 {
 1
 @1 FrontmatterOpen
@@ -286,25 +230,16 @@ note = "This has +++ in content"
 @1 FrontmatterClose
 
 <--EOF
-
-## Invalid - Content After Opening Fence on Same Line
-
 --- invalid
 1
 @1 InlineText "--- invalid"
 
 <--EOF
-
-## Invalid - Content After Opening TOML Fence
-
 +++ invalid
 1
 @1 InlineText "+++ invalid"
 
 <--EOF
-
-## YAML with Blank Lines in Content
-
 ---
 1
 @1 FrontmatterOpen
@@ -316,5 +251,3 @@ author: "Name"
 ---
 1
 @1 FrontmatterClose
-
-<--EOF
