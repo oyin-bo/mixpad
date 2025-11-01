@@ -125,26 +125,20 @@ x = 1
 1
 @1 FormulaBlockContent "x = 1\n"
  $$
- 12
-@1 Whitespace
-@2 FormulaBlockClose
+1
+@1 FormulaBlockClose
 
 Formula with three leading spaces
    $$
-   1234
+   1  2
 @1 Whitespace
-@2 Whitespace
-@3 Whitespace
-@4 FormulaBlockOpen
+@2 FormulaBlockOpen
 y = 2
 1
 @1 FormulaBlockContent "y = 2\n"
    $$
-   1234
-@1 Whitespace
-@2 Whitespace
-@3 Whitespace
-@4 FormulaBlockClose
+1
+@1 FormulaBlockClose
 
 ## Edge Cases with Three Dollar Signs
 
