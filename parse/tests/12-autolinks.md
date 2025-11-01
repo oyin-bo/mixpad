@@ -115,7 +115,7 @@ URL with trailing period: http://example.com.
 @3 InlineText
 
 URL with trailing comma: http://example.com,
-1                        2                  3
+1                        2                 3
 @1 InlineText
 @2 RawURL
 @3 InlineText
@@ -158,7 +158,7 @@ Partial HTTP: http:example.com
 @1 InlineText
 
 Angle bracket but invalid: <not-a-url>
-1                          2         3
+1                          23
 @1 InlineText
 @2 HTMLTagOpen
 @3 HTMLTagName
