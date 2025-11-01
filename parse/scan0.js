@@ -1,5 +1,6 @@
 // @ts-check
 
+import { scanAngleAutolink, scanExtendedEmailAutolink, scanRawURLAutolink, scanWWWAutolink } from './scan-autolink.js';
 import { scanATXHeading } from './scan-atx-heading.js';
 import { scanBacktickInline } from './scan-backtick-inline.js';
 import { countIndentation, findLineStart, getTokenFlags, getTokenKind, getTokenLength, isAsciiAlphaNum } from './scan-core.js';
@@ -362,6 +363,18 @@ export function scan0({
         // Try HTML/XML constructs with lookahead
         let htmlConsumed = 0;
 
+        // Try angle autolink first (before HTML)
+        const autolinkConsumed = scanAngleAutolink(input, offset - 1, endOffset, output);
+        if (autolinkConsumed > 0) {
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += autolinkConsumed - 1;
+          continue;
+        }
+
         // Try comment: <!--
         if (offset < endOffset && input.charCodeAt(offset) === 33 /* ! */) {
           if (offset + 1 < endOffset && input.charCodeAt(offset + 1) === 45 /* - */ &&
@@ -619,6 +632,95 @@ export function scan0({
         if (consumed > 0) {
           tokenCount = output.length;
           offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 104 /* h */: {
+        // Try raw URL autolink (http:// or https://)
+        const urlConsumed = scanRawURLAutolink(input, offset - 1, endOffset, output);
+        if (urlConsumed > 0) {
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += urlConsumed - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumedH = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumedH > 0) {
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += consumedH - 1;
+        }
+        continue;
+      }
+
+      case 119 /* w */:
+      case 87 /* W */: {
+        // Try WWW autolink (www.example.com)
+        // WWW autolinks must be preceded by start of line or whitespace
+        let isPrecededByWhitespace = false;
+        if (offset === 1) {
+          // At start of input
+          isPrecededByWhitespace = true;
+        } else {
+          const prevCh = input.charCodeAt(offset - 2);
+          isPrecededByWhitespace = prevCh === 32 || prevCh === 9 || prevCh === 10 || prevCh === 13;
+        }
+
+        if (isPrecededByWhitespace) {
+          const wwwConsumed = scanWWWAutolink(input, offset - 1, endOffset, output);
+          if (wwwConsumed > 0) {
+            // Apply reparse flag to first token if needed
+            if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+              output[tokenStartIndex] |= IsSafeReparsePoint;
+            }
+            tokenCount = output.length;
+            offset += wwwConsumed - 1;
+            continue;
+          }
+        }
+
+        // Fall back to inline text
+        const consumedW = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumedW > 0) {
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += consumedW - 1;
+        }
+        continue;
+      }
+
+      case 64 /* @ */: {
+        // Try extended email autolink
+        // Scan backward from @ to find the email
+        const emailConsumed = scanExtendedEmailAutolink(input, offset - 1, lineStartOffset, endOffset, output);
+        if (emailConsumed > 0) {
+          // Email was found starting before the @
+          // We need to remove/replace any InlineText tokens that were already emitted for the local part
+          // This is complex, so for now we'll just handle @ in inline text
+          // and rely on semantic phase or separate handling
+        }
+
+        // Fall back to inline text (includes the @)
+        const consumedAt = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumedAt > 0) {
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += consumedAt - 1;
         }
         continue;
       }
