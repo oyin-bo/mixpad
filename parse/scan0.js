@@ -1,5 +1,6 @@
 // @ts-check
 
+import { scanAutolink } from './scan-autolink.js';
 import { scanATXHeading } from './scan-atx-heading.js';
 import { scanBacktickInline } from './scan-backtick-inline.js';
 import { countIndentation, findLineStart, getTokenFlags, getTokenKind, getTokenLength, isAsciiAlphaNum } from './scan-core.js';
@@ -359,6 +360,19 @@ export function scan0({
       }
 
       case 60 /* < less-than */: {
+        // Try angle autolink first: <http://...> or <user@example.com>
+        const autolinkToken = scanAutolink(input, offset - 1, endOffset);
+        if (autolinkToken !== 0) {
+          output.push(autolinkToken);
+          tokenCount++;
+          // Apply reparse flag if needed
+          if (shouldMarkAsReparsePoint) {
+            output[output.length - 1] |= IsSafeReparsePoint;
+          }
+          offset += getTokenLength(autolinkToken) - 1;
+          continue;
+        }
+
         // Try HTML/XML constructs with lookahead
         let htmlConsumed = 0;
 
@@ -623,7 +637,50 @@ export function scan0({
         continue;
       }
 
+      case 104: /* h */
+      case 72: /* H */
+      case 119: /* w */
+      case 87: /* W */ {
+        // Try raw URL autolink (http://, https://) or WWW autolink (www.)
+        const autolinkToken = scanAutolink(input, offset - 1, endOffset);
+        if (autolinkToken !== 0) {
+          output.push(autolinkToken);
+          tokenCount++;
+          // Apply reparse flag if needed
+          if (shouldMarkAsReparsePoint) {
+            output[output.length - 1] |= IsSafeReparsePoint;
+          }
+          offset += getTokenLength(autolinkToken) - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
       default: {
+        // Try email autolink as a last resort in default case
+        // Only check if we're at a potential start of email (alphanumeric or .)
+        const ch = input.charCodeAt(offset - 1);
+        if ((ch >= 48 && ch <= 57) || (ch >= 65 && ch <= 90) || (ch >= 97 && ch <= 122) || ch === 46 /* . */) {
+          const autolinkToken = scanAutolink(input, offset - 1, endOffset);
+          if (autolinkToken !== 0) {
+            output.push(autolinkToken);
+            tokenCount++;
+            // Apply reparse flag if needed
+            if (shouldMarkAsReparsePoint) {
+              output[output.length - 1] |= IsSafeReparsePoint;
+            }
+            offset += getTokenLength(autolinkToken) - 1;
+            continue;
+          }
+        }
+
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
           tokenCount = output.length;
