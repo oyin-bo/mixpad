@@ -232,24 +232,36 @@ const contentLength = newlinePos + 1 - contentStart;
 
 **Issue:** Whitespace token positioning failures in 4 tests
 
-**Root Cause:** The dual-mode implementation has edge cases where leading whitespace before `$$` creates incorrect token annotations. Specifically:
+**Root Cause:** The scanner incorrectly includes leading whitespace in the `FormulaBlockOpen` token instead of creating a separate `Whitespace` token first.
 
-1. Line 121: Leading spaces test
-2. Line 133: Three leading spaces test  
-3. Line 147: Three dollar signs edge case
-4. Line 150: Content following three dollars
+**Specific Failure:**
 
-**Severity:** Medium - Tests fail but functionality appears mostly correct. The issue is in test expectations vs actual token boundaries.
-
-**Example:**
+Test expects:
 ```markdown
  $$
  12
-@1 Whitespace
-@2 FormulaBlockOpen
+@1 Whitespace " "
+@2 FormulaBlockOpen "$$\n"
 ```
 
-The scanner includes the newline after `$$` in the opener token, but the test expects it to be at position 2. This is likely a discrepancy in how token lengths are calculated for indented formulas.
+Actual output:
+```markdown
+ $$
+ 1
+@1 FormulaBlockOpen " $$\n"
+```
+
+**Analysis:** The scanner is supposed to let `scan0.js` handle the leading whitespace as a separate token before calling `scanFormulaBlock`. However, `scanFormulaBlock` is being called at the wrong offset, causing it to consume the leading space.
+
+**Affected Tests:**
+1. Line 121: One leading space before `$$`
+2. Line 133: Three leading spaces before `$$`
+3. Line 147: Three dollar signs with leading context
+4. Line 150: Content following three dollars
+
+**Severity:** Medium - The formula content is parsed correctly, but token boundaries are wrong for indented formulas. This breaks the contract with the parser and could cause issues with syntax highlighting or AST construction.
+
+**Fix Required:** The integration in `scan0.js` needs adjustment. When encountering `$` after whitespace, the whitespace should be emitted as a separate token before attempting formula block scanning.
 
 ### No Bugs Found in PR #57 or #58
 
