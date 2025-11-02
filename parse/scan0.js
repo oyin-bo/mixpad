@@ -666,8 +666,9 @@ export function scan0({
         continue;
       }
 
-      case 119 /* w lowercase */: {
-        // Try WWW autolink (www.)
+      case 119 /* w lowercase */:
+      case 87 /* W uppercase */: {
+        // Try WWW autolink (www. or WWW.)
         // Get previous character code for context (0 if at line start)
         const prevCharCode = (offset - 2 >= lineStartOffset) ? input.charCodeAt(offset - 2) : 0;
         const wwwToken = scanWWWAutolink(input, offset - 1, endOffset, prevCharCode);

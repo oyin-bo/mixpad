@@ -39,15 +39,21 @@ export function scanWWWAutolink(input, start, end, prevCharCode) {
     }
   }
 
-  // Check for "www." (4 chars)
+  // Check for "www." or "WWW." (4 chars, case insensitive)
   if (start + 4 > end) {
     return 0;
   }
 
-  if (input.charCodeAt(start) !== 119 /* w */ ||
-      input.charCodeAt(start + 1) !== 119 /* w */ ||
-      input.charCodeAt(start + 2) !== 119 /* w */ ||
-      input.charCodeAt(start + 3) !== 46 /* . */) {
+  const c0 = input.charCodeAt(start);
+  const c1 = input.charCodeAt(start + 1);
+  const c2 = input.charCodeAt(start + 2);
+  const c3 = input.charCodeAt(start + 3);
+  
+  // Check for www or WWW (case insensitive)
+  if ((c0 !== 119 /* w */ && c0 !== 87 /* W */) ||
+      (c1 !== 119 /* w */ && c1 !== 87 /* W */) ||
+      (c2 !== 119 /* w */ && c2 !== 87 /* W */) ||
+      c3 !== 46 /* . */) {
     return 0;
   }
 
@@ -73,6 +79,11 @@ export function scanWWWAutolink(input, start, end, prevCharCode) {
 
     // Stop at '<' (HTML tag start)
     if (ch === 60 /* < */) {
+      break;
+    }
+
+    // Stop at '&' (potential entity start)
+    if (ch === 38 /* & */) {
       break;
     }
 

@@ -82,6 +82,11 @@ export function scanRawURLAutolink(input, start, end) {
       break;
     }
 
+    // Stop at '&' (potential entity start)
+    if (ch === 38 /* & */) {
+      break;
+    }
+
     // Track parentheses depth
     if (ch === 40 /* ( */) {
       parenDepth++;
