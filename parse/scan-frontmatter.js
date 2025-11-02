@@ -4,6 +4,41 @@ import { FrontmatterOpen, FrontmatterContent, FrontmatterClose } from './scan-to
 import { ErrorUnbalancedToken } from './scan-token-flags.js';
 
 /**
+ * Frontmatter type identifiers stored in bits 26-27 of frontmatter tokens
+ * @readonly
+ * @enum {number}
+ */
+export const FrontmatterType = {
+  YAML: 0,
+  TOML: 1,
+  JSON: 2
+};
+
+/**
+ * Get frontmatter type from a FrontmatterOpen token
+ * @param {number} token - FrontmatterOpen token
+ * @returns {number} Frontmatter type (0=YAML, 1=TOML, 2=JSON)
+ */
+export function getFrontmatterType(token) {
+  return (token >> 26) & 0x3;
+}
+
+/**
+ * Get human-readable frontmatter type name from a FrontmatterOpen token
+ * @param {number} token - FrontmatterOpen token
+ * @returns {string} Type name: "YAML", "TOML", or "JSON"
+ */
+export function getFrontmatterTypeName(token) {
+  const type = getFrontmatterType(token);
+  switch (type) {
+    case FrontmatterType.YAML: return 'YAML';
+    case FrontmatterType.TOML: return 'TOML';
+    case FrontmatterType.JSON: return 'JSON';
+    default: return 'UNKNOWN';
+  }
+}
+
+/**
  * Scan frontmatter at the absolute start of a document.
  * Supports YAML (---), TOML (+++), and JSON ({...}) formats.
  * Front matter is only valid at position 0 of the input.
@@ -24,13 +59,13 @@ export function scanFrontmatter(input, startOffset, endOffset, output) {
 
   // Detect frontmatter type by first character(s)
   if (firstChar === 45 /* - */) {
-    // Potential YAML frontmatter (---)
-    return scanYAMLFrontmatter(input, startOffset, endOffset, output);
+    // YAML frontmatter (---)
+    return scanDelimitedFrontmatter(input, startOffset, endOffset, output, 45, FrontmatterType.YAML);
   } else if (firstChar === 43 /* + */) {
-    // Potential TOML frontmatter (+++)
-    return scanTOMLFrontmatter(input, startOffset, endOffset, output);
+    // TOML frontmatter (+++)
+    return scanDelimitedFrontmatter(input, startOffset, endOffset, output, 43, FrontmatterType.TOML);
   } else if (firstChar === 123 /* { */) {
-    // Potential JSON frontmatter ({...})
+    // JSON frontmatter ({...})
     return scanJSONFrontmatter(input, startOffset, endOffset, output);
   }
 
@@ -38,21 +73,23 @@ export function scanFrontmatter(input, startOffset, endOffset, output) {
 }
 
 /**
- * Scan YAML frontmatter (--- ... ---)
+ * Scan YAML (---) or TOML (+++) frontmatter with delimiter-based fences
  * @param {string} input
  * @param {number} startOffset
  * @param {number} endOffset
  * @param {import('./scan0.js').ProvisionalToken[]} output
+ * @param {number} delimiter - Character code: 45 for '-' (YAML) or 43 for '+' (TOML)
+ * @param {number} type - Frontmatter type: 0=YAML, 1=TOML
  * @returns {number} characters consumed or 0 if no match
  */
-function scanYAMLFrontmatter(input, startOffset, endOffset, output) {
-  // Must start with exactly --- (3 dashes)
+function scanDelimitedFrontmatter(input, startOffset, endOffset, output, delimiter, type) {
+  // Must start with exactly 3 delimiter characters
   if (startOffset + 3 > endOffset) return 0;
-  if (input.charCodeAt(startOffset) !== 45 /* - */) return 0;
-  if (input.charCodeAt(startOffset + 1) !== 45 /* - */) return 0;
-  if (input.charCodeAt(startOffset + 2) !== 45 /* - */) return 0;
+  if (input.charCodeAt(startOffset) !== delimiter) return 0;
+  if (input.charCodeAt(startOffset + 1) !== delimiter) return 0;
+  if (input.charCodeAt(startOffset + 2) !== delimiter) return 0;
 
-  // Check what follows the opening ---
+  // Check what follows the opening fence
   let pos = startOffset + 3;
   
   // Must be followed by newline, space/tab, or EOF (not content on same line)
@@ -66,11 +103,11 @@ function scanYAMLFrontmatter(input, startOffset, endOffset, output) {
         pos++; // Consume \r\n
       }
     } else if (nextChar === 32 /* space */ || nextChar === 9 /* tab */) {
-      // Trailing spaces after --- are allowed, scan to newline
+      // Trailing spaces after fence are allowed, scan to newline
       while (pos < endOffset) {
         const ch = input.charCodeAt(pos);
         if (ch === 10 /* \n */ || ch === 13 /* \r */) break;
-        if (ch !== 32 && ch !== 9) return 0; // Non-whitespace after --- invalidates frontmatter
+        if (ch !== 32 && ch !== 9) return 0; // Non-whitespace after fence invalidates frontmatter
         pos++;
       }
       // Consume the newline
@@ -84,31 +121,29 @@ function scanYAMLFrontmatter(input, startOffset, endOffset, output) {
         }
       }
     } else {
-      // Content on same line as opening --- invalidates frontmatter
+      // Content on same line as opening fence invalidates frontmatter
       return 0;
     }
   }
 
-  // Emit opening fence
+  // Emit opening fence with type bits
+  const typeBits = (type & 0x3) << 26;
   const openLength = pos - startOffset;
-  output.push(FrontmatterOpen | openLength);
+  output.push(FrontmatterOpen | typeBits | openLength);
 
-  // Scan for content and closing ---
+  // Scan for content and closing fence
   const contentStart = pos;
   let contentEnd = contentStart;
-  let foundCloser = false;
 
   while (pos < endOffset) {
-    // Check if we're at the start of a line that could be the closing fence
     const lineStart = pos;
     
-    // Check for closing --- at line start
+    // Check for closing fence at line start
     if (pos + 3 <= endOffset &&
-        input.charCodeAt(pos) === 45 /* - */ &&
-        input.charCodeAt(pos + 1) === 45 /* - */ &&
-        input.charCodeAt(pos + 2) === 45 /* - */) {
+        input.charCodeAt(pos) === delimiter &&
+        input.charCodeAt(pos + 1) === delimiter &&
+        input.charCodeAt(pos + 2) === delimiter) {
       
-      // Verify it's followed by newline, space, or EOF
       let closerEnd = pos + 3;
       let validCloser = true;
 
@@ -118,9 +153,7 @@ function scanYAMLFrontmatter(input, startOffset, endOffset, output) {
           closerEnd++;
         } else if (nextChar === 13 /* \r */) {
           closerEnd++;
-          if (closerEnd < endOffset && input.charCodeAt(closerEnd) === 10 /* \n */) {
-            closerEnd++;
-          }
+          if (closerEnd < endOffset && input.charCodeAt(closerEnd) === 10 /* \n */) closerEnd++;
         } else if (nextChar === 32 /* space */ || nextChar === 9 /* tab */) {
           // Trailing spaces allowed
           while (closerEnd < endOffset) {
@@ -149,17 +182,16 @@ function scanYAMLFrontmatter(input, startOffset, endOffset, output) {
       if (validCloser) {
         // Found valid closer
         contentEnd = lineStart;
-        foundCloser = true;
         
         // Emit content (may be empty)
         const contentLength = contentEnd - contentStart;
         if (contentLength > 0) {
-          output.push(FrontmatterContent | contentLength);
+          output.push(FrontmatterContent | typeBits | contentLength);
         }
         
         // Emit closing fence
         const closeLength = closerEnd - lineStart;
-        output.push(FrontmatterClose | closeLength);
+        output.push(FrontmatterClose | typeBits | closeLength);
         
         return closerEnd - startOffset;
       }
@@ -180,143 +212,7 @@ function scanYAMLFrontmatter(input, startOffset, endOffset, output) {
   contentEnd = endOffset;
   const contentLength = contentEnd - contentStart;
   if (contentLength > 0) {
-    output.push((FrontmatterContent | contentLength) | ErrorUnbalancedToken);
-  }
-  
-  return endOffset - startOffset;
-}
-
-/**
- * Scan TOML frontmatter (+++ ... +++)
- * @param {string} input
- * @param {number} startOffset
- * @param {number} endOffset
- * @param {import('./scan0.js').ProvisionalToken[]} output
- * @returns {number} characters consumed or 0 if no match
- */
-function scanTOMLFrontmatter(input, startOffset, endOffset, output) {
-  // Must start with exactly +++ (3 plus signs)
-  if (startOffset + 3 > endOffset) return 0;
-  if (input.charCodeAt(startOffset) !== 43 /* + */) return 0;
-  if (input.charCodeAt(startOffset + 1) !== 43 /* + */) return 0;
-  if (input.charCodeAt(startOffset + 2) !== 43 /* + */) return 0;
-
-  // Check what follows the opening +++
-  let pos = startOffset + 3;
-  
-  // Must be followed by newline, space/tab, or EOF
-  if (pos < endOffset) {
-    const nextChar = input.charCodeAt(pos);
-    if (nextChar === 10 /* \n */) {
-      pos++;
-    } else if (nextChar === 13 /* \r */) {
-      pos++;
-      if (pos < endOffset && input.charCodeAt(pos) === 10 /* \n */) pos++;
-    } else if (nextChar === 32 /* space */ || nextChar === 9 /* tab */) {
-      while (pos < endOffset) {
-        const ch = input.charCodeAt(pos);
-        if (ch === 10 /* \n */ || ch === 13 /* \r */) break;
-        if (ch !== 32 && ch !== 9) return 0;
-        pos++;
-      }
-      if (pos < endOffset) {
-        const ch = input.charCodeAt(pos);
-        if (ch === 13 /* \r */) {
-          pos++;
-          if (pos < endOffset && input.charCodeAt(pos) === 10 /* \n */) pos++;
-        } else if (ch === 10 /* \n */) {
-          pos++;
-        }
-      }
-    } else {
-      return 0;
-    }
-  }
-
-  // Emit opening fence
-  const openLength = pos - startOffset;
-  output.push(FrontmatterOpen | openLength);
-
-  // Scan for content and closing +++
-  const contentStart = pos;
-  let contentEnd = contentStart;
-  let foundCloser = false;
-
-  while (pos < endOffset) {
-    const lineStart = pos;
-    
-    // Check for closing +++ at line start
-    if (pos + 3 <= endOffset &&
-        input.charCodeAt(pos) === 43 /* + */ &&
-        input.charCodeAt(pos + 1) === 43 /* + */ &&
-        input.charCodeAt(pos + 2) === 43 /* + */) {
-      
-      let closerEnd = pos + 3;
-      let validCloser = true;
-
-      if (closerEnd < endOffset) {
-        const nextChar = input.charCodeAt(closerEnd);
-        if (nextChar === 10 /* \n */) {
-          closerEnd++;
-        } else if (nextChar === 13 /* \r */) {
-          closerEnd++;
-          if (closerEnd < endOffset && input.charCodeAt(closerEnd) === 10 /* \n */) closerEnd++;
-        } else if (nextChar === 32 /* space */ || nextChar === 9 /* tab */) {
-          while (closerEnd < endOffset) {
-            const ch = input.charCodeAt(closerEnd);
-            if (ch === 10 /* \n */ || ch === 13 /* \r */) break;
-            if (ch !== 32 && ch !== 9) {
-              validCloser = false;
-              break;
-            }
-            closerEnd++;
-          }
-          if (validCloser && closerEnd < endOffset) {
-            const ch = input.charCodeAt(closerEnd);
-            if (ch === 13 /* \r */) {
-              closerEnd++;
-              if (closerEnd < endOffset && input.charCodeAt(closerEnd) === 10 /* \n */) closerEnd++;
-            } else if (ch === 10 /* \n */) {
-              closerEnd++;
-            }
-          }
-        } else {
-          validCloser = false;
-        }
-      }
-
-      if (validCloser) {
-        contentEnd = lineStart;
-        foundCloser = true;
-        
-        const contentLength = contentEnd - contentStart;
-        if (contentLength > 0) {
-          output.push(FrontmatterContent | contentLength);
-        }
-        
-        const closeLength = closerEnd - lineStart;
-        output.push(FrontmatterClose | closeLength);
-        
-        return closerEnd - startOffset;
-      }
-    }
-
-    // Not a closer, advance to next line
-    while (pos < endOffset) {
-      const ch = input.charCodeAt(pos++);
-      if (ch === 10 /* \n */) break;
-      if (ch === 13 /* \r */) {
-        if (pos < endOffset && input.charCodeAt(pos) === 10 /* \n */) pos++;
-        break;
-      }
-    }
-  }
-
-  // No closing fence found - emit error
-  contentEnd = endOffset;
-  const contentLength = contentEnd - contentStart;
-  if (contentLength > 0) {
-    output.push((FrontmatterContent | contentLength) | ErrorUnbalancedToken);
+    output.push((FrontmatterContent | typeBits | contentLength) | ErrorUnbalancedToken);
   }
   
   return endOffset - startOffset;
@@ -334,10 +230,13 @@ function scanJSONFrontmatter(input, startOffset, endOffset, output) {
   // Must start with {
   if (input.charCodeAt(startOffset) !== 123 /* { */) return 0;
 
+  const FRONTMATTER_TYPE_JSON = FrontmatterType.JSON;
+  const typeBits = (FRONTMATTER_TYPE_JSON & 0x3) << 26;
+
   let pos = startOffset + 1;
   
-  // Emit opening brace
-  output.push(FrontmatterOpen | 1);
+  // Emit opening brace with type bits
+  output.push(FrontmatterOpen | typeBits | 1);
 
   // Track brace balance to find matching closer
   let braceDepth = 1;
@@ -376,12 +275,12 @@ function scanJSONFrontmatter(input, startOffset, endOffset, output) {
           const contentEnd = pos;
           const contentLength = contentEnd - contentStart;
           if (contentLength > 0) {
-            output.push(FrontmatterContent | contentLength);
+            output.push(FrontmatterContent | typeBits | contentLength);
           }
           
           // Emit closing brace (just the brace, not any following newline)
           pos++;  // Move past the }
-          output.push(FrontmatterClose | 1);
+          output.push(FrontmatterClose | typeBits | 1);
           
           return pos - startOffset;
         }
@@ -395,7 +294,7 @@ function scanJSONFrontmatter(input, startOffset, endOffset, output) {
   const contentEnd = endOffset;
   const contentLength = contentEnd - contentStart;
   if (contentLength > 0) {
-    output.push((FrontmatterContent | contentLength) | ErrorUnbalancedToken);
+    output.push((FrontmatterContent | typeBits | contentLength) | ErrorUnbalancedToken);
   }
   
   return endOffset - startOffset;

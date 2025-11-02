@@ -248,13 +248,14 @@ When this document is expanded, deliver:
 ### Completed Items
 
 1. ✅ **Token definitions** - FrontmatterOpen, FrontmatterContent, FrontmatterClose tokens added to scan-tokens.js
-2. ✅ **YAML scanner** - Detects `---` fences, captures opaque content, handles unclosed blocks
-3. ✅ **TOML scanner** - Detects `+++` fences with same logic as YAML
-4. ✅ **JSON scanner** - Tracks brace balance, handles string escaping, finds matching closer
-5. ✅ **scan0 integration** - Early detection at position 0, proper line tracking after frontmatter
-6. ✅ **Comprehensive tests** - 38 annotated markdown tests covering all formats and edge cases
-7. ✅ **Error handling** - Unclosed frontmatter emits ErrorUnbalancedToken flag
-8. ✅ **Disambiguation** - Position 0 requirement prevents conflicts with Setext headings
+2. ✅ **Type utilities** - FrontmatterType enum and helper functions (getFrontmatterType, getFrontmatterTypeName) exported
+3. ✅ **Type bits** - All tokens carry type information in bits 26-27 (0=YAML, 1=TOML, 2=JSON)
+4. ✅ **Unified scanner** - scanDelimitedFrontmatter handles both YAML and TOML, eliminating code duplication
+5. ✅ **JSON scanner** - Tracks brace balance, handles string escaping, finds matching closer
+6. ✅ **scan0 integration** - Early detection at position 0, proper line tracking after frontmatter
+7. ✅ **Comprehensive tests** - 44 annotated markdown tests covering all formats and edge cases
+8. ✅ **Error handling** - Unclosed frontmatter emits ErrorUnbalancedToken flag
+9. ✅ **Disambiguation** - Position 0 requirement prevents conflicts with Setext headings
 
 ### Scanner Implementation Details
 
@@ -262,8 +263,22 @@ When this document is expanded, deliver:
 
 The frontmatter scanner is implemented in `parse/scan-frontmatter.js` following Pattern B (complex scanner that pushes tokens and returns consumed length).
 
-**Main entry point:**
+**Exported utilities:**
 ```javascript
+// Type enum for frontmatter identification
+export const FrontmatterType = {
+  YAML: 0,
+  TOML: 1,
+  JSON: 2
+};
+
+// Helper to extract type from token
+export function getFrontmatterType(token)
+
+// Helper to get human-readable type name
+export function getFrontmatterTypeName(token)
+
+// Main scanner entry point
 export function scanFrontmatter(input, startOffset, endOffset, output)
 ```
 
@@ -271,11 +286,12 @@ export function scanFrontmatter(input, startOffset, endOffset, output)
 - Returns 0 immediately if `startOffset !== 0` (frontmatter only valid at document start)
 - Dispatches to format-specific scanners based on first character
 - No allocations during scan — uses `charCodeAt()` for character inspection
-- Emits 2-3 tokens: FrontmatterOpen, [FrontmatterContent], FrontmatterClose
+- Emits 2-3 tokens with type bits: FrontmatterOpen, [FrontmatterContent], FrontmatterClose
+- Type information stored in bits 26-27 of all emitted tokens
 
-#### YAML/TOML Scanner Algorithm
+#### Unified YAML/TOML Scanner Algorithm
 
-Both YAML (`---`) and TOML (`+++`) use nearly identical logic:
+YAML (`---`) and TOML (`+++`) are handled by a single `scanDelimitedFrontmatter()` function that accepts the delimiter character as a parameter. This eliminates code duplication while maintaining clarity:
 
 1. **Validate opening fence:**
    - Must be exactly 3 characters (`---` or `+++`)
@@ -289,13 +305,14 @@ Both YAML (`---`) and TOML (`+++`) use nearly identical logic:
    - Closing fence must match opening character (can't mix `---` and `+++`)
    - Content between fences is opaque — preserved exactly as-is
 
-3. **Emit tokens:**
-   - FrontmatterOpen: includes opening fence + newline
-   - FrontmatterContent: all content between fences (may be empty)
-   - FrontmatterClose: includes closing fence + newline
+3. **Emit tokens with type bits:**
+   - Calculate `typeBits = (type & 0x3) << 26` where type is 0 for YAML or 1 for TOML
+   - FrontmatterOpen: includes opening fence + newline + type bits
+   - FrontmatterContent: all content between fences (may be empty) + type bits
+   - FrontmatterClose: includes closing fence + newline + type bits
 
 4. **Error handling:**
-   - If no closer found by EOF, emit FrontmatterContent with ErrorUnbalancedToken flag
+   - If no closer found by EOF, emit FrontmatterContent with ErrorUnbalancedToken flag and type bits
 
 #### JSON Scanner Algorithm
 
@@ -303,7 +320,7 @@ JSON frontmatter has different structure due to brace balancing:
 
 1. **Validate opening brace:**
    - Must be `{` at position 0
-   - No position validation for content after brace
+   - Calculate type bits: `typeBits = (FrontmatterType.JSON & 0x3) << 26`
 
 2. **Track brace balance:**
    - Maintain `braceDepth` counter (starts at 1 after opening `{`)
@@ -316,10 +333,10 @@ JSON frontmatter has different structure due to brace balancing:
    - Increment depth on `{`, decrement on `}`
    - When depth reaches 0, found matching closer
 
-4. **Emit tokens:**
-   - FrontmatterOpen: just `{` (length 1)
-   - FrontmatterContent: everything between braces (includes newlines and indentation)
-   - FrontmatterClose: just `}` (length 1)
+4. **Emit tokens with type bits:**
+   - FrontmatterOpen: just `{` (length 1) + type bits
+   - FrontmatterContent: everything between braces (includes newlines and indentation) + type bits
+   - FrontmatterClose: just `}` (length 1) + type bits
    - Note: Unlike YAML/TOML, newlines are NOT included in opening/closing tokens
 
 #### scan0.js Integration

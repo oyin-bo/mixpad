@@ -197,3 +197,65 @@ nested:
 ---
 1
 @1 FrontmatterClose "---\n"
+
+<--EOF
+---
+1
+@1 FrontmatterOpen "---\n"
+title: "Test"
+tags:
+  - markdown
+  - parser
+description: |
+  This is a multiline
+  description block
+1
+@1 FrontmatterContent "title: \"Test\"\ntags:\n  - markdown\n  - parser\ndescription: |\n  This is a multiline\n  description block\n"
+---
+1
+@1 FrontmatterClose "---\n"
+
+<--EOF
+{
+1
+@1 FrontmatterOpen "{"
+  "text": "She said \"hello\""
+1
+@1 FrontmatterContent "\n  \"text\": \"She said \\\"hello\\\"\"\n"
+}
+1
+@1 FrontmatterClose "}"
+
+<--EOF
+---
+1
+@1 FrontmatterOpen "---\n"
+description: "---"
+note: "This has --- in content"
+1
+@1 FrontmatterContent "description: \"---\"\nnote: \"This has --- in content\"\n"
+---
+1
+@1 FrontmatterClose "---\n"
+
+<--EOF
++++
+1
+@1 FrontmatterOpen "+++\n"
+description = "+++"
+note = "This has +++ in content"
+1
+@1 FrontmatterContent "description = \"+++\"\nnote = \"This has +++ in content\"\n"
++++
+1
+@1 FrontmatterClose "+++\n"
+
+<--EOF
+--- invalid
+1
+@1 InlineText "--- invalid"
+
+<--EOF
++++ invalid
+1
+@1 InlineText "+++ invalid"
