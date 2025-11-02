@@ -81,23 +81,30 @@ export function scanTablePipe(input, start, end, output) {
 **Pattern to recognize:**
 - Optional leading whitespace
 - Optional leading colon `:`
-- One or more dashes `-`
+- **At least three dashes `-`** (GFM spec requirement)
 - Optional trailing colon `:`
 - Optional trailing whitespace
 
 Valid delimiter patterns:
 ```
----       (default/left alignment)
+---       (minimum - default/left alignment)
 :---      (explicit left alignment)
 :---:     (center alignment)
 ---:      (right alignment)
  :---:    (center with whitespace)
+-----     (more than 3 dashes allowed)
+```
+
+Invalid delimiter patterns:
+```
+-         (too few dashes)
+--        (too few dashes)
 ```
 
 **What `scan0` does:**
 1. Parse optional leading whitespace
 2. Check for optional leading colon
-3. Count dashes (must have at least one)
+3. Count dashes (must have at least 3 per GFM spec)
 4. Check for optional trailing colon
 5. Parse optional trailing whitespace
 6. Encode alignment information in token
@@ -206,6 +213,55 @@ case 124 /* | pipe */: {
   const consumed = scanInlineText(input, offset - 1, endOffset, output);
   // ... handle inline text
 }
+```
+
+## GFM Specification Requirements
+
+The implementation enforces the following GFM spec requirements:
+
+### Minimum Dash Count
+**Requirement:** Each delimiter cell must contain **at least 3 dashes**.
+
+**Why:** The GFM spec explicitly states this requirement to avoid ambiguity with other constructs.
+
+**Implementation:**
+- `scanTableDelimiterCell`: Returns 0 if `dashCount < 3`
+- `checkTableDelimiterRow`: Returns `{ isValid: false }` if any cell has fewer than 3 dashes
+
+**Example:**
+```markdown
+| - |        ❌ Invalid (only 1 dash)
+| -- |       ❌ Invalid (only 2 dashes)
+| --- |      ✅ Valid (3 dashes - minimum)
+| ----- |    ✅ Valid (5 dashes)
+```
+
+### Pipe Requirement
+**Requirement:** A table delimiter row must contain **at least one pipe character** to distinguish it from Setext heading underlines.
+
+**Why:** Without this requirement, a line like `---` could be ambiguous - it could be either a Setext heading underline or a table delimiter.
+
+**Implementation:**
+- `checkTableDelimiterRow`: Tracks `hasPipes` flag and returns `{ isValid: false }` if no pipes found
+
+**Example:**
+```markdown
+---            ❌ Not a table (could be Setext heading)
+--- | ---      ✅ Valid table delimiter (has pipe)
+```
+
+### Indentation Limit
+**Requirement:** Tables can be indented up to **3 spaces maximum**. Four or more spaces of indentation indicates a code block.
+
+**Why:** This is a core Markdown/GFM convention - 4+ spaces means code, not formatted content.
+
+**Implementation:**
+- `checkTableDelimiterRow`: Checks `countIndentation()` and returns `{ isValid: false }` if indentation > 3
+
+**Example:**
+```markdown
+   | --- |    ✅ Valid (3 spaces)
+    | --- |   ❌ Code block (4 spaces)
 ```
 
 ## Semantic Layer Responsibilities

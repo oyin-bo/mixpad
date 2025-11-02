@@ -1,6 +1,7 @@
 // @ts-check
 
 import { TablePipe, TableDelimiterCell } from './scan-tokens.js';
+import { findLineStart, countIndentation } from './scan-core.js';
 
 /**
  * Scan table pipe character |
@@ -40,7 +41,7 @@ export function scanTablePipe(input, start, end, output) {
  * 
  * A delimiter cell consists of:
  * - Optional leading colon (:)
- * - One or more dashes (-)
+ * - At least three dashes (---) per GFM spec
  * - Optional trailing colon (:)
  * - Optional whitespace around the content
  * 
@@ -50,6 +51,10 @@ export function scanTablePipe(input, start, end, output) {
  * - ":---:"    (center align)
  * - "---:"     (right align)
  * - " :---: "  (center with whitespace)
+ * 
+ * Invalid examples:
+ * - "-"        (too few dashes)
+ * - "--"       (too few dashes)
  * 
  * The alignment info is encoded in the token for later semantic analysis.
  * 
@@ -85,14 +90,14 @@ export function scanTableDelimiterCell(input, start, end, output) {
   
   if (pos >= end) return 0;
   
-  // Must have at least one dash
+  // Must have at least 3 dashes per GFM spec
   let dashCount = 0;
   while (pos < end && input.charCodeAt(pos) === 45) { // '-'
     dashCount++;
     pos++;
   }
   
-  if (dashCount === 0) return 0;
+  if (dashCount < 3) return 0;
   
   // Check for trailing colon
   let hasTrailingColon = false;
@@ -132,15 +137,25 @@ export function scanTableDelimiterCell(input, start, end, output) {
  * A delimiter row consists of pipes and delimiter cells.
  * This is a lookahead function used by semantic analysis.
  * 
+ * GFM Requirements:
+ * - At least one pipe character (to distinguish from Setext headings)
+ * - Each cell must have at least 3 dashes
+ * - Can be indented up to 3 spaces (4+ = code block)
+ * 
  * @param {string} input - The input text
  * @param {number} lineStart - Start of line
  * @param {number} end - End index (exclusive)
  * @returns {{ isValid: boolean, cellCount: number }} Whether line is a valid delimiter row
  */
 export function checkTableDelimiterRow(input, lineStart, end) {
+  // Check line indentation (must be ≤ 3 spaces)
+  const lineIndent = countIndentation(input, lineStart, end);
+  if (lineIndent > 3) return { isValid: false, cellCount: 0 };
+  
   let pos = lineStart;
   let cellCount = 0;
   let hasPipes = false;
+  let foundAnyDash = false;
   
   // Skip leading whitespace
   while (pos < end && (input.charCodeAt(pos) === 32 || input.charCodeAt(pos) === 9)) {
@@ -173,14 +188,15 @@ export function checkTableDelimiterRow(input, lineStart, end) {
     // Optional leading colon
     if (pos < end && input.charCodeAt(pos) === 58) pos++; // ':'
     
-    // Must have at least one dash
+    // Must have at least 3 dashes per GFM spec
     let dashCount = 0;
     while (pos < end && input.charCodeAt(pos) === 45) { // '-'
       dashCount++;
       pos++;
     }
     
-    if (dashCount === 0) return { isValid: false, cellCount: 0 };
+    if (dashCount < 3) return { isValid: false, cellCount: 0 };
+    foundAnyDash = true;
     
     // Optional trailing colon
     if (pos < end && input.charCodeAt(pos) === 58) pos++; // ':'
@@ -205,6 +221,12 @@ export function checkTableDelimiterRow(input, lineStart, end) {
       // No pipe - only valid if this is the last cell and no leading pipe was used
       return { isValid: false, cellCount: 0 };
     }
+  }
+  
+  // Must have at least one dash, at least one pipe, and at least one column
+  // A table delimiter MUST contain at least one pipe character
+  if (!foundAnyDash || !hasPipes || cellCount === 0) {
+    return { isValid: false, cellCount: 0 };
   }
   
   // Valid if we found at least one cell and at least one pipe

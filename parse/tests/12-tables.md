@@ -135,6 +135,82 @@ Right align:
 1
 @1 InlineText "---:"
 
+## Minimum dash requirement
+
+Too few dashes - single dash (invalid):
+| - |
+1
+@1 TablePipe "|"
+
+Too few dashes - two dashes (invalid):
+| -- |
+1
+@1 TablePipe "|"
+
+Valid - three dashes (minimum required):
+| --- |
+1
+@1 TablePipe "|"
+
+Valid - more than three dashes:
+| ----- |
+1
+@1 TablePipe "|"
+
+## Pipe requirement validation
+
+Inline dashes without pipes:
+abc - def
+1
+@1 InlineText "abc - def"
+
+Inline dashes without pipes (two dashes):
+abc -- def
+1
+@1 InlineText "abc -- def"
+
+Inline dashes without pipes (three dashes):
+abc --- def
+1
+@1 InlineText "abc --- def"
+
+Single pipe with dashes (valid table delimiter):
+--- | ---
+1   2
+@1 InlineText "---"
+@2 TablePipe "|"
+
+## Indentation limits
+
+Too much indentation - 4 spaces (code block, not table):
+    | --- | --- |
+1   2
+@1 Whitespace "    "
+@2 TablePipe "|"
+
+Valid indentation - 3 spaces:
+   | --- | --- |
+1  2
+@1 Whitespace "   "
+@2 TablePipe "|"
+
+Valid indentation - 2 spaces:
+  | --- | --- |
+1 2
+@1 Whitespace "  "
+@2 TablePipe "|"
+
+Valid indentation - 1 space:
+ | --- | --- |
+12
+@1 Whitespace " "
+@2 TablePipe "|"
+
+No indentation (valid):
+| --- | --- |
+1
+@1 TablePipe "|"
+
 ## Not a table
 
 Text line without proper structure:
