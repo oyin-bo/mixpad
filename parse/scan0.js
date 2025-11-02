@@ -7,6 +7,7 @@ import { scanEmphasis } from './scan-emphasis.js';
 import { scanEntity } from './scan-entity.js';
 import { scanEscaped } from './scan-escaped.js';
 import { scanFencedBlock } from './scan-fences.js';
+import { scanFrontmatter } from './scan-frontmatter.js';
 import { scanHTMLCData } from './scan-html-cdata.js';
 import { scanHTMLComment } from './scan-html-comment.js';
 import { scanHTMLDocType } from './scan-html-doctype.js';
@@ -53,16 +54,31 @@ export function scan0({
   let tokenCount = 0;
   let offset = startOffset;
 
+  // Setext heading speculative parsing state
+  let lineStartOffset = startOffset;
+  let lineTokenStartIndex = 0;
+  let lineCouldBeSetextText = true;
+
+  // Check for frontmatter at absolute position 0
+  if (startOffset === 0) {
+    const frontmatterConsumed = scanFrontmatter(input, startOffset, endOffset, output);
+    if (frontmatterConsumed > 0) {
+      offset += frontmatterConsumed;
+      tokenCount += output.length;
+      // Update line tracking to skip past frontmatter
+      lineStartOffset = offset;
+      lineTokenStartIndex = output.length;
+      lineCouldBeSetextText = false; // Next line after frontmatter can't be Setext text
+    }
+  }
+
   // Safe reparse point tracking
   // Initialize to true for the start of file (offset 0)
   let next_token_is_reparse_start = (startOffset === 0);
   let error_recovery_mode = false;
 
-  // Setext heading speculative parsing state
-  let lineStartOffset = startOffset;
-  let lineTokenStartIndex = 0;
-  let lineCouldBeSetextText = true; // Assume eligible until proven otherwise
-  let isInSetextBufferMode = false; // Are we buffering tokens for potential Setext?
+  // Are we buffering tokens for potential Setext?
+  let isInSetextBufferMode = false;
 
   while (offset < endOffset) {
     // Record the index where the next token(s) will be added

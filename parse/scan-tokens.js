@@ -68,3 +68,8 @@ export const SetextHeadingUnderline = 0x2D0000;
 // Table Tokens
 export const TablePipe = 0x2E0000;
 export const TableDelimiterCell = 0x2F0000;
+
+// Front Matter Tokens
+export const FrontmatterOpen = 0x2E0000;
+export const FrontmatterContent = 0x2F0000;
+export const FrontmatterClose = 0x300000;
