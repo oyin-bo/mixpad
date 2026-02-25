@@ -14,6 +14,7 @@ import { scanHTMLDocType } from './scan-html-doctype.js';
 import { scanHTMLRawText } from './scan-html-raw-text.js';
 import { isRawTextElement, scanHTMLTag } from './scan-html-tag.js';
 import { scanInlineText } from './scan-inline-text.js';
+import { scanBlockquote } from './scan-blockquote.js';
 import { scanBulletListMarker } from './scan-list-bullet.js';
 import { scanOrderedListMarker } from './scan-list-ordered.js';
 import { scanTaskListMarker } from './scan-list-task.js';
@@ -657,6 +658,30 @@ export function scan0({
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
           // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 62 /* > greater-than / blockquote */: {
+        const blockquoteConsumed = scanBlockquote(input, offset - 1, endOffset, output);
+        if (blockquoteConsumed > 0) {
+          lineCouldBeSetextText = false;
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += blockquoteConsumed - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
           if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
             output[tokenStartIndex] |= IsSafeReparsePoint;
           }
