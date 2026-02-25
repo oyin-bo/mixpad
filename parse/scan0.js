@@ -14,6 +14,7 @@ import { scanHTMLDocType } from './scan-html-doctype.js';
 import { scanHTMLRawText } from './scan-html-raw-text.js';
 import { isRawTextElement, scanHTMLTag } from './scan-html-tag.js';
 import { scanInlineText } from './scan-inline-text.js';
+import { scanImageMarker, scanLinkClose, scanLinkDestClose, scanLinkDestOpen, scanLinkOpen } from './scan-link-image.js';
 import { scanBulletListMarker } from './scan-list-bullet.js';
 import { scanOrderedListMarker } from './scan-list-ordered.js';
 import { scanTaskListMarker } from './scan-list-task.js';
@@ -620,8 +621,55 @@ export function scan0({
         continue;
       }
 
+      case 33 /* ! exclamation */: {
+        // Image marker only when immediately followed by [
+        const imgConsumed = scanImageMarker(input, offset - 1, endOffset, output);
+        if (imgConsumed > 0) {
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 40 /* ( open parenthesis */: {
+        const linkDestOpenConsumed = scanLinkDestOpen(input, offset - 1, endOffset, output);
+        if (linkDestOpenConsumed > 0) {
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          continue;
+        }
+        continue;
+      }
+
+      case 41 /* ) close parenthesis */: {
+        const linkDestCloseConsumed = scanLinkDestClose(input, offset - 1, endOffset, output);
+        if (linkDestCloseConsumed > 0) {
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          continue;
+        }
+        continue;
+      }
+
       case 91 /* [ left square bracket */: {
-        // Try task list marker
+        // Try task list marker first (takes priority over link open)
         const taskConsumed = scanTaskListMarker(input, offset - 1, endOffset, output);
         if (taskConsumed > 0) {
           // Task list marker detected - line cannot be Setext text
@@ -631,11 +679,23 @@ export function scan0({
           continue;
         }
 
-        // Fall back to inline text
-        const consumed = scanInlineText(input, offset - 1, endOffset, output);
-        if (consumed > 0) {
+        // Emit link open bracket marker
+        scanLinkOpen(input, offset - 1, endOffset, output);
+        if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+          output[tokenStartIndex] |= IsSafeReparsePoint;
+        }
+        tokenCount = output.length;
+        continue;
+      }
+
+      case 93 /* ] right square bracket */: {
+        const linkCloseConsumed = scanLinkClose(input, offset - 1, endOffset, output);
+        if (linkCloseConsumed > 0) {
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
-          offset += consumed - 1;
+          continue;
         }
         continue;
       }
