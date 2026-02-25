@@ -67,9 +67,34 @@ export const SetextHeadingUnderline = 0x2D0000;
 
 // Table Tokens
 export const TablePipe = 0x2E0000;
-export const TableDelimiterCell = 0x2F0000;
+export const TableDelimiterRowMarker = 0x2F0000;
 
 // Front Matter Tokens
-export const FrontmatterOpen = 0x2E0000;
-export const FrontmatterContent = 0x2F0000;
-export const FrontmatterClose = 0x300000;
+export const FrontmatterOpen = 0x300000;
+export const FrontmatterContent = 0x310000;
+export const FrontmatterClose = 0x320000;
+
+// Blockquote Tokens
+export const BlockquoteMarker = 0x330000;
+
+// Thematic Break Tokens
+export const ThematicBreak = 0x340000;
+
+// Link and Image Tokens
+export const LinkOpen = 0x350000;
+export const LinkClose = 0x360000;
+export const ImageMarker = 0x370000;
+export const LinkDestOpen = 0x380000;
+export const LinkDestClose = 0x390000;
+export const LinkTitleQuote = 0x3A0000;
+
+// Semantic Phase Tokens (resolved)
+export const EmphasisOpen = 0x3B0000;
+export const EmphasisClose = 0x3C0000;
+export const StrongOpen = 0x3D0000;
+export const StrongClose = 0x3E0000;
+export const StrikethroughOpen = 0x3F0000;
+export const StrikethroughClose = 0x400000;
+export const LinkLabel = 0x410000;
+export const LinkDestination = 0x420000;
+export const LinkTitle = 0x430000;
