@@ -88,6 +88,9 @@ export const LinkDestOpen = 0x380000;
 export const LinkDestClose = 0x390000;
 export const LinkTitleQuote = 0x3A0000;
 
+// Table delimiter cell token (alignment encoded in bits 26-27)
+export const TableDelimiterCell = 0x440000;
+
 // Semantic Phase Tokens (resolved)
 export const EmphasisOpen = 0x3B0000;
 export const EmphasisClose = 0x3C0000;

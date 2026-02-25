@@ -145,7 +145,7 @@ Number without space after delimiter:
 Number paren without space:
 1)item
 1
-@1 InlineText "1)item"
+@1 InlineText "1"
 
 Too many digits (10 digits):
 1234567890. item
@@ -168,10 +168,10 @@ Task checkbox not followed by space:
 - [ ]x invalid
 1 2
 @1 BulletListMarker "-"
-@2 InlineText "[ ]x invalid"
+@2 LinkOpen "["
 
 Task checkbox with invalid character:
 - [y] invalid
 1 2
 @1 BulletListMarker "-"
-@2 InlineText "[y] invalid"
+@2 LinkOpen "["

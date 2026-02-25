@@ -3,6 +3,7 @@
 import { scanATXHeading } from './scan-atx-heading.js';
 import { scanBacktickInline } from './scan-backtick-inline.js';
 import { countIndentation, findLineStart, getTokenFlags, getTokenKind, getTokenLength, isAsciiAlphaNum } from './scan-core.js';
+import { scanImageMarker, scanLinkClose, scanLinkDestClose, scanLinkDestOpen, scanLinkOpen } from './scan-link-image.js';
 import { scanEmphasis } from './scan-emphasis.js';
 import { scanEntity } from './scan-entity.js';
 import { scanEscaped } from './scan-escaped.js';
@@ -631,12 +632,65 @@ export function scan0({
           continue;
         }
 
+        // Emit link open marker
+        scanLinkOpen(output);
+        if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+          output[tokenStartIndex] |= IsSafeReparsePoint;
+        }
+        tokenCount = output.length;
+        continue;
+      }
+
+      case 93 /* ] right square bracket */: {
+        // Emit link close marker
+        scanLinkClose(output);
+        if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+          output[tokenStartIndex] |= IsSafeReparsePoint;
+        }
+        tokenCount = output.length;
+        continue;
+      }
+
+      case 33 /* ! exclamation mark */: {
+        // Emit image marker only when immediately followed by [
+        const imgConsumed = scanImageMarker(input, offset - 1, endOffset, output);
+        if (imgConsumed > 0) {
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          continue;
+        }
+
         // Fall back to inline text
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
           tokenCount = output.length;
           offset += consumed - 1;
         }
+        continue;
+      }
+
+      case 40 /* ( open parenthesis */: {
+        // Emit link destination open marker
+        scanLinkDestOpen(output);
+        if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+          output[tokenStartIndex] |= IsSafeReparsePoint;
+        }
+        tokenCount = output.length;
+        continue;
+      }
+
+      case 41 /* ) close parenthesis */: {
+        // Emit link destination close marker
+        scanLinkDestClose(output);
+        if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+          output[tokenStartIndex] |= IsSafeReparsePoint;
+        }
+        tokenCount = output.length;
         continue;
       }
 

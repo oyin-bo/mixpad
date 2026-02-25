@@ -240,7 +240,7 @@ Summation: &sum; (plus)
 @2 Whitespace
 @3 EntityNamed
 @4 Whitespace
-@5 InlineText
+@5 LinkDestOpen
 
 Product: &prod;
 1        2
