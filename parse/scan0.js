@@ -1,6 +1,7 @@
 // @ts-check
 
 import { scanATXHeading } from './scan-atx-heading.js';
+import { scanBlockquote } from './scan-blockquote.js';
 import { scanBacktickInline } from './scan-backtick-inline.js';
 import { countIndentation, findLineStart, getTokenFlags, getTokenKind, getTokenLength, isAsciiAlphaNum } from './scan-core.js';
 import { scanEmphasis } from './scan-emphasis.js';
@@ -520,6 +521,34 @@ export function scan0({
           }
           tokenCount = output.length;
           return tokenCount; // Return after processing heading
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 62 /* > greater-than */: {
+        // Try blockquote marker
+        const blockquoteConsumed = scanBlockquote(input, offset - 1, endOffset, output);
+        if (blockquoteConsumed > 0) {
+          // Blockquote marker detected - line cannot be Setext text
+          lineCouldBeSetextText = false;
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += blockquoteConsumed - 1;
+          continue;
         }
 
         // Fall back to inline text
