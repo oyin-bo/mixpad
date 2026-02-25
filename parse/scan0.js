@@ -20,6 +20,7 @@ import { scanTaskListMarker } from './scan-list-task.js';
 import { bufferSetextToken, checkSetextUnderline, flushSetextBuffer } from './scan-setext-heading.js';
 import { scanTablePipe } from './scan-table.js';
 import { scanTextarea } from './scan-textarea.js';
+import { scanThematicBreak } from './scan-thematic-break.js';
 import { ErrorUnbalancedToken, IsSafeReparsePoint } from './scan-token-flags.js';
 import { BacktickBoundary, HTMLTagClose, HTMLTagName, HTMLTagOpen, InlineCode, InlineText, NewLine, SetextHeadingUnderline, Whitespace } from './scan-tokens.js';
 import { scanXMLProcessingInstruction } from './scan-xml-pi.js';
@@ -314,6 +315,18 @@ export function scan0({
       }
 
       case 42 /* * asterisk */: {
+        // Try thematic break first
+        const thematicConsumed = scanThematicBreak(input, offset - 1, endOffset, output);
+        if (thematicConsumed > 0) {
+          lineCouldBeSetextText = false;
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += thematicConsumed - 1;
+          continue;
+        }
+
         // Try bullet list marker first
         const listConsumed = scanBulletListMarker(input, offset - 1, endOffset, output);
         if (listConsumed > 0) {
@@ -352,6 +365,18 @@ export function scan0({
       }
 
       case 95 /* _ underscore */: {
+        // Try thematic break first
+        const thematicConsumed = scanThematicBreak(input, offset - 1, endOffset, output);
+        if (thematicConsumed > 0) {
+          lineCouldBeSetextText = false;
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += thematicConsumed - 1;
+          continue;
+        }
+
         const consumedEmphasis = scanEmphasis(input, offset - 1, endOffset, output);
         if (consumedEmphasis > 0) {
           // Apply reparse flag to first token if needed
@@ -536,6 +561,18 @@ export function scan0({
       }
 
       case 45 /* - hyphen-minus */: {
+        // Try thematic break first
+        const thematicConsumed = scanThematicBreak(input, offset - 1, endOffset, output);
+        if (thematicConsumed > 0) {
+          lineCouldBeSetextText = false;
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += thematicConsumed - 1;
+          continue;
+        }
+
         // Try bullet list marker
         const listConsumed = scanBulletListMarker(input, offset - 1, endOffset, output);
         if (listConsumed > 0) {
