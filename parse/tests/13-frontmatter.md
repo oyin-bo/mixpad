@@ -125,12 +125,12 @@ tags = ["markdown", "parser"]
 
 ---
 1
-@1 InlineText "---"
+@1 ThematicBreak "---"
 
 <--EOF
 ----
 1
-@1 InlineText "----"
+@1 ThematicBreak IsSafeReparsePoint "----"
 
 <--EOF
 --- title
