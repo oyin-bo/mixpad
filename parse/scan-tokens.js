@@ -2,7 +2,7 @@
 
 // Token kinds occupy bits 16–25.
 // This provides 10 bits for token kinds, allowing for 1024 unique kinds.
-// Current allocation: 0x01 to 0x47.
+// Current allocation: 0x01 to 0x4E.
 export const InlineText = 0x010000;
 export const Whitespace = 0x020000;
 export const NewLine = 0x030000;
@@ -64,6 +64,15 @@ export const TaskListMarker = 0x2A0000;
 export const ATXHeadingOpen = 0x2B0000;
 export const ATXHeadingClose = 0x2C0000;
 export const SetextHeadingUnderline = 0x2D0000;
+
+// Autolink Tokens
+export const AngleLinkOpen = 0x480000;
+export const AngleLinkURL = 0x490000;
+export const AngleLinkEmail = 0x4A0000;
+export const AngleLinkClose = 0x4B0000;
+export const RawURL = 0x4C0000;
+export const WWWAutolink = 0x4D0000;
+export const EmailAutolink = 0x4E0000;
 
 // Formula Block Tokens
 export const FormulaOpen = 0x450000;
