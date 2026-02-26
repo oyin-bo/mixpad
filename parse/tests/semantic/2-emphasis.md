@@ -59,6 +59,31 @@ Hello *world* end
 @4 EmphasisClose "*"
 @5 InlineText "end"
 
+## Nested emphasis: triple asterisk
+
+Triple asterisk pairs as outer emphasis wrapping inner strong.
+
+***word***
+12 3   4 5
+@1 EmphasisOpen "*"
+@2 StrongOpen "**"
+@3 InlineText "word"
+@4 StrongClose "**"
+@5 EmphasisClose "*"
+
+<--EOF
+
+## CommonMark mod-3 rule
+
+When either delimiter can both open and close and the sum of run lengths is a
+multiple of 3 (but neither alone is), they cannot form emphasis.
+
+Both delimiters are intraword (can both open and close); 1+2=3 is a multiple of 3.
+
+a*foo**b
+1
+@1 InlineText "a*foo**b"
+
 <--EOF
 
 ## Unmatched opener is demoted to InlineText
