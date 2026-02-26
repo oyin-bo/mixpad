@@ -2,7 +2,7 @@
 
 // Token kinds occupy bits 16–25.
 // This provides 10 bits for token kinds, allowing for 1024 unique kinds.
-// Current allocation: 0x01 to 0x2A.
+// Current allocation: 0x01 to 0x44.
 export const InlineText = 0x010000;
 export const Whitespace = 0x020000;
 export const NewLine = 0x030000;
@@ -98,3 +98,6 @@ export const StrikethroughClose = 0x400000;
 export const LinkLabel = 0x410000;
 export const LinkDestination = 0x420000;
 export const LinkTitle = 0x430000;
+
+// Table Delimiter Cell token (alignment encoded in bits 26–27: 0=left, 1=center, 2=right, 3=default)
+export const TableDelimiterCell = 0x440000;

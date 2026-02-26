@@ -11,7 +11,7 @@ import { getTokenFlags, getTokenKind, getTokenLength } from '../scan-core.js';
 import { HeadingDepthMask } from '../scan-token-flags.js';
 import * as TOKEN_KIND_VALUES from '../scan-tokens.js';
 import * as TOKEN_FLAG_VALUES from '../scan-token-flags.js';
-import { scan0 } from '../scan0.js';
+import { semantic } from '../semantic.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,7 +19,9 @@ const __dirname = path.dirname(__filename);
 
 const repoBase = path.resolve(__dirname, '..', '..'); // assuming repo root is two levels up
 
-for (const mdFilePath of findMarkdownFiles(__dirname)) {
+const semanticDir = path.join(__dirname, 'semantic');
+
+for (const mdFilePath of findMarkdownFiles(semanticDir)) {
   const relativePath = path.relative(repoBase, mdFilePath).replace(/\\/g, '/');
 
   const fullContent = fs.readFileSync(mdFilePath, 'utf8');
@@ -31,7 +33,6 @@ for (const mdFilePath of findMarkdownFiles(__dirname)) {
     const tokens = parseAndGetTokens(markdownContentText);
 
     for (const testCase of parsedTestCases.tests) {
-      // Adjust rawLineIndex to reflect original file position
       const adjustedRawLineIndex = testCase.rawLineIndex + section.startLineIndex;
 
       const testName =
@@ -43,7 +44,6 @@ for (const mdFilePath of findMarkdownFiles(__dirname)) {
       test(testName, () => {
 
         let manufacturedPositionalMarkerLine = '';
-        markdownContentText.charCodeAt(0);
 
         let anyAssertionFailed = 0;
         /** @type {number[]} */
@@ -57,7 +57,6 @@ for (const mdFilePath of findMarkdownFiles(__dirname)) {
 
           const actualTokenLineCharOffset = tokens[tokenIndex].offset - testCase.lineStartOffset;
           if (assertionTokenLineStartPositions.indexOf(actualTokenLineCharOffset) >= 0) {
-            // already have an assertion for this position, skip
             anyAssertionFailed++;
             return '';
           }
@@ -87,7 +86,6 @@ for (const mdFilePath of findMarkdownFiles(__dirname)) {
             return assertionResult;
           }
 
-          // If assertion needs to be generated from token
           if (assertion.needsGeneration) {
             assertionResult += tokenKindToString(matchingToken.kind);
             if (matchingToken.text) {
@@ -118,9 +116,8 @@ for (const mdFilePath of findMarkdownFiles(__dirname)) {
             if (flags) {
               parts.push(flags);
             }
-            // Use original assertion text if it existed, otherwise use token's text
-            const text = typeof assertion.text === 'string' 
-              ? JSON.stringify(matchingToken.text) 
+            const text = typeof assertion.text === 'string'
+              ? JSON.stringify(matchingToken.text)
               : (matchingToken.text ? JSON.stringify(matchingToken.text) : '');
             if (text) {
               parts.push(text);
@@ -176,7 +173,6 @@ for (const mdFilePath of findMarkdownFiles(__dirname)) {
 
 /**
  * Split annotated markdown by EOF markers.
- * Each section starts fresh with independent token scanning.
  * @param {string} fullContent
  * @returns {{ content: string, startLineIndex: number }[]}
  */
@@ -186,33 +182,28 @@ function splitByEOFMarkers(fullContent) {
   let currentSection = [];
   let currentStartLine = 0;
 
-  // EOF marker regex: <--EOF (2+ dashes, optional whitespace around EOF)
   const EOF_MARKER_REGEX = /^<--+\s*EOF\s*$/;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    
+
     if (EOF_MARKER_REGEX.test(line.trim())) {
-      // Found EOF marker - save current section and start new one
       if (currentSection.length > 0) {
         sections.push({
           content: currentSection.join('\n'),
           startLineIndex: currentStartLine
         });
       }
-      
-      // Skip to next line after EOF marker
+
       currentStartLine = i + 1;
       currentSection = [];
-      
-      // If next line is a marker/assertion block (starts with '1'), skip it
+
       if (i + 1 < lines.length && lines[i + 1].trimStart().startsWith('1')) {
-        let skipTo = i + 2; // skip marker line
-        // Skip all following @ assertion lines
+        let skipTo = i + 2;
         while (skipTo < lines.length && lines[skipTo].trimStart().startsWith('@')) {
           skipTo++;
         }
-        i = skipTo - 1; // -1 because loop will increment
+        i = skipTo - 1;
         currentStartLine = skipTo;
       }
     } else {
@@ -220,7 +211,6 @@ function splitByEOFMarkers(fullContent) {
     }
   }
 
-  // Add final section if any content remains
   if (currentSection.length > 0) {
     sections.push({
       content: currentSection.join('\n'),
@@ -232,50 +222,44 @@ function splitByEOFMarkers(fullContent) {
 }
 
 /**
+ * Run the semantic scanner over the markdown and return token objects.
  * @param {string} markdown
  */
 function parseAndGetTokens(markdown) {
+  /** @type {number[]} */
+  const buf = [];
+  const scanner = semantic({ input: markdown, startOffset: 0, endOffset: markdown.length });
+  scanner(buf);
+
   const tokens = [];
   let pos = 0;
-  /** @type {number[]} */
-  let tokenBuf = [];
-  while (true) {
-    const tokenCount = scan0({
-      input: markdown,
-      startOffset: pos,
-      endOffset: markdown.length,
-      output: tokenBuf
+  for (let i = 0; i < buf.length; i++) {
+    const tok = buf[i];
+    const len = getTokenLength(tok);
+    const flags = getTokenFlags(tok) | (tok & HeadingDepthMask);
+    tokens.push({
+      offset: pos,
+      length: len,
+      kind: getTokenKind(tok),
+      flags,
+      text: markdown.slice(pos, pos + len)
     });
-    for (let i = 0; i < tokenCount; i++) {
-      const token = tokenBuf[i];
-      const flags = getTokenFlags(token) | (token & HeadingDepthMask);
-      tokens.push({
-        offset: pos,
-        length: getTokenLength(token),
-        kind: getTokenKind(token),
-        flags,
-        text: markdown.slice(pos, pos + getTokenLength(token))
-      });
-      pos += getTokenLength(token);
-    }
-    if (tokenCount === 0) break;
-    tokenBuf.length = 0;
+    pos += len;
   }
   return tokens;
 }
 
 /**
- * Find .md files recursively under a directory.
+ * Find .md files directly in a directory (non-recursive).
  * @param {string} dir
  * @returns {string[]} absolute paths
  */
 function findMarkdownFiles(dir) {
+  if (!fs.existsSync(dir)) return [];
   const out = [];
   for (const name of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, name.name);
-    if (name.isDirectory() && name.name !== 'semantic') {
-      out.push(...findMarkdownFiles(full));
-    } else if (name.isFile() && full.endsWith('.md')) {
+    if (name.isFile() && full.endsWith('.md')) {
       out.push(full);
     }
   }
@@ -306,8 +290,6 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
     const line = annotatedMarkdown.slice(pos, nextLineStart);
     pos = nextLineStart;
 
-
-    // positional marker starts with 1, and the next line starts with @
     const isPositionalMarkerLine = line.trimStart().startsWith('1') && annotatedMarkdown.charAt(pos) === '@';
     if (!isPositionalMarkerLine) {
       markdownLines.push(line);
@@ -332,9 +314,7 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
      */
     const assertions = [];
     line.replace(/\S/g, (m, offset) => {
-      assertions.push({
-        lineCharOffset: offset
-      });
+      assertions.push({ lineCharOffset: offset });
       return m;
     });
 
@@ -361,7 +341,6 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
 
       const quoteStart = rest.indexOf('"');
       if (quoteStart >= 0) {
-        // Text assertion
         const quoteEnd = rest.lastIndexOf('"');
         if (quoteEnd < 0) {
           assertions[iAssertionLine].unparseable = true;
@@ -379,9 +358,8 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
         rest = rest.slice(0, quoteStart) + rest.slice(quoteEnd + 1);
       }
 
-      // parse assertions
       const ALPHANUMERIC_WITH_PIPE_SEPARATOR_REGEX = /([A-Z0-9]+)(\s*\|\s*([A-Z0-9]+))*/ig;
-      const restTrimmed = rest.replace(ALPHANUMERIC_WITH_PIPE_SEPARATOR_REGEX, (assertionChunk, ...args) => {
+      const restTrimmed = rest.replace(ALPHANUMERIC_WITH_PIPE_SEPARATOR_REGEX, (assertionChunk) => {
         const parsedKind = parseTokenKind(assertionChunk);
         if (typeof parsedKind === 'number') {
           assertions[iAssertionLine].tokenKind = parsedKind;
@@ -397,17 +375,12 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
       });
 
       if (restTrimmed.trim()) {
-        // should not have any remaining 
         assertions[iAssertionLine].unparseable = true;
       }
-
     }
 
-    // Mark assertions without assertionSource for generation - they represent position markers
-    // that don't have corresponding @ lines yet
     for (let i = 0; i < assertions.length; i++) {
       if (!assertions[i].assertionSource) {
-        // This position marker doesn't have an assertion, it needs to be generated during test
         assertions[i].needsGeneration = true;
       }
     }
@@ -417,7 +390,7 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
       lineStartOffset:
         markdownLines.slice(0, Math.max(0, markdownLines.length - 1)).reduce((a, b) => a + b.length, 0),
       lineIndex: markdownLines.length - 1,
-      rawLineIndex: testRawLineIndex, 
+      rawLineIndex: testRawLineIndex,
       positionalMarkerLine: line,
       assertions
     });
@@ -426,10 +399,8 @@ function parseScannedAnnotatedBlocks(annotatedMarkdown) {
   return { markdownLines, tests };
 }
 
-
 /**
- * Convert TokenKind number to string.
- * @param {import('../scan-core.js').TokenKind | number} kind 
+ * @param {import('../scan-core.js').TokenKind | number} kind
  * @returns {string}
  */
 function tokenKindToString(kind) {
@@ -446,7 +417,7 @@ function tokenKindToString(kind) {
 
 /**
  * @param {string} encoded
- * @returns {import('../scan-core.js').TokenKind | undefined} -1 if unparseable
+ * @returns {import('../scan-core.js').TokenKind | undefined}
  */
 function parseTokenKind(encoded) {
   for (const kindName in TOKEN_KIND_VALUES) {
@@ -461,9 +432,7 @@ function parseTokenKind(encoded) {
 }
 
 /**
- * Convert TokenFlags number to string.
- * Joining combinations of flags with | and if any unknown remainder left, included as 0x notation too.
- * @param {import('../scan-core.js').TokenFlags | number} kind 
+ * @param {import('../scan-core.js').TokenFlags | number} kind
  * @returns {string}
  */
 function tokenFlagsToString(kind) {
@@ -487,10 +456,9 @@ function tokenFlagsToString(kind) {
 
 /**
  * @param {string} encoded
- * @returns {import('../scan-core.js').TokenFlags | undefined} -1 if unparseable
+ * @returns {import('../scan-core.js').TokenFlags | undefined}
  */
 function parseTokenFlags(encoded) {
-
   const pipeds = encoded.split('|').map(s => s.trim()).filter(Boolean);
   const parseds = pipeds.map(p => {
     const asNumber = Number(p);
