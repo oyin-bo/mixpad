@@ -2,7 +2,7 @@
 
 // Token kinds occupy bits 16–25.
 // This provides 10 bits for token kinds, allowing for 1024 unique kinds.
-// Current allocation: 0x01 to 0x2A.
+// Current allocation: 0x01 to 0x47.
 export const InlineText = 0x010000;
 export const Whitespace = 0x020000;
 export const NewLine = 0x030000;
@@ -64,6 +64,11 @@ export const TaskListMarker = 0x2A0000;
 export const ATXHeadingOpen = 0x2B0000;
 export const ATXHeadingClose = 0x2C0000;
 export const SetextHeadingUnderline = 0x2D0000;
+
+// Formula Block Tokens
+export const FormulaOpen = 0x450000;
+export const FormulaContent = 0x460000;
+export const FormulaClose = 0x470000;
 
 // Table Tokens
 export const TablePipe = 0x2E0000;
