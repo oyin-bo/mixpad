@@ -1,6 +1,7 @@
 // @ts-check
 
 import { scanATXHeading } from './scan-atx-heading.js';
+import { scanBlockquote } from './scan-blockquote.js';
 import { scanBacktickInline } from './scan-backtick-inline.js';
 import { countIndentation, findLineStart, getTokenFlags, getTokenKind, getTokenLength, isAsciiAlphaNum } from './scan-core.js';
 import { scanEmphasis } from './scan-emphasis.js';
@@ -552,6 +553,30 @@ export function scan0({
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
           // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 62 /* > greater-than / blockquote */: {
+        const bqConsumed = scanBlockquote(input, offset - 1, endOffset, output);
+        if (bqConsumed > 0) {
+          lineCouldBeSetextText = false;
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += bqConsumed - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
           if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
             output[tokenStartIndex] |= IsSafeReparsePoint;
           }

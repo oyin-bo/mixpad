@@ -68,7 +68,6 @@ export const SetextHeadingUnderline = 0x2D0000;
 // Table Tokens
 export const TablePipe = 0x2E0000;
 export const TableDelimiterRowMarker = 0x2F0000;
-export const TableDelimiterCell = 0x440000;
 
 // Front Matter Tokens
 export const FrontmatterOpen = 0x300000;
@@ -99,3 +98,4 @@ export const StrikethroughClose = 0x400000;
 export const LinkLabel = 0x410000;
 export const LinkDestination = 0x420000;
 export const LinkTitle = 0x430000;
+export const TableDelimiterCell = 0x440000;
