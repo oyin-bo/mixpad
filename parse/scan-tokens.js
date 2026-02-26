@@ -98,3 +98,4 @@ export const StrikethroughClose = 0x400000;
 export const LinkLabel = 0x410000;
 export const LinkDestination = 0x420000;
 export const LinkTitle = 0x430000;
+export const TableDelimiterCell = 0x440000;
