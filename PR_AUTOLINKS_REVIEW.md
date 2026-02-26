@@ -15,7 +15,114 @@ After thorough review of all three PRs implementing GFM autolinks, here is my re
 
 ---
 
-## Detailed Comparison
+## Fix for `copilots/formula-block-consolidation`
+
+The consolidation branch has **3 failing tests** requiring two targeted fixes.
+
+### Failing Tests
+
+```
+✖ parse/tests/12-autolinks.md URL in parentheses   http example com 1-2-3
+✖ parse/tests/12-autolinks.md Link  http example com 1-2-3
+✖ parse/tests/12-formula-blocks.md not a formula 1
+```
+
+### Root Cause 1: `@` sign silently swallowed in `scan0.js`
+
+In `parse/scan0.js`, the consolidation merged two blocks of switch cases, creating **duplicate `case` labels** (91, 93, 104, 119, 124, 64). In JavaScript, duplicate cases are dead code — only the first match fires. The first `case 64 /* @ */` block (line ~891) was the link/image scanner's version, which mistakenly called `scanLinkOpen()` (which only matches `[`, code 91, never `@`) and then `continue`d with no fallback:
+
+```javascript
+// WRONG - first case 64 in the switch (wins)
+case 64 /* @ at sign */: {
+  const emailToken = scanEmailAutolink(...);  // returns 0, nothing done
+  if (emailToken !== 0) { /* TODO */ }
+
+  scanLinkOpen(input, offset - 1, endOffset, output);  // returns 0 for @
+  tokenCount = output.length;
+  continue;  // @ swallowed! No token emitted.
+}
+```
+
+This silently consumed `@` without emitting any token. Because the test framework tracks token positions by accumulating token lengths, every token after `@` was attributed to the wrong input position. This caused the `12-formula-blocks.md` test to fail — the `@1 InlineText "    $$"` line in the test was included as scanned content, and the `@` in `@1` was swallowed, shifting all subsequent token position tracking by 1.
+
+There was also a correct second `case 64` with proper `scanInlineText` fallback, but it was dead code (duplicate case label never reached).
+
+**Fix in `parse/scan0.js`**: Remove the entire duplicate block (cases 93, 104, 119/87, 124, and the wrong 64). Merge `case 87 /* W uppercase */` into the surviving `case 119`, and replace the wrong `case 64` with the correct version:
+
+```javascript
+// CORRECT - replace the wrong case 64
+case 64 /* @ at sign */: {
+  const emailToken = scanEmailAutolink(input, offset - 1, lineStartOffset, endOffset);
+  if (emailToken !== 0) {
+    // TODO: Implement proper backward scanning integration
+  }
+  // Fall back to inline text
+  const consumed = scanInlineText(input, offset - 1, endOffset, output);
+  if (consumed > 0) {
+    if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+      output[tokenStartIndex] |= IsSafeReparsePoint;
+    }
+    tokenCount = output.length;
+    offset += consumed - 1;
+  }
+  continue;
+}
+```
+
+Also add `case 87 /* W uppercase */` to the surviving `case 119`:
+```javascript
+case 119 /* w lowercase */:
+case 87 /* W uppercase */: {
+  // WWW autolink handling...
+```
+
+### Root Cause 2: Wrong expected token type for `)` in autolinks tests
+
+Two tests in `parse/tests/12-autolinks.md` expected `InlineText` for `)` after a URL, but the scanner always emits `LinkDestClose ")"` for any `)` (consistent with `14.3-link-image.md` which is passing and establishes `)` = `LinkDestClose` at the scanner level):
+
+```markdown
+# WRONG - in 12-autolinks.md
+URL in parentheses: (http://example.com)
+1                    2                 3
+@1 InlineText
+@2 RawURL
+@3 InlineText      ← should be LinkDestClose ")"
+```
+
+**Fix in `parse/tests/12-autolinks.md`**: Change two `@3 InlineText` to `@3 LinkDestClose ")"`:
+
+```markdown
+# Line ~104
+@3 LinkDestClose ")"
+
+# Line ~251
+@3 LinkDestClose ")"
+```
+
+### Verification
+
+After applying both fixes, all **565 tests pass** (was 562/565 before).
+
+---
+
+## Good Parts from PR #59 to Adopt
+
+The consolidation used PR #60 as the base. These features from PR #59 should be adopted:
+
+1. **Token flags for scheme distinction** (`IsAutolinkHTTP`, `IsAutolinkHTTPS`, `IsAutolinkFTP`, `IsAutolinkMailto`) — allows consumers to distinguish URL schemes without re-parsing
+2. **Comprehensive edge case tests** (116 assertions vs 66 in PR #60) — especially:
+   - Angle autolink negative cases (spaces inside, multiple `@`, missing scheme)
+   - Balanced parentheses handling tests
+   - Trailing punctuation exclusion tests
+
+## Good Parts from PR #61 to Adopt
+
+1. **Simplified token model** (3 token types instead of 7) — consider whether the scheme flags are needed by consumers
+2. **Additional negative tests** — `Email with single letter TLD`, `Empty local part @example.com`
+
+---
+
+## Detailed Comparison (from original review)
 
 ### Test Coverage
 
@@ -26,10 +133,52 @@ After thorough review of all three PRs implementing GFM autolinks, here is my re
 | Test File Lines | 330 | 164 | 265 |
 | Test Categories | Comprehensive | Basic | Good |
 
-**Analysis:**
-- **PR #59** has the most comprehensive test coverage with 116 test assertions covering all edge cases
-- **PR #60** has fewer tests (66) but all pass
-- **PR #61** has 94 assertions but **2 critical test failures** in setext headings
+### Code Architecture
+
+| Aspect | PR #59 | PR #60 | PR #61 |
+|--------|--------|--------|--------|
+| Structure | Single file | 4 separate scanners | Single file |
+| LOC | 419 | 636 | 475 |
+| Token types | 7 (with flags) | 7 | 3 |
+| `substring()` calls | 7 | 0 ✅ | 3 |
+| Zero-allocation | ❌ | ✅ | ❌ |
+
+### Critical Bug in PR #61 (Reparse Flag)
+
+```javascript
+// WRONG - PR #61 applies to last token
+output.push(autolinkToken);
+if (shouldMarkAsReparsePoint) {
+  output[output.length - 1] |= IsSafeReparsePoint;  // Wrong token
+}
+
+// CORRECT - PR #59/60 apply to first token
+if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+  output[tokenStartIndex] |= IsSafeReparsePoint;
+}
+```
+
+### PR #60 Zero-Allocation Advantage
+
+```javascript
+// No substring() - pure character codes (from PR #60)
+if (i + 7 <= end &&
+    input.charCodeAt(i) === 104 &&     // h
+    input.charCodeAt(i + 1) === 116 && // t
+    input.charCodeAt(i + 2) === 116 && // t
+    input.charCodeAt(i + 3) === 112 && // p
+    input.charCodeAt(i + 4) === 58  && // :
+    input.charCodeAt(i + 5) === 47  && // /
+    input.charCodeAt(i + 6) === 47) {  // /
+```
+
+### Overall Recommendation
+
+1. **Fix the consolidation branch** with the two fixes above to get all 565 tests passing
+2. **Add PR #59's comprehensive edge case tests** to `12-autolinks.md`  
+3. **Add PR #59's token scheme flags** if consumers need to distinguish http/https/ftp/mailto
+4. **Do NOT merge PR #61** without fixing the reparse flag bug
+
 
 ### Code Architecture
 
