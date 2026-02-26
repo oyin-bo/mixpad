@@ -1,6 +1,10 @@
 // @ts-check
 
 import { scanATXHeading } from './scan-atx-heading.js';
+import { scanAngleAutolink } from './scan-autolink-angle.js';
+import { scanEmailAutolink } from './scan-autolink-email.js';
+import { scanRawURLAutolink } from './scan-autolink-raw.js';
+import { scanWWWAutolink } from './scan-autolink-www.js';
 import { scanBlockquote } from './scan-blockquote.js';
 import { scanBacktickInline } from './scan-backtick-inline.js';
 import { countIndentation, findLineStart, getTokenFlags, getTokenKind, getTokenLength, isAsciiAlphaNum } from './scan-core.js';
@@ -431,6 +435,18 @@ export function scan0({
       }
 
       case 60 /* < less-than */: {
+        // Try angle autolink first (must come before HTML to avoid conflicts)
+        const autolinkConsumed = scanAngleAutolink(input, offset - 1, endOffset, output);
+        if (autolinkConsumed > 0) {
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += autolinkConsumed - 1;
+          continue;
+        }
+
         // Try HTML/XML constructs with lookahead
         let htmlConsumed = 0;
 
@@ -807,6 +823,200 @@ export function scan0({
         const consumed = scanInlineText(input, offset - 1, endOffset, output);
         if (consumed > 0) {
           // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 104 /* h lowercase */: {
+        // Try raw URL autolink (http:// or https://)
+        const urlToken = scanRawURLAutolink(input, offset - 1, endOffset);
+        if (urlToken !== 0) {
+          const length = getTokenLength(urlToken);
+          output.push(urlToken);
+          // Apply reparse flag if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount++;
+          offset += length - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 119 /* w lowercase */: {
+        // Try WWW autolink (www.)
+        // Get previous character code for context (0 if at line start)
+        const prevCharCode = (offset - 2 >= lineStartOffset) ? input.charCodeAt(offset - 2) : 0;
+        const wwwToken = scanWWWAutolink(input, offset - 1, endOffset, prevCharCode);
+        if (wwwToken !== 0) {
+          const length = getTokenLength(wwwToken);
+          output.push(wwwToken);
+          // Apply reparse flag if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount++;
+          offset += length - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 64 /* @ at sign */: {
+        // Try email autolink
+        // Email scanner needs to scan backwards, so we pass lineStartOffset
+        const emailToken = scanEmailAutolink(input, offset - 1, lineStartOffset, endOffset);
+        if (emailToken !== 0) {
+          // scanEmailAutolink returns a token, but the token may start before the @ sign
+          // We need to handle this specially
+          // For now, fall back to inline text handling
+          // TODO: Implement proper backward scanning integration
+        }
+
+        // Emit link open bracket marker
+        scanLinkOpen(input, offset - 1, endOffset, output);
+        if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+          output[tokenStartIndex] |= IsSafeReparsePoint;
+        }
+        tokenCount = output.length;
+        continue;
+      }
+
+      case 93 /* ] right square bracket */: {
+        const linkCloseConsumed = scanLinkClose(input, offset - 1, endOffset, output);
+        if (linkCloseConsumed > 0) {
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          continue;
+        }
+        continue;
+      }
+
+      case 124 /* | pipe */: {
+        // Scan table pipe - the semantic phase will determine if this is part of a table
+        const pipeConsumed = scanTablePipe(input, offset - 1, endOffset, output);
+        if (pipeConsumed > 0) {
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += pipeConsumed - 1;
+          continue;
+        }
+
+        // Fall back to inline text if not recognized as table pipe
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          // Apply reparse flag to first token if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 104 /* h lowercase */: {
+        // Try raw URL autolink (http:// or https://)
+        const urlToken = scanRawURLAutolink(input, offset - 1, endOffset);
+        if (urlToken !== 0) {
+          const length = getTokenLength(urlToken);
+          output.push(urlToken);
+          // Apply reparse flag if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount++;
+          offset += length - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 119 /* w lowercase */:
+      case 87 /* W uppercase */: {
+        // Try WWW autolink (www. or WWW.)
+        // Get previous character code for context (0 if at line start)
+        const prevCharCode = (offset - 2 >= lineStartOffset) ? input.charCodeAt(offset - 2) : 0;
+        const wwwToken = scanWWWAutolink(input, offset - 1, endOffset, prevCharCode);
+        if (wwwToken !== 0) {
+          const length = getTokenLength(wwwToken);
+          output.push(wwwToken);
+          // Apply reparse flag if needed
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount++;
+          offset += length - 1;
+          continue;
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+          tokenCount = output.length;
+          offset += consumed - 1;
+        }
+        continue;
+      }
+
+      case 64 /* @ at sign */: {
+        // Try email autolink
+        // Email scanner needs to scan backwards, so we pass lineStartOffset
+        const emailToken = scanEmailAutolink(input, offset - 1, lineStartOffset, endOffset);
+        if (emailToken !== 0) {
+          // scanEmailAutolink returns a token, but the token may start before the @ sign
+          // We need to handle this specially
+          // For now, fall back to inline text handling
+          // TODO: Implement proper backward scanning integration
+        }
+
+        // Fall back to inline text
+        const consumed = scanInlineText(input, offset - 1, endOffset, output);
+        if (consumed > 0) {
           if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
             output[tokenStartIndex] |= IsSafeReparsePoint;
           }
