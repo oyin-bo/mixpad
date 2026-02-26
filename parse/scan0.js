@@ -21,7 +21,7 @@ import { bufferSetextToken, checkSetextUnderline, flushSetextBuffer } from './sc
 import { scanTablePipe } from './scan-table.js';
 import { scanTextarea } from './scan-textarea.js';
 import { ErrorUnbalancedToken, IsSafeReparsePoint } from './scan-token-flags.js';
-import { BacktickBoundary, HTMLTagClose, HTMLTagName, HTMLTagOpen, InlineCode, InlineText, NewLine, SetextHeadingUnderline, Whitespace } from './scan-tokens.js';
+import { BacktickBoundary, HTMLTagClose, HTMLTagName, HTMLTagOpen, ImageMarker, InlineCode, InlineText, LinkClose, LinkDestClose, LinkDestOpen, LinkOpen, NewLine, SetextHeadingUnderline, Whitespace } from './scan-tokens.js';
 import { scanXMLProcessingInstruction } from './scan-xml-pi.js';
 
 /**
@@ -631,11 +631,58 @@ export function scan0({
           continue;
         }
 
-        // Fall back to inline text
-        const consumed = scanInlineText(input, offset - 1, endOffset, output);
-        if (consumed > 0) {
-          tokenCount = output.length;
-          offset += consumed - 1;
+        // Emit LinkOpen
+        output.push(LinkOpen | 1);
+        tokenCount++;
+        if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+          output[tokenStartIndex] |= IsSafeReparsePoint;
+        }
+        continue;
+      }
+
+      case 93 /* ] right square bracket */: {
+        output.push(LinkClose | 1);
+        tokenCount++;
+        if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+          output[tokenStartIndex] |= IsSafeReparsePoint;
+        }
+        continue;
+      }
+
+      case 33 /* ! exclamation */: {
+        if (offset < endOffset && input.charCodeAt(offset) === 91 /* [ */) {
+          output.push(ImageMarker | 1);
+          tokenCount++;
+          if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+            output[tokenStartIndex] |= IsSafeReparsePoint;
+          }
+        } else {
+          const consumed = scanInlineText(input, offset - 1, endOffset, output);
+          if (consumed > 0) {
+            if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+              output[tokenStartIndex] |= IsSafeReparsePoint;
+            }
+            tokenCount = output.length;
+            offset += consumed - 1;
+          }
+        }
+        continue;
+      }
+
+      case 40 /* ( open paren */: {
+        output.push(LinkDestOpen | 1);
+        tokenCount++;
+        if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+          output[tokenStartIndex] |= IsSafeReparsePoint;
+        }
+        continue;
+      }
+
+      case 41 /* ) close paren */: {
+        output.push(LinkDestClose | 1);
+        tokenCount++;
+        if (shouldMarkAsReparsePoint && output.length > tokenStartIndex) {
+          output[tokenStartIndex] |= IsSafeReparsePoint;
         }
         continue;
       }

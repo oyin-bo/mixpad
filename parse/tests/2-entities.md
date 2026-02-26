@@ -235,12 +235,13 @@ Infinity: &infin;
 @2 EntityNamed
 
 Summation: &sum; (plus)
-1         23    45
+1         23    45    6
 @1 InlineText
 @2 Whitespace
 @3 EntityNamed
 @4 Whitespace
-@5 InlineText
+@5 LinkDestOpen "("
+@6 LinkDestClose ")"
 
 Product: &prod;
 1        2
