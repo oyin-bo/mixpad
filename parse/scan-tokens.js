@@ -69,6 +69,9 @@ export const SetextHeadingUnderline = 0x2D0000;
 export const TablePipe = 0x2E0000;
 export const TableDelimiterRowMarker = 0x2F0000;
 
+// Table Delimiter Cell Token
+export const TableDelimiterCell = 0x440000;
+
 // Front Matter Tokens
 export const FrontmatterOpen = 0x300000;
 export const FrontmatterContent = 0x310000;
