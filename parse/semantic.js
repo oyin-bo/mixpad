@@ -23,13 +23,16 @@ const provisionalBuf = [];
 
 /**
  * Module-level growing buffer for the opener stack.
- * Each stack entry occupies three consecutive slots:
+ * Each stack entry occupies STACK_ENTRY_SIZE consecutive slots:
  *   [i*3+0]: outputIndex  — where the opener was written in the output array
  *   [i*3+1]: delimKind    — AsteriskDelimiter | UnderscoreDelimiter | TildeDelimiter
  *   [i*3+2]: delimLength  — run length in characters
  * @type {number[]}
  */
 const openerStackBuf = [];
+
+/** Number of numeric slots per entry in openerStackBuf. */
+const STACK_ENTRY_SIZE = 3;
 
 /**
  * Semantic scanner: processes provisional tokens from `scan0` into resolved semantic tokens.
@@ -134,17 +137,20 @@ function resolveTokens(provisional, output, input, baseOffset) {
               output[j] = output[j - 1];
             }
             output[openerOutputIdx] = InlineText | extra | openerFlags;
+            // The new open token does not inherit IsSafeReparsePoint: that flag
+            // belongs to the very first character of the original run, which is
+            // now the leading InlineText, not the open marker.
             output[openerOutputIdx + 1] = openKind | usedLen | (openerFlags & ~IsSafeReparsePoint);
             // Adjust opener indices of later stack entries
-            for (let j = matchEntry + 3; j < openerCount * 3; j += 3) {
+            for (let j = matchEntry + STACK_ENTRY_SIZE; j < openerCount * STACK_ENTRY_SIZE; j += STACK_ENTRY_SIZE) {
               if (openerStackBuf[j] > openerOutputIdx) openerStackBuf[j]++;
             }
           }
 
           // Remove matched opener from stack (compact remaining entries)
           openerCount--;
-          for (let j = matchEntry; j < openerCount * 3; j++) {
-            openerStackBuf[j] = openerStackBuf[j + 3];
+          for (let j = matchEntry; j < openerCount * STACK_ENTRY_SIZE; j++) {
+            openerStackBuf[j] = openerStackBuf[j + STACK_ENTRY_SIZE];
           }
 
           // Push closer (remainder of closer chars become InlineText)
@@ -162,7 +168,7 @@ function resolveTokens(provisional, output, input, baseOffset) {
         // Push as potential opener, tentatively in output
         const outIdx = output.length;
         output.push(kind | len | (flags & IsSafeReparsePoint));
-        const e = openerCount * 3;
+        const e = openerCount * STACK_ENTRY_SIZE;
         openerStackBuf[e] = outIdx;
         openerStackBuf[e + 1] = kind;
         openerStackBuf[e + 2] = len;
@@ -182,7 +188,7 @@ function resolveTokens(provisional, output, input, baseOffset) {
 
   // Demote unmatched openers to InlineText
   for (let i = 0; i < openerCount; i++) {
-    const e = i * 3;
+    const e = i * STACK_ENTRY_SIZE;
     const outIdx = openerStackBuf[e];
     const opLen = openerStackBuf[e + 2];
     const opFlags = getTokenFlags(output[outIdx]);
@@ -218,7 +224,7 @@ function pushInlineText(output, len, flags) {
 
 /**
  * Find the most recent compatible opener for a closing delimiter.
- * Returns the base index in openerStackBuf (i*3), or -1 if none found.
+ * Returns the base index in openerStackBuf (i*STACK_ENTRY_SIZE), or -1 if none found.
  *
  * @param {number[]} stack
  * @param {number} count
@@ -227,7 +233,7 @@ function pushInlineText(output, len, flags) {
  */
 function findOpener(stack, count, kind) {
   for (let i = count - 1; i >= 0; i--) {
-    if (stack[i * 3 + 1] === kind) return i * 3;
+    if (stack[i * STACK_ENTRY_SIZE + 1] === kind) return i * STACK_ENTRY_SIZE;
   }
   return -1;
 }
