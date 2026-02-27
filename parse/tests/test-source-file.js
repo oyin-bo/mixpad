@@ -13,7 +13,8 @@ import {
 import {
   NODE_STRIDE,
   NODE_HEADER, NODE_FIRST_CHILD, NODE_NEXT_SIBLING, NODE_MATERIALIZED,
-  SourceFile, RedNode, HeadingNode, LinkNode, CodeBlockNode
+  SourceFile, RedNode, HeadingNode, LinkNode, CodeBlockNode,
+  StrongNode, EmphasisNode, TextNode
 } from '../source-file.js';
 
 // ── Arena type ────────────────────────────────────────────────────────────────
@@ -82,8 +83,8 @@ test('single paragraph: offsets within the same token map to the same node', () 
 
 // ── Node layout ────────────────────────────────────────────────────────────────
 
-test('node layout: NODE_STRIDE is 4', () => {
-  assert.equal(NODE_STRIDE, 4);
+test('node layout: NODE_STRIDE is 6', () => {
+  assert.strictEqual(NODE_STRIDE, 6);
 });
 
 test('node layout: first real node is at arena index NODE_STRIDE', () => {
@@ -262,11 +263,11 @@ test('emphasis: nested siblings in *a **b** c*', () => {
   assert.ok(em !== null);
   assert.equal(em.kind, EmphasisOpen);
   const kids = em.getChildren();
-  assert.equal(kids[0].text, 'a');
-  assert.equal(kids[1].kind, Whitespace);
-  assert.equal(kids[2].kind, StrongOpen);
-  assert.equal(kids[3].kind, Whitespace);
-  assert.equal(kids[4].text, 'c');
+  // With coalescing: "a " becomes TextNode, then StrongOpen
+  assert.equal(kids[0].text, 'a ');
+  assert.ok(kids[1] instanceof StrongNode || kids[1].kind === StrongOpen);
+  // " c" becomes TextNode
+  assert.equal(kids[2].text, ' c');
 });
 
 test('emphasis: triple *** nests EmphasisOpen and StrongOpen', () => {
