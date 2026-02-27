@@ -65,9 +65,9 @@ export const NODE_MATERIALIZED = 5;
 // ── Red Facade classes ────────────────────────────────────────────────────────
 
 /**
- * RedNode: persistent façade over a single Green Arena node.
+ * BaseNode: persistent façade over a single Green Arena node.
  */
-export class RedNode {
+export class BaseNode {
   /**
    * @param {SourceFile} sourceFile
    * @param {number} arenaIndex
@@ -97,36 +97,36 @@ export class RedNode {
     return this.sourceFile.text.substring(p, p + this.width);
   }
 
-  /** @returns {RedNode | null} */
+  /** @returns {BaseNode | null} */
   get firstChild() {
     const idx = this.sourceFile.getArenaFirstChild(this.arenaIndex);
-    return idx !== 0 ? this.sourceFile.getRedNode(idx) : null;
+    return idx !== 0 ? this.sourceFile.getBaseNode(idx) : null;
   }
-  /** @returns {RedNode | null} */
+  /** @returns {BaseNode | null} */
   get nextSibling() {
     const idx = this.sourceFile.getArenaNextSibling(this.arenaIndex);
-    return idx !== 0 ? this.sourceFile.getRedNode(idx) : null;
+    return idx !== 0 ? this.sourceFile.getBaseNode(idx) : null;
   }
-  /** @returns {RedNode | null} */
+  /** @returns {BaseNode | null} */
   get previousSibling() {
     const idx = this.sourceFile.getArenaPrevSibling(this.arenaIndex);
-    return idx !== 0 ? this.sourceFile.getRedNode(idx) : null;
+    return idx !== 0 ? this.sourceFile.getBaseNode(idx) : null;
   }
-  /** @returns {RedNode | null} */
+  /** @returns {BaseNode | null} */
   get parent() {
     const idx = this.sourceFile.getArenaParent(this.arenaIndex);
-    return idx !== 0 ? this.sourceFile.getRedNode(idx) : null;
+    return idx !== 0 ? this.sourceFile.getBaseNode(idx) : null;
   }
 
-  /** @returns {Generator<RedNode>} */
+  /** @returns {Generator<BaseNode>} */
   *ancestors() {
     let p = this.parent;
     while (p) { yield p; p = p.parent; }
   }
 
-  /** @returns {RedNode[]} */
+  /** @returns {BaseNode[]} */
   getChildren() {
-    /** @type {RedNode[]} */
+    /** @type {BaseNode[]} */
     const children = [];
     let child = this.firstChild;
     while (child) {
@@ -150,11 +150,11 @@ export class RedNode {
     return children;
   }
 
-  /** @returns {RedNode[]} */
+  /** @returns {BaseNode[]} */
   getSiblingsAndSelf() {
-    /** @type {RedNode[]} */
+    /** @type {BaseNode[]} */
     const nodes = [];
-    let curr = (/** @type {RedNode} */ (this));
+    let curr = (/** @type {BaseNode} */ (this));
     let prev = curr.previousSibling;
     while (prev) {
       curr = prev;
@@ -189,26 +189,26 @@ export class RedNode {
 }
 
 /** Root node of the document. */
-export class DocumentNode extends RedNode {}
+export class DocumentNode extends BaseNode {}
 
 /** Coalesced text node for InlineText, Whitespace, and NewLine. */
-export class TextNode extends RedNode {
+export class TextNode extends BaseNode {
   /**
    * @param {SourceFile} sourceFile
    * @param {number} arenaIndex
-   * @param {number} width
-   * @param {number} lastArenaIndex
+   * @param {number} [width]
+   * @param {number} [lastArenaIndex]
    */
   constructor(sourceFile, arenaIndex, width, lastArenaIndex) {
     super(sourceFile, arenaIndex);
     this._width = width;
-    this._lastIdx = lastArenaIndex;
+    this._lastIdx = lastArenaIndex ?? arenaIndex;
   }
-  get width() { return this._width; }
+  get width() { return this._width ?? super.width; }
 }
 
 /** Base class for headings. */
-export class HeadingNode extends RedNode {}
+export class HeadingNode extends BaseNode {}
 
 /** ATX Heading (# Title). */
 export class AtxHeadingNode extends HeadingNode {
@@ -227,12 +227,12 @@ export class SetextHeadingNode extends HeadingNode {
   }
 }
 
-export class ParagraphNode extends RedNode {}
-export class BlockquoteNode extends RedNode {}
-export class BulletListNode extends RedNode {}
-export class OrderedListNode extends RedNode {}
+export class ParagraphNode extends BaseNode {}
+export class BlockquoteNode extends BaseNode {}
+export class BulletListNode extends BaseNode {}
+export class OrderedListNode extends BaseNode {}
 
-export class ListItemNode extends RedNode {
+export class ListItemNode extends BaseNode {
   isChecked() {
     const t = this.text;
     return /\[[xX]\]/.test(t);
@@ -240,7 +240,7 @@ export class ListItemNode extends RedNode {
 }
 
 /** Base class for code blocks. */
-export class CodeBlockNode extends RedNode {
+export class CodeBlockNode extends BaseNode {
   /** @returns {string} */
   getFenceChar() {
     return this.sourceFile.text[this.offset] || '';
@@ -254,16 +254,16 @@ export class FencedCodeBlockNode extends CodeBlockNode {
   }
 }
 
-export class TableNode extends RedNode {}
-export class ThematicBreakNode extends RedNode {}
-export class FrontmatterNode extends RedNode {}
-export class FormulaBlockNode extends RedNode {}
+export class TableNode extends BaseNode {}
+export class ThematicBreakNode extends BaseNode {}
+export class FrontmatterNode extends BaseNode {}
+export class FormulaBlockNode extends BaseNode {}
 
-export class EmphasisNode extends RedNode {}
-export class StrongNode extends RedNode {}
-export class StrikethroughNode extends RedNode {}
+export class EmphasisNode extends BaseNode {}
+export class StrongNode extends BaseNode {}
+export class StrikethroughNode extends BaseNode {}
 
-export class LinkNode extends RedNode {
+export class LinkNode extends BaseNode {
   getDestination() {
     const d = this.getChildren().find(c => c.kind === LinkDestination);
     return d ? d.text : '';
@@ -275,22 +275,22 @@ export class LinkNode extends RedNode {
 }
 
 export class ImageNode extends LinkNode {}
-export class InlineCodeNode extends RedNode {}
+export class InlineCodeNode extends BaseNode {}
 
-export class EntityNode extends RedNode {
+export class EntityNode extends BaseNode {
   getValue() { return this.text; } // Decodes eventually
 }
 
-export class EscapedNode extends RedNode {}
+export class EscapedNode extends BaseNode {}
 
-export class AutolinkNode extends RedNode {
+export class AutolinkNode extends BaseNode {
   getURL() { return this.text.replace(/^[<]|[>]$/g, ''); }
 }
 
-export class InlineFormulaNode extends RedNode {}
+export class InlineFormulaNode extends BaseNode {}
 
 /** HTML Tag (<br/>, <div>, </div>). */
-export class HTMLTagNode extends RedNode {
+export class HTMLTagNode extends BaseNode {
   getTagName() {
     const m = this.text.match(/^<\/?([A-Za-z0-9-]+)/);
     return m ? m[1] : '';
@@ -299,11 +299,11 @@ export class HTMLTagNode extends RedNode {
   isSelfClosing() { return this.text.endsWith('/>'); }
 }
 
-export class HTMLCommentNode extends RedNode {}
-export class HTMLCDataNode extends RedNode {}
-export class HTMLDocTypeNode extends RedNode {}
-export class HTMLRawTextNode extends RedNode {}
-export class XmlPINode extends RedNode {}
+export class HTMLCommentNode extends BaseNode {}
+export class HTMLCDataNode extends BaseNode {}
+export class HTMLDocTypeNode extends BaseNode {}
+export class HTMLRawTextNode extends BaseNode {}
+export class XmlPINode extends BaseNode {}
 
 // ── SourceFile ────────────────────────────────────────────────────────────────
 
@@ -340,7 +340,7 @@ export class SourceFile {
     /** @type {number[]} */
     this.paragraphArenaIndices = [];
 
-    /** @type {Map<number, RedNode>} */
+    /** @type {Map<number, BaseNode>} */
     this._redCache = new Map();
 
     this._build();
@@ -361,11 +361,11 @@ export class SourceFile {
   /** @param {number} idx */
   getArenaMaterialized(idx){ return this.arena[idx + NODE_MATERIALIZED]; }
 
-  /** @returns {RedNode[]} */
+  /** @returns {BaseNode[]} */
   getChildren() {
     const firstChild = this.getArenaFirstChild(0);
     if (firstChild === 0) return [];
-    return this.getRedNode(firstChild).getSiblingsAndSelf();
+    return this.getBaseNode(firstChild).getSiblingsAndSelf();
   }
 
   // ── Internal build ──────────────────────────────────────────────────────────
@@ -501,9 +501,9 @@ export class SourceFile {
   // ── Public API ──────────────────────────────────────────────────────────────
 
   /**
-   * Return the RedNode covering `offset`.
+   * Return the BaseNode covering `offset`.
    * @param {number} offset
-   * @returns {RedNode | null}
+   * @returns {BaseNode | null}
    */
   getNodeAt(offset) {
     if (offset < 0 || offset >= this.text.length) return null;
@@ -530,10 +530,10 @@ export class SourceFile {
 
   /**
    * @param {number} arenaIndex
-   * @returns {RedNode}
+   * @returns {BaseNode}
    */
-  getRedNode(arenaIndex) {
-    return this._getOrCreateRedNode(arenaIndex);
+  getBaseNode(arenaIndex) {
+    return this._getOrCreateBaseNode(arenaIndex);
   }
 
   /**
@@ -552,7 +552,7 @@ export class SourceFile {
    * @param {number} startIdx
    * @param {number} startPos
    * @param {number} targetOffset
-   * @returns {RedNode | null}
+   * @returns {BaseNode | null}
    * @private
    */
   _findNodeAt(startIdx, startPos, targetOffset) {
@@ -563,7 +563,7 @@ export class SourceFile {
       const width = getTokenLength(header);
       
       if (targetOffset >= pos && targetOffset < pos + width) {
-        // Special case: if this is a RedNode (leaf) but contains children,
+        // Special case: if this is a BaseNode (leaf) but contains children,
         // it means we are at the marker of a container.
         const childIdx = this.getArenaFirstChild(idx);
         if (childIdx !== 0) {
@@ -575,7 +575,7 @@ export class SourceFile {
             if (found) return found;
           }
         }
-        return this.getRedNode(idx);
+        return this.getBaseNode(idx);
       }
       pos += width;
       idx = this.getArenaNextSibling(idx);
@@ -640,10 +640,10 @@ export class SourceFile {
 
   /**
    * @param {number} arenaIndex
-   * @returns {RedNode}
+   * @returns {BaseNode}
    * @private
    */
-  _getOrCreateRedNode(arenaIndex) {
+  _getOrCreateBaseNode(arenaIndex) {
     let node = this._redCache.get(arenaIndex);
     if (!node) {
       const kind = getTokenKind(this.getArenaHeader(arenaIndex));
@@ -691,7 +691,10 @@ export class SourceFile {
       case TaskListMarker: return new ListItemNode(this, arenaIndex);
       case BlockquoteMarker: return new BlockquoteNode(this, arenaIndex);
       case ThematicBreak: return new ThematicBreakNode(this, arenaIndex);
-      default: return new RedNode(this, arenaIndex);
+      case InlineText:
+      case Whitespace:
+      case NewLine: return new TextNode(this, arenaIndex);
+      default: return new BaseNode(this, arenaIndex);
     }
   }
 }

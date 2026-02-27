@@ -35,4 +35,4 @@ This file demonstrates the high-end breadcrumb syntax for verifying the Rich Sem
 Code
 ```
 1
-@1 FencedCodeBlockNode getLanguage="javascript" > RedNode text="Code\n"
+@1 FencedCodeBlockNode getLanguage="javascript" > BaseNode text="Code\n"

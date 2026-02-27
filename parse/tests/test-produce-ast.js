@@ -60,7 +60,7 @@ for (const mdFilePath of findMarkdownFiles(astTestsDir)) {
           let currentNode = rootNode;
           const segments = parseBreadcrumbs(assertion.breadcrumbSource);
 
-          // If the first segment doesn't match the rootNode, and rootNode is just a leaf/generic RedNode,
+          // If the first segment doesn't match the rootNode, and rootNode is just a leaf/generic BaseNode,
           // try walking up to see if any parent matches the first segment.
           if (!matchesSegment(currentNode, segments[0])) {
             let p = currentNode.parent;
@@ -107,7 +107,7 @@ for (const mdFilePath of findMarkdownFiles(astTestsDir)) {
 }
 
 /**
- * @param {import('../source-file.js').RedNode} node
+ * @param {import('../source-file.js').BaseNode} node
  * @param {any} segment
  */
 function matchesSegment(node, segment) {
@@ -118,7 +118,7 @@ function matchesSegment(node, segment) {
 }
 
 /**
- * @param {import('../source-file.js').RedNode} node
+ * @param {import('../source-file.js').BaseNode} node
  * @param {string} key
  */
 function getFieldValue(node, key) {

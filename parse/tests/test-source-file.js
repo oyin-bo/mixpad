@@ -13,7 +13,7 @@ import {
 import {
   NODE_STRIDE,
   NODE_HEADER, NODE_FIRST_CHILD, NODE_NEXT_SIBLING, NODE_MATERIALIZED,
-  SourceFile, RedNode, HeadingNode, LinkNode, CodeBlockNode,
+  SourceFile, BaseNode, HeadingNode, LinkNode, CodeBlockNode,
   StrongNode, EmphasisNode, TextNode
 } from '../source-file.js';
 
@@ -193,7 +193,7 @@ test('ATX heading: getLevel() for levels 1–4', () => {
   const text = '# H1\n\n## H2\n\n### H3\n\n#### H4';
   const file = new SourceFile(text);
   const levels = file.paragraphArenaIndices.map(idx => {
-    const node = file.getRedNode(idx);
+    const node = file.getBaseNode(idx);
     return node instanceof HeadingNode ? node.getLevel() : 0;
   });
   assert.deepEqual(levels, [1, 2, 3, 4]);
@@ -207,11 +207,11 @@ test('ATX heading: heading with closing sequence', () => {
   assert.equal(heading.getLevel(), 2);
 });
 
-test('HeadingNode via getRedNode and paragraphArenaIndices', () => {
+test('HeadingNode via getBaseNode and paragraphArenaIndices', () => {
   const text = '## Level 2\n\n#### Level 4';
   const sf = new SourceFile(text);
-  const h1 = sf.getRedNode(sf.paragraphArenaIndices[0]);
-  const h2 = sf.getRedNode(sf.paragraphArenaIndices[1]);
+  const h1 = sf.getBaseNode(sf.paragraphArenaIndices[0]);
+  const h2 = sf.getBaseNode(sf.paragraphArenaIndices[1]);
   assert.ok(h1 instanceof HeadingNode);
   assert.ok(h2 instanceof HeadingNode);
   assert.equal(h1.getLevel(), 2);
@@ -353,31 +353,31 @@ test('document: multiple paragraphs correct offsets', () => {
   assert.equal(sf.paragraphIndex[0], 0);
 });
 
-// ── getRedNode and paragraphArenaIndices ──────────────────────────────────────
+// ── getBaseNode and paragraphArenaIndices ──────────────────────────────────────
 
-test('getRedNode: returns node at given arena index', () => {
+test('getBaseNode: returns node at given arena index', () => {
   const sf = new SourceFile('hello');
   const idx = sf.paragraphArenaIndices[0];
-  const node = sf.getRedNode(idx);
-  assert.ok(node instanceof RedNode);
+  const node = sf.getBaseNode(idx);
+  assert.ok(node instanceof BaseNode);
   assert.equal(node.offset, 0);
   assert.equal(node.width, 5);
 });
 
-test('getRedNode: correct offset for second paragraph', () => {
+test('getBaseNode: correct offset for second paragraph', () => {
   const text = 'Line 1\n\nLine 2';
   const sf = new SourceFile(text);
   const line2Idx = sf.paragraphArenaIndices[1];
-  const line2Node = sf.getRedNode(line2Idx);
+  const line2Node = sf.getBaseNode(line2Idx);
   assert.equal(line2Node.offset, 8);
 });
 
-test('getRedNode: offset updated after edit', () => {
+test('getBaseNode: offset updated after edit', () => {
   const text = 'Line 1\n\nLine 2';
   const sf = new SourceFile(text);
   const newText = 'Line 1 extended\n\nLine 2';
   sf.update(newText, { start: 7, oldEnd: 7, newEnd: 16 });
-  const line2Node = sf.getRedNode(sf.paragraphArenaIndices[1]);
+  const line2Node = sf.getBaseNode(sf.paragraphArenaIndices[1]);
   assert.equal(line2Node.offset, 17);
 });
 
@@ -402,7 +402,7 @@ test('offset: indented text paragraph at correct offset', () => {
   const text = '   Indent\n\nNext';
   const sf = new SourceFile(text);
   const nextIdx = sf.paragraphArenaIndices[1];
-  const nextNode = sf.getRedNode(nextIdx);
+  const nextNode = sf.getBaseNode(nextIdx);
   assert.equal(nextNode.offset, 11);
 });
 
@@ -523,7 +523,7 @@ test('recursive children: countNodes > 1 for *Outer **Inner***', () => {
   const text = '*Outer **Inner***';
   const sf = new SourceFile(text);
 
-  /** @param {RedNode} node @returns {number} */
+  /** @param {BaseNode} node @returns {number} */
   function countNodes(node) {
     let count = 1;
     for (const child of node.getChildren()) {
@@ -532,7 +532,7 @@ test('recursive children: countNodes > 1 for *Outer **Inner***', () => {
     return count;
   }
 
-  const root = sf.getRedNode(sf.paragraphArenaIndices[0]);
+  const root = sf.getBaseNode(sf.paragraphArenaIndices[0]);
   assert.ok(countNodes(root) > 1);
 });
 
@@ -580,7 +580,7 @@ test('isolation: EmphasisOpen found via sibling walk on "... *Italic*"', () => {
   const text = '... *Italic*';
   const sf = new SourceFile(text);
   const kinds = /** @type {number[]} */ ([]);
-  let curr = sf.getRedNode(sf.paragraphArenaIndices[0]);
+  let curr = sf.getBaseNode(sf.paragraphArenaIndices[0]);
   while (curr) {
     kinds.push(curr.kind);
     curr = curr.nextSibling;
