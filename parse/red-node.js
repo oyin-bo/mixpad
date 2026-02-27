@@ -87,7 +87,8 @@ export class RedNode {
    * Compute the absolute position of this node in the source text.
    * Uses the Paragraph Index to find the base offset, then sums
    * sibling widths from the paragraph's first node up to this one.
-   * @returns {number} Absolute character offset in the source text
+   * @returns {number} Absolute character offset in the source text, or -1 if the
+   *   node cannot be located in any paragraph (indicates a corrupted or stale reference)
    */
   getAbsolutePosition() {
     const paragraphIdx = findParagraphForArenaIndex(

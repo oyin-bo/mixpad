@@ -89,6 +89,11 @@ test('SourceFile update rebuilds arena with new text', () => {
 
   assert.strictEqual(sf.text, 'hello world');
   assert.ok(nodeCount(sf.arena) >= oldNodeCount);
+
+  const atH = sf.getNodeAt(0);
+  assert.ok(atH !== null);
+  const atW = sf.getNodeAt(6);
+  assert.ok(atW !== null);
 });
 
 test('SourceFile arena nodes form valid sibling chain', () => {
