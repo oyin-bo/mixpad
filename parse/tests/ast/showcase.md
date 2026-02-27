@@ -6,7 +6,7 @@ This file demonstrates the high-end breadcrumb syntax for verifying the Rich Sem
 
 # Heading 1
 1
-@1 AtxHeadingNode getLevel=1 > TextNode text=" Heading 1\n"
+@1 AtxHeadingNode getLevel=1 > TextNode text=" Heading 1"
 
 ## 2. Formatting
 

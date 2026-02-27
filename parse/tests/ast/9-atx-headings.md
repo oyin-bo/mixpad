@@ -7,32 +7,32 @@ Comprehensive tests for ATX-style headings (# prefix).
 Level 1
 # Heading 1
 1
-@1 AtxHeadingNode getLevel=1 > TextNode text=" Heading 1\n"
+@1 AtxHeadingNode getLevel=1 > TextNode text=" Heading 1"
 
 Level 2
 ## Heading 2
 1
-@1 AtxHeadingNode getLevel=2 > TextNode text=" Heading 2\n"
+@1 AtxHeadingNode getLevel=2 > TextNode text=" Heading 2"
 
 Level 3
 ### Heading 3
 1
-@1 AtxHeadingNode getLevel=3 > TextNode text=" Heading 3\n"
+@1 AtxHeadingNode getLevel=3 > TextNode text=" Heading 3"
 
 Level 4
 #### Heading 4
 1
-@1 AtxHeadingNode getLevel=4 > TextNode text=" Heading 4\n"
+@1 AtxHeadingNode getLevel=4 > TextNode text=" Heading 4"
 
 Level 5
 ##### Heading 5
 1
-@1 AtxHeadingNode getLevel=5 > TextNode text=" Heading 5\n"
+@1 AtxHeadingNode getLevel=5 > TextNode text=" Heading 5"
 
 Level 6
 ###### Heading 6
 1
-@1 AtxHeadingNode getLevel=6 > TextNode text=" Heading 6\n"
+@1 AtxHeadingNode getLevel=6 > TextNode text=" Heading 6"
 
 ## With Closing Sequences
 
@@ -68,23 +68,23 @@ No space after hash
 Valid: up to 3 spaces
    ## Heading
 1  2 
-@2 AtxHeadingNode getLevel=2 > TextNode text=" Heading\n"
+@2 AtxHeadingNode getLevel=2 > TextNode text=" Heading"
 
 ## Empty Headings
 
 Empty heading
 ##
 1
-@1 AtxHeadingNode getLevel=2 > TextNode text="\n"
+@1 AtxHeadingNode getLevel=2
 
 Empty with space
 ## 
 1 
-@1 AtxHeadingNode getLevel=2 > TextNode text=" \n"
+@1 AtxHeadingNode getLevel=2 > TextNode text=" "
 
 ## Edge Cases
 
 Heading at start
 # First
 1
-@1 AtxHeadingNode getLevel=1 > TextNode text=" First\n"
+@1 AtxHeadingNode getLevel=1 > TextNode text=" First"

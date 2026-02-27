@@ -423,11 +423,10 @@ export class SourceFile {
                 const top = stack[stack.length - 1];
                 const topHeader = this.getArenaHeader(top.arenaIndex);
                 if (getTokenKind(topHeader) === ATXHeadingOpen) {
-                    // Push the newline as the last child of the heading, then close it.
-                    this._pushNode(token, top);
-                    pos += len;
                     stack.pop();
                     this._updateNodeWidth(top.arenaIndex, pos - top.startPos);
+                    this._pushNode(token, stack[stack.length - 1]);
+                    pos += len;
                     continue;
                 }
             }

@@ -185,7 +185,7 @@ test('ATX heading: kind, text, and instanceof HeadingNode', () => {
   const heading = file.getNodeAt(0);
   assert.ok(heading !== null);
   assert.equal(heading.kind, ATXHeadingOpen);
-  assert.equal(heading.text, '# Heading\n');
+  assert.equal(heading.text, '# Heading');
   assert.ok(heading instanceof HeadingNode);
 });
 
