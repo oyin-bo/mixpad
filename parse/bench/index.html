@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MixPad Parser Benchmark</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 1000px; margin: 0 auto; padding: 20px; }
+        h1, h2 { border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+        button { background: #0366d6; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: 600; }
+        button:hover { background: #0256b9; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px dotted #ccc; }
+        th { background: #f6f8fa; border-bottom: 2px solid #ddd; }
+        tr:hover { background: #fcfcfc; }
+        .fastest { background-color: #e6ffed !important; font-weight: bold; }
+        .metric { color: #666; font-size: 12px; }
+        #log { font-family: monospace; background: #000; color: #0f0; padding: 10px; border-radius: 4px; height: 150px; overflow-y: auto; margin: 20px 0; font-size: 12px; }
+        .dataset-header { background: #eee; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>MixPad Parser Benchmark</h1>
+    <p>Compare the new MixPad Green Arena parser against industry standards. All tests run locally in your browser.</p>
+    
+    <div id="controls" style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 8px; border: 1px solid #ddd;">
+        <div style="margin-bottom: 10px; font-weight: bold;">Select Parsers to Benchmark:</div>
+        <div id="parserToggles" style="display: flex; flex-wrap: wrap; gap: 15px;">
+            <!-- Toggles injected by JS -->
+        </div>
+    </div>
+
+    <button id="runBtn">Run Benchmarks</button>
+    <div id="log">Ready...</div>
+
+    <div id="results"></div>
+
+    <script type="module">
+        import { getDataset } from './datasets.js';
+        import { SourceFile } from '../source-file.js';
+        import { scan0 } from '../scan0.js';
+
+        // CDN version of competitors for browser usage
+        const COMP_URLS = {
+            'marked': 'https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js',
+            'commonmark': 'https://esm.run/commonmark@0.31.2',
+            'markdown-it': 'https://esm.run/markdown-it@14.1.0',
+            'micromark': 'https://cdn.jsdelivr.net/npm/micromark@4.0.2/+esm',
+            'remark-parse': 'https://cdn.jsdelivr.net/npm/remark-parse@11.0.0/+esm',
+            'unified': 'https://cdn.jsdelivr.net/npm/unified@11.0.5/+esm'
+        };
+
+        const DATASETS = ['small-simple', 'medium-mixed', 'pathological', 'large-text-heavy'];
+        const PARSER_NAMES = ['mixpad-scan0', 'mixpad-full', 'commonmark', 'markdown-it', 'marked', 'micromark', 'remark'];
+        
+        const logEl = document.getElementById('log');
+        const resultsEl = document.getElementById('results');
+        const runBtn = document.getElementById('runBtn');
+        const parserTogglesEl = document.getElementById('parserToggles');
+
+        // Initialize state from sessionStorage
+        const getEnabledParsers = () => {
+            const saved = sessionStorage.getItem('enabledParsers');
+            if (saved) return JSON.parse(saved);
+            return PARSER_NAMES.reduce((acc, name) => ({ ...acc, [name]: true }), {});
+        };
+
+        let enabledParsers = getEnabledParsers();
+
+        const saveEnabledParsers = () => {
+            sessionStorage.setItem('enabledParsers', JSON.stringify(enabledParsers));
+        };
+
+        // Create toggle UI
+        PARSER_NAMES.forEach(name => {
+            const label = document.createElement('label');
+            label.style.display = 'flex';
+            label.style.alignItems = 'center';
+            label.style.cursor = 'pointer';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = !!enabledParsers[name];
+            checkbox.style.marginRight = '8px';
+            
+            checkbox.onchange = (e) => {
+                enabledParsers[name] = e.target.checked;
+                saveEnabledParsers();
+            };
+
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(name));
+            parserTogglesEl.appendChild(label);
+        });
+
+        function log(msg) {
+            const div = document.createElement('div');
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logEl.appendChild(div);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        async function measure(name, fn, content, iterations = 100) {
+            // Warmup
+            try { fn(content); } catch(e) {}
+            
+            const times = [];
+            for (let i = 0; i < iterations; i++) {
+                const start = performance.now();
+                fn(content);
+                const end = performance.now();
+                times.push(end - start);
+            }
+            times.sort((a, b) => a - b);
+            // Return average of the middle 50% to reduce noise
+            const startIdx = Math.floor(iterations * 0.25);
+            const endIdx = Math.floor(iterations * 0.75);
+            const middle = times.slice(startIdx, endIdx);
+            return middle.reduce((a, b) => a + b, 0) / middle.length;
+        }
+
+        runBtn.onclick = async () => {
+            runBtn.disabled = true;
+            resultsEl.innerHTML = '';
+            log("Starting benchmarks...");
+
+            // Load competitors
+            log("Loading competitors from CDN...");
+            const modules = await Promise.all([
+                import(COMP_URLS['marked']).catch(e => ({ error: 'marked' })),
+                import(COMP_URLS['commonmark']).catch(e => ({ error: 'commonmark' })),
+                import(COMP_URLS['markdown-it']).catch(e => ({ error: 'markdown-it' })),
+                import(COMP_URLS['micromark']).catch(e => ({ error: 'micromark' })),
+                import(COMP_URLS['remark-parse']).catch(e => ({ error: 'remark-parse' })),
+                import(COMP_URLS['unified']).catch(e => ({ error: 'unified' }))
+            ]);
+
+            const [mMarked, mCommonmark, mMarkdownIt, mMicromark, mRemarkParse, mUnified] = modules;
+            
+            // Helper for extraction since ESM on CDN can be finicky
+            const getExport = (mod, ...keys) => {
+                if (mod.error) return null;
+                for (const key of keys) if (mod[key]) return mod[key];
+                return mod.default || mod;
+            };
+
+            const Marked = getExport(mMarked, 'marked');
+            const Commonmark = getExport(mCommonmark, 'commonmark');
+            const MarkdownIt = getExport(mMarkdownIt);
+            const Micromark = getExport(mMicromark, 'micromark');
+            const remarkParse = getExport(mRemarkParse);
+            const Unified = getExport(mUnified, 'unified');
+
+            // Handle Commonmark specially as it often exports the whole thing or a Parser property
+            const CM_Parser = (Commonmark && Commonmark.Parser) ? Commonmark.Parser : Commonmark;
+            const cmParser = (typeof CM_Parser === 'function') ? new CM_Parser() : null;
+
+            const mdIt = (typeof MarkdownIt === 'function') ? new MarkdownIt() : null;
+            const remarkProcessor = (Unified && remarkParse) ? Unified().use(remarkParse) : null;
+            
+            for (const dsName of DATASETS) {
+                log(`Testing ${dsName}...`);
+                const dataset = getDataset(dsName);
+                const results = [];
+
+                // 1. mixpad-scan0
+                if (enabledParsers['mixpad-scan0']) {
+                    const tScan0 = await measure('mixpad-scan0', (c) => {
+                        const output = [];
+                        scan0({ input: c, startOffset: 0, endOffset: c.length, output });
+                    }, dataset.content);
+                    results.push({ name: 'mixpad-scan0', time: tScan0 });
+                }
+
+                // 2. mixpad-full
+                if (enabledParsers['mixpad-full']) {
+                    const tFull = await measure('mixpad-full', (c) => new SourceFile(c), dataset.content);
+                    results.push({ name: 'mixpad-full', time: tFull });
+                }
+
+                // 3. marked
+                if (enabledParsers['marked'] && Marked) {
+                    const tMarked = await measure('marked', (c) => Marked.lexer(c), dataset.content);
+                    results.push({ name: 'marked', time: tMarked });
+                }
+
+                // 4. commonmark
+                if (enabledParsers['commonmark'] && cmParser) {
+                    const tCM = await measure('commonmark', (c) => cmParser.parse(c), dataset.content);
+                    results.push({ name: 'commonmark', time: tCM });
+                }
+
+                // 5. markdown-it
+                if (enabledParsers['markdown-it'] && mdIt) {
+                    const tMDIt = await measure('markdown-it', (c) => mdIt.parse(c, {}), dataset.content);
+                    results.push({ name: 'markdown-it', time: tMDIt });
+                }
+
+                // 6. micromark
+                if (enabledParsers['micromark'] && Micromark) {
+                    const tMicro = await measure('micromark', (c) => Micromark(c), dataset.content);
+                    results.push({ name: 'micromark', time: tMicro });
+                }
+
+                // 7. remark
+                if (enabledParsers['remark'] && remarkProcessor) {
+                    const tRemark = await measure('remark', (c) => remarkProcessor.parse(c), dataset.content);
+                    results.push({ name: 'remark', time: tRemark });
+                }
+
+                if (results.length > 0) {
+                    renderDataset(dsName, dataset.content.length, results);
+                }
+            }
+
+            log("Benchmarks complete.");
+            runBtn.disabled = false;
+        };
+
+        function renderDataset(name, size, results) {
+            const div = document.createElement('div');
+            const mb = (size / (1024 * 1024));
+            
+            let html = `<h2>${name} (${(size/1024).toFixed(1)} KB)</h2>`;
+            html += `<table>
+                <thead><tr><th>Parser</th><th>Time (ms)</th><th>Throughput (MB/s)</th></tr></thead>
+                <tbody>`;
+            
+            results.sort((a,b) => a.time - b.time);
+            
+            results.forEach((r, idx) => {
+                const throughput = mb / (r.time / 1000);
+                html += `<tr class="${idx === 0 ? 'fastest' : ''}">
+                    <td>${r.name}</td>
+                    <td>${r.time.toFixed(3)}</td>
+                    <td>${throughput.toFixed(2)}</td>
+                </tr>`;
+            });
+
+            html += `</tbody></table>`;
+            div.innerHTML = html;
+            resultsEl.appendChild(div);
+        }
+    </script>
+</body>
+</html>

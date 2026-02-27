@@ -1,7 +1,7 @@
 {
   "name": "mixpad",
   "description": "Mixpad document parser and management",
-  "version": "0.0.7",
+  "version": "0.1.0",
   "type": "module",
   "main": "index.js",
   "directories": {
@@ -11,12 +11,21 @@
     "build:parser-old": "esbuild --bundle parser/index.ts --sourcemap --outfile=./mparser.js --format=cjs --platform=node",
     "build-old": "npm run build:parser-old",
     "test-old": "vitest run",
-    "test": "node --test --test-timeout=5000"
+    "test": "node --test --test-timeout=5000",
+    "bench": "node --expose-gc parse/bench/run.js"
   },
   "keywords": [
     "Mixpad",
     "Markdown"
   ],
   "author": "Oleg Mihailik",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "commonmark": "^0.31.2",
+    "markdown-it": "^14.1.1",
+    "marked": "^17.0.3",
+    "micromark": "^4.0.2",
+    "remark-parse": "^11.0.0",
+    "unified": "^11.0.5"
+  }
 }
