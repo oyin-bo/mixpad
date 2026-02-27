@@ -20,6 +20,8 @@ const __dirname = path.dirname(__filename);
 const repoBase = path.resolve(__dirname, '..', '..'); // assuming repo root is two levels up
 
 for (const mdFilePath of findMarkdownFiles(__dirname)) {
+  const fileName = path.basename(mdFilePath);
+
   const relativePath = path.relative(repoBase, mdFilePath).replace(/\\/g, '/');
 
   const fullContent = fs.readFileSync(mdFilePath, 'utf8');

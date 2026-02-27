@@ -150,6 +150,37 @@ export class RedNode {
     return children;
   }
 
+  /** @returns {RedNode[]} */
+  getSiblingsAndSelf() {
+    /** @type {RedNode[]} */
+    const nodes = [];
+    let curr = (/** @type {RedNode} */ (this));
+    let prev = curr.previousSibling;
+    while (prev) {
+      curr = prev;
+      prev = curr.previousSibling;
+    }
+    while (curr) {
+      if (curr._isTextLike()) {
+        const startIdx = curr.arenaIndex;
+        let lastIdx = startIdx;
+        let width = curr.width;
+        let next = curr.nextSibling;
+        while (next && next._isTextLike()) {
+          width += next.width;
+          lastIdx = next.arenaIndex;
+          next = next.nextSibling;
+        }
+        nodes.push(new TextNode(this.sourceFile, startIdx, width, lastIdx));
+        curr = next;
+      } else {
+        nodes.push(curr);
+        curr = curr.nextSibling;
+      }
+    }
+    return nodes;
+  }
+
   /** @protected */
   _isTextLike() {
     const k = this.kind;
@@ -299,9 +330,9 @@ export class SourceFile {
 
     /**
      * Green Arena: flat native JavaScript Array.
-     * @type {(number | null)[]}
+     * @type {(number | any)[]}
      */
-    this.arena = [];
+    this.arena = [0, 0, 0, 0, 0, null]; // Index 0 is the null sentinel
 
     /** @type {number[]} */
     this.paragraphIndex = [];
@@ -330,6 +361,13 @@ export class SourceFile {
   /** @param {number} idx */
   getArenaMaterialized(idx){ return this.arena[idx + NODE_MATERIALIZED]; }
 
+  /** @returns {RedNode[]} */
+  getChildren() {
+    const firstChild = this.getArenaFirstChild(0);
+    if (firstChild === 0) return [];
+    return this.getRedNode(firstChild).getSiblingsAndSelf();
+  }
+
   // ── Internal build ──────────────────────────────────────────────────────────
 
   /** @private */
@@ -339,7 +377,8 @@ export class SourceFile {
     this.paragraphArenaIndices.length = 0;
     this._redCache.clear();
 
-    // Index 0 is the null sentinel.
+    // Index 0 is the null sentinel. Dummy root node at stride 0.
+    // [HEADER, FIRST_CHILD, NEXT_SIBLING, PARENT, PREV_SIBLING, MATERIALIZED]
     this.arena.push(0, 0, 0, 0, 0, null);
 
     if (!this.text.length) return;
@@ -347,55 +386,69 @@ export class SourceFile {
     const tokens = /** @type {import('./scan0.js').ProvisionalToken[]} */ ([]);
     semantic({ input: this.text, startOffset: 0, endOffset: this.text.length })(tokens);
 
-    const stack = [{ arenaIndex: 0, startPos: 0, lastChildIdx: 0 }];
+    // Root context: parent arenaIndex 0.
+    const rootState = { arenaIndex: 0, lastChildIdx: 0, startPos: 0 };
+    const stack = [rootState];
     let pos = 0;
 
     for (let i = 0; i < tokens.length; i++) {
-      const token = tokens[i];
-      const kind = getTokenKind(token);
-      const len = getTokenLength(token);
-      const flags = getTokenFlags(token);
+        const token = tokens[i];
+        const kind = getTokenKind(token);
+        const len = getTokenLength(token);
+        const flags = getTokenFlags(token);
 
-      if ((flags & IsSafeReparsePoint) && pos > 0) {
-        this.paragraphIndex.push(pos);
-        this.paragraphArenaIndices.push(this.arena.length);
-      }
+        if (len === 0) continue;
 
-      if (this._isOpenToken(kind)) {
-        const idx = this._pushNode(token, stack[stack.length - 1]);
-        this.arena[idx + NODE_MATERIALIZED] = len;
-        stack.push({ arenaIndex: idx, startPos: pos, lastChildIdx: 0 });
-      } else if (this._isCloseToken(kind)) {
-        const top = stack.length > 1 ? stack.pop() : null;
-        if (top && top.arenaIndex !== 0) {
-          this._updateNodeWidth(top.arenaIndex, (pos + len) - top.startPos);
+        if ((flags & IsSafeReparsePoint) || (pos === 0)) {
+            this.paragraphIndex.push(pos);
+            this.paragraphArenaIndices.push(this.arena.length);
         }
-      } else {
-        if (kind === NewLine && stack.length > 1) {
-          const top = stack[stack.length - 1];
-          if (top.arenaIndex !== 0) {
-            const topKind = getTokenKind(this.getArenaHeader(top.arenaIndex));
-            if (topKind === ATXHeadingOpen) {
-              stack.pop();
-              this._updateNodeWidth(top.arenaIndex, (pos + len) - top.startPos);
+
+        const parentState = stack[stack.length - 1];
+
+        if (this._isOpenToken(kind)) {
+            const idx = this._pushNode(token, parentState);
+            this.arena[idx + NODE_MATERIALIZED] = len; // Marker width
+            stack.push({ arenaIndex: idx, startPos: pos, lastChildIdx: 0 });
+        } else if (this._isCloseToken(kind)) {
+            this._pushNode(token, parentState);
+            const top = stack.length > 1 ? stack.pop() : null;
+            if (top && top.arenaIndex !== 0) {
+                const totalWidth = (pos + len) - top.startPos;
+                this._updateNodeWidth(top.arenaIndex, totalWidth);
             }
-          }
+        } else {
+            // Special case: ATXHeading ends at NewLine if not closed by ATXHeadingClose.
+            if (kind === NewLine && stack.length > 1) {
+                const top = stack[stack.length - 1];
+                const topHeader = this.getArenaHeader(top.arenaIndex);
+                if (getTokenKind(topHeader) === ATXHeadingOpen) {
+                    // Push the newline as the last child of the heading, then close it.
+                    this._pushNode(token, top);
+                    pos += len;
+                    stack.pop();
+                    this._updateNodeWidth(top.arenaIndex, pos - top.startPos);
+                    continue;
+                }
+            }
+            this._pushNode(token, stack[stack.length - 1]);
         }
-        this._pushNode(token, stack[stack.length - 1]);
-      }
-      pos += len;
+        pos += len;
     }
 
+    // Close any remaining open nodes
     while (stack.length > 1) {
-      const top = stack.pop();
-      if (top && top.arenaIndex !== 0) {
-        this._updateNodeWidth(top.arenaIndex, pos - top.startPos);
-      }
+        const top = stack.pop();
+        if (top && top.arenaIndex !== 0) {
+            this._updateNodeWidth(top.arenaIndex, pos - top.startPos);
+        }
     }
 
     if (this.arena.length > NODE_STRIDE) {
-      this.paragraphIndex.unshift(0);
-      this.paragraphArenaIndices.unshift(NODE_STRIDE);
+        if (this.paragraphIndex.length === 0 || this.paragraphIndex[0] !== 0) {
+            this.paragraphIndex.unshift(0);
+            this.paragraphArenaIndices.unshift(NODE_STRIDE);
+        }
     }
   }
 
@@ -429,12 +482,12 @@ export class SourceFile {
       (this.getArenaHeader(arenaIndex) & ~0xFFFF) | (newWidth & 0xFFFF);
   }
 
-  /** @param {number} kind @returns {boolean} @private */
   _isOpenToken(kind) {
     return kind === EmphasisOpen || kind === StrongOpen || kind === StrikethroughOpen ||
       kind === ATXHeadingOpen || kind === FencedOpen ||
       kind === FormulaOpen || kind === FrontmatterOpen ||
-      kind === LinkOpen;
+      kind === LinkOpen || kind === BlockquoteMarker ||
+      kind === BulletListMarker || kind === OrderedListMarker || kind === TaskListMarker;
   }
 
   /** @param {number} kind @returns {boolean} @private */
@@ -453,7 +506,11 @@ export class SourceFile {
    * @returns {RedNode | null}
    */
   getNodeAt(offset) {
-    if (!this.paragraphIndex.length || offset < 0 || offset >= this.text.length) return null;
+    if (offset < 0 || offset >= this.text.length) return null;
+
+    if (!this.paragraphIndex.length) {
+      return this._findNodeAt(NODE_STRIDE, 0, offset);
+    }
 
     let lo = 0;
     let hi = this.paragraphIndex.length - 1;
@@ -463,6 +520,7 @@ export class SourceFile {
       else hi = mid - 1;
     }
 
+    // Start search from the reparse point node
     return this._findNodeAt(
       this.paragraphArenaIndices[lo],
       this.paragraphIndex[lo],
@@ -490,6 +548,7 @@ export class SourceFile {
   // ── Internal helpers ────────────────────────────────────────────────────────
 
   /**
+   * Depth-first search for the innermost node covering `targetOffset`.
    * @param {number} startIdx
    * @param {number} startPos
    * @param {number} targetOffset
@@ -500,13 +559,21 @@ export class SourceFile {
     let idx = startIdx;
     let pos = startPos;
     while (idx !== 0) {
-      const width = getTokenLength(this.getArenaHeader(idx));
+      const header = this.getArenaHeader(idx);
+      const width = getTokenLength(header);
+      
       if (targetOffset >= pos && targetOffset < pos + width) {
+        // Special case: if this is a RedNode (leaf) but contains children,
+        // it means we are at the marker of a container.
         const childIdx = this.getArenaFirstChild(idx);
         if (childIdx !== 0) {
           const markerWidth = (/** @type {number} */(this.getArenaMaterialized(idx))) || 0;
-          const found = this._findNodeAt(childIdx, pos + markerWidth, targetOffset);
-          if (found) return found;
+          // If we are EXACTLY at the marker, we should return the container itself.
+          // If we are AFTER the marker, we dive.
+          if (targetOffset >= pos + markerWidth) {
+            const found = this._findNodeAt(childIdx, pos + markerWidth, targetOffset);
+            if (found) return found;
+          }
         }
         return this.getRedNode(idx);
       }
@@ -526,6 +593,8 @@ export class SourceFile {
   _findPos(startIdx, startPos, targetIdx) {
     let idx = startIdx;
     let pos = startPos;
+    if (targetIdx === 0) return 0; // Root is at pos 0
+    
     while (idx !== 0) {
       if (idx === targetIdx) return pos;
       const childIdx = this.getArenaFirstChild(idx);
@@ -534,7 +603,8 @@ export class SourceFile {
         const found = this._findPos(childIdx, pos + markerWidth, targetIdx);
         if (found !== null) return found;
       }
-      pos += getTokenLength(this.getArenaHeader(idx));
+      const header = this.getArenaHeader(idx);
+      pos += getTokenLength(header);
       idx = this.getArenaNextSibling(idx);
     }
     return null;

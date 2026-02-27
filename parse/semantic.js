@@ -72,10 +72,19 @@ export function semantic({ input, startOffset, endOffset }) {
     while (pos < endOffset) {
       const prevLen = provisionalBuf.length;
       const count = scan0({ input, startOffset: pos, endOffset, output: provisionalBuf });
-      if (count === 0) break;
-      for (let i = prevLen; i < prevLen + count; i++) {
-        pos += getTokenLength(provisionalBuf[i]);
+      if (count === 0) {
+        // Just in case scan0 gets stuck or returns 0 improperly
+        pos++;
+        continue;
       }
+      // scan0 returns the number of tokens ADDED to provisionalBuf, not the total length
+      // but the while loop should advance pos by the length of tokens added.
+      let addedLen = 0;
+      for (let i = prevLen; i < provisionalBuf.length; i++) {
+        addedLen += getTokenLength(provisionalBuf[i]);
+      }
+      pos += addedLen;
+      if (addedLen === 0) pos++; // failsafe
     }
 
     // Phase 1: Identify delimiters and compute flanking
