@@ -2,14 +2,15 @@
 
 import { getTokenKind, getTokenLength, getHeadingDepth } from '../scan-core.js';
 import * as Tokens from '../scan-tokens.js';
+import { isVoidElement } from '../scan-html-tag.js';
 import { ParseContext } from './parser.js';
 import {
   DocumentNode, ParagraphNode, HeadingNode, BlockquoteNode,
-  ListNode, ListItemNode, FencedCodeBlockNode, HtmlBlockNode, ThematicBreakNode,
+  ListNode, ListItemNode, FencedCodeBlockNode, ThematicBreakNode,
   TableNode, TableRowNode, TableCellNode, FrontmatterNode, FormulaBlockNode,
   TextNode, EmphasisNode, StrongNode, StrikethroughNode, LinkNode, ImageNode,
-  InlineCodeNode, AutolinkNode, HtmlTagNode, HtmlCommentNode, HtmlCDataNode,
-  HtmlDocTypeNode, XmlProcessingInstructionNode, InlineFormulaNode
+  InlineCodeNode, AutolinkNode, HtmlCommentNode, HtmlCDataNode,
+  HtmlDocTypeNode, XmlProcessingInstructionNode, InlineFormulaNode, HtmlElementNode
 } from './nodes.js';
 import * as NodeTypes from './node-types.js';
 
@@ -107,7 +108,7 @@ export class ASTBuilder {
       const token = tokens[tIdx];
       const kind = getTokenKind(token);
       const len = getTokenLength(token);
-      const nextPos = pos + len;
+      let nextPos = pos + len;
 
       let activeBlock = this._getActiveBlock();
 
@@ -257,13 +258,133 @@ export class ASTBuilder {
           this._append(t);
           break;
         }
-        case Tokens.HtmlTagOpen:
+        case Tokens.HTMLTagOpen: {
+          const openLen = len;
+          // Length 2 means '</', i.e. a closing tag
+          const isClosingTag = openLen === 2; 
+
+          // State for parsing the tag
+          let tagName = "";
+          let tagNameStart = 0;
+          let tagNameLen = 0;
+          let selfClosing = false;
+          let tagEndPos = -1;
+          /** @type {Array<{name: string, value: string}>} */
+          const attributes = [];
+          
+          let currentAttributeName = "";
+
+          // Consume tag internals loop
+          let idx = tIdx + 1;
+          let currentPos = pos + openLen;
+
+          while (idx < tokens.length) {
+            const tk = tokens[idx];
+            const k = getTokenKind(tk);
+            const l = getTokenLength(tk);
+
+            if (k === Tokens.HTMLTagName) {
+               tagNameStart = currentPos;
+               tagNameLen = l;
+               // Extract tagName for node property
+               tagName = this.context.sourceText.substring(currentPos, currentPos + l).toLowerCase();
+            } else if (k === Tokens.HTMLTagClose) {
+              currentPos += l;
+              tagEndPos = currentPos;
+              idx++;
+              break;
+            } else if (k === Tokens.HTMLTagSelfClosing) {
+              selfClosing = true;
+              currentPos += l;
+              tagEndPos = currentPos;
+              idx++;
+              break;
+            } else if (k === Tokens.HTMLAttributeName) {
+               currentAttributeName = this.context.sourceText.substring(currentPos, currentPos + l);
+               attributes.push({ name: currentAttributeName, value: null }); 
+            } else if (k === Tokens.HTMLAttributeValue) {
+               if (attributes.length > 0) {
+                 attributes[attributes.length - 1].value = this.context.sourceText.substring(currentPos, currentPos + l);
+               }
+            } else if (k === Tokens.HTMLAttributeQuote || k === Tokens.HTMLAttributeEquals) {
+               // If we see a quote or equals, it implicates at least an empty value
+               if (attributes.length > 0 && attributes[attributes.length - 1].value === null) {
+                 attributes[attributes.length - 1].value = "";
+               }
+            }
+            
+            currentPos += l;
+            idx++;
+          }
+
+          // If we ran out of tokens without closing, treat what we found as valid end
+          if (tagEndPos === -1) tagEndPos = currentPos;
+
+          if (isClosingTag) {
+            // "Pop-Until-Match" Logic
+            let matchIndex = -1;
+            // Iterate backwards from top of stack
+            for (let i = this.blockStack.length - 1; i >= 0; i--) {
+              const node = this.blockStack[i];
+              // Stop at root
+              if (node.type === NodeTypes.Document) break;
+              
+              if (node.type === NodeTypes.HtmlElement && 
+                  /** @type {HtmlElementNode} */(node).tagName === tagName) {
+                matchIndex = i;
+                break;
+              }
+            }
+            
+            if (matchIndex !== -1) {
+              // Close everything down to matchIndex (inclusive of the matched element)
+              while (this.blockStack.length > matchIndex) {
+                 const popped = this.blockStack.pop();
+                 if (popped) popped.end = tagEndPos;
+              }
+            } else {
+               // Orphaned closing tag: treat as text (but we don't really know start pos of close)
+               // The original pos was the start of `</`
+               const t = new TextNode(this.context, pos);
+               t.end = tagEndPos;
+               this._append(t);
+            }
+          } else {
+            // Opening tag
+            const el = new HtmlElementNode(this.context, pos);
+            el.tagName = tagName;
+            el.attributes = attributes;
+            el.end = tagEndPos;
+            
+            this._append(el);
+            
+            // Check void element using the zero-allocation scanner utility
+            const isVoid = tagNameLen > 0 && isVoidElement(this.context.sourceText, tagNameStart, tagNameLen);
+            
+            if (!selfClosing && !isVoid) {
+               // Push to block stack to contain content
+               // NOTE: Because we push to blockStack, children will be processed normally.
+               // Including inline elements which will be appended to this block.
+               this.blockStack.push(el);
+            }
+          }
+
+          // Advance the main loop
+          // tIdx will be incremented by loop, so set to idx - 1
+          tIdx = idx - 1; 
+          nextPos = tagEndPos;
+          
+          // Continue forces next iteration with updated pos
+          this._extendAncestors(nextPos);
+          pos = nextPos;
+          continue;
+        }
         case Tokens.HtmlTagClose:
         case Tokens.HtmlTagSelfClosing: {
-          const tag = new HtmlTagNode(this.context, pos);
-          tag.end = nextPos;
-          this._append(tag);
-          // Actual attribute parsing is usually deeper but handled cleanly here as bounds.
+          // Orphaned parts outside of an open tag loop
+          const t = new TextNode(this.context, pos);
+          t.end = nextPos;
+          this._append(t);
           break;
         }
       }

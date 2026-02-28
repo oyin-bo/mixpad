@@ -12,7 +12,7 @@ export const Blockquote = 4;
 export const List = 5;
 export const ListItem = 6;
 export const FencedCodeBlock = 7;
-export const HtmlBlock = 8;
+// export const HtmlBlock = 8;
 export const ThematicBreak = 9;
 export const Table = 10;
 export const TableRow = 11;
@@ -29,12 +29,13 @@ export const Link = 19;
 export const Image = 20;
 export const InlineCode = 21;
 export const Autolink = 22;
-export const HtmlTag = 23;
+// export const HtmlTag = 23;
 export const HtmlComment = 24;
 export const HtmlCData = 25;
 export const HtmlDocType = 26;
 export const XmlProcessingInstruction = 27;
 export const InlineFormula = 28;
+export const HtmlElement = 29;
 
 /**
  * Reverse mapping for debugging/serialization
@@ -48,7 +49,7 @@ export const NodeNames = {
   [List]: "List",
   [ListItem]: "ListItem",
   [FencedCodeBlock]: "FencedCodeBlock",
-  [HtmlBlock]: "HtmlBlock",
+  // [HtmlBlock]: "HtmlBlock",
   [ThematicBreak]: "ThematicBreak",
   [Table]: "Table",
   [TableRow]: "TableRow",
@@ -63,10 +64,11 @@ export const NodeNames = {
   [Image]: "Image",
   [InlineCode]: "InlineCode",
   [Autolink]: "Autolink",
-  [HtmlTag]: "HtmlTag",
+  // [HtmlTag]: "HtmlTag",
   [HtmlComment]: "HtmlComment",
   [HtmlCData]: "HtmlCData",
   [HtmlDocType]: "HtmlDocType",
   [XmlProcessingInstruction]: "XmlProcessingInstruction",
-  [InlineFormula]: "InlineFormula"
+  [InlineFormula]: "InlineFormula",
+  [HtmlElement]: "HtmlElement",
 };

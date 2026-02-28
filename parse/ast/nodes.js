@@ -41,9 +41,7 @@ export class FencedCodeBlockNode extends ASTNode {
     return this._language;
   }
 }
-export class HtmlBlockNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.HtmlBlock, start); this.children = []; }
-}
+// HtmlBlockNode removed
 export class ThematicBreakNode extends ASTNode {
   constructor(context, start) { super(context, NodeTypes.ThematicBreak, start); }
 }
@@ -105,9 +103,7 @@ export class AutolinkNode extends ASTNode {
     return this._url;
   }
 }
-export class HtmlTagNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.HtmlTag, start); this.children = []; }
-}
+// HtmlTagNode removed
 export class HtmlCommentNode extends ASTNode {
   constructor(context, start) { super(context, NodeTypes.HtmlComment, start); }
 }
@@ -122,4 +118,13 @@ export class XmlProcessingInstructionNode extends ASTNode {
 }
 export class InlineFormulaNode extends ASTNode {
   constructor(context, start) { super(context, NodeTypes.InlineFormula, start); }
+}
+
+export class HtmlElementNode extends ASTNode {
+  constructor(context, start) { 
+    super(context, NodeTypes.HtmlElement, start); 
+    this.children = [];
+    this.tagName = ""; 
+    this.attributes = []; 
+  }
 }
