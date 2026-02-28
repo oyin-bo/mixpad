@@ -212,3 +212,39 @@ test('AST Builder: Blockquote - Multi-line', () => {
     const paragraphs = bq.children.filter(n => n.type === NodeTypes.Paragraph);
     assert.ok(paragraphs.length >= 1, 'Blockquote should contain at least one paragraph');
 });
+
+test('AST Builder: Table - Basic structure', () => {
+    const doc = parse('| a | b |\n|---|---|\n| 1 | 2 |');
+    const table = doc.children.find(n => n.type === NodeTypes.Table);
+    assert.ok(table, 'Document should contain a Table');
+    const rows = table.children.filter(n => n.type === NodeTypes.TableRow);
+    assert.strictEqual(rows.length, 2, 'Table should have header row + 1 data row');
+    // Header row
+    assert.ok(rows[0].isHeader, 'First row should be the header');
+    const headerCells = rows[0].children.filter(n => n.type === NodeTypes.TableCell);
+    assert.strictEqual(headerCells.length, 2, 'Header row should have 2 cells');
+    assert.ok(headerCells[0].text.trim() === 'a', 'First header cell content');
+    assert.ok(headerCells[1].text.trim() === 'b', 'Second header cell content');
+    // Data row
+    const dataCells = rows[1].children.filter(n => n.type === NodeTypes.TableCell);
+    assert.strictEqual(dataCells.length, 2, 'Data row should have 2 cells');
+    assert.ok(dataCells[0].text.trim() === '1', 'First data cell content');
+    assert.ok(dataCells[1].text.trim() === '2', 'Second data cell content');
+});
+
+test('AST Builder: Table - Multiple data rows', () => {
+    const doc = parse('| x |\n|---|\n| 1 |\n| 2 |\n| 3 |');
+    const table = doc.children.find(n => n.type === NodeTypes.Table);
+    assert.ok(table, 'Should have a Table');
+    const rows = table.children.filter(n => n.type === NodeTypes.TableRow);
+    assert.strictEqual(rows.length, 4, '1 header + 3 data rows');
+});
+
+test('AST Builder: Table - Followed by paragraph', () => {
+    const doc = parse('| a |\n|---|\n| 1 |\n\nAfter');
+    const table = doc.children.find(n => n.type === NodeTypes.Table);
+    assert.ok(table, 'Should have a Table');
+    const para = doc.children.find(n => n.type === NodeTypes.Paragraph);
+    assert.ok(para, 'Should have a trailing Paragraph');
+    assert.ok(para.text.includes('After'));
+});

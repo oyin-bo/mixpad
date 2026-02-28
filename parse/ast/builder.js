@@ -105,6 +105,38 @@ export class ASTBuilder {
   }
 
   /**
+   * Check if the token sequence from fromTIdx to the next NewLine is a valid
+   * GFM table delimiter row (cells containing only :?-{3,}:? with optional whitespace).
+   * @param {ProvisionalToken[]} tokens
+   * @param {number} fromTIdx
+   * @param {number} fromPos
+   * @returns {boolean}
+   */
+  _isDelimiterLine(tokens, fromTIdx, fromPos) {
+    let pos = fromPos;
+    let hasPipe = false;
+    let cellCount = 0;
+    for (let i = fromTIdx; i < tokens.length; i++) {
+      const tok = tokens[i];
+      const k = getTokenKind(tok);
+      const l = getTokenLength(tok);
+      if (k === Tokens.NewLine) break;
+      if (k === Tokens.TablePipe) {
+        hasPipe = true;
+      } else if (k === Tokens.InlineText) {
+        const txt = this.context.sourceText.substring(pos, pos + l).trim();
+        if (!/^:?-{3,}:?$/.test(txt)) return false;
+        cellCount++;
+      } else if (k !== Tokens.Whitespace) {
+        // Any other token type means this is not a pure delimiter row
+        return false;
+      }
+      pos += l;
+    }
+    return hasPipe && cellCount > 0;
+  }
+
+  /**
    * Processes a chunk of semantic tokens (typically one line/paragraph)
    * 
    * @param {ProvisionalToken[]} tokens 
@@ -126,6 +158,10 @@ export class ASTBuilder {
     // Tracks how many BlockquoteMarker tokens have been seen on the current logical line.
     // Resets to 0 on every NewLine token.
     let lineQuoteDepth = 0;
+    // Tracks whether a TablePipe has been seen on the current logical line.
+    let lineHasPipe = false;
+    // Tracks whether we are currently building the header row of a table.
+    let inTableHeader = false;
 
     // Inline Stream Processing
     for (; tIdx < tokens.length; tIdx++) {
@@ -139,6 +175,55 @@ export class ASTBuilder {
       // Structural Break Introspection inside Stream
       if (kind === Tokens.NewLine) {
         lineQuoteDepth = 0;
+        lineHasPipe = false;
+
+        // Close any open inline stack items at row boundary
+        while (this.inlineStack.length > 0) {
+          const top = this.inlineStack[this.inlineStack.length - 1];
+          if (top.type === NodeTypes.Emphasis || top.type === NodeTypes.Strong || top.type === NodeTypes.Strikethrough) {
+            this.inlineStack.pop();
+            top.end = pos;
+          } else break;
+        }
+
+        // Table row/cell closing
+        if (activeBlock.type === NodeTypes.TableCell) {
+          this.blockStack.pop();
+          activeBlock = this._getActiveBlock();
+        }
+        if (activeBlock.type === NodeTypes.TableRow) {
+          this.blockStack.pop();
+          activeBlock = this._getActiveBlock();
+          if (inTableHeader) {
+            inTableHeader = false;
+            // Fast-forward through the delimiter row tokens
+            pos = nextPos;
+            tIdx++;
+            while (tIdx < tokens.length) {
+              const delimKind = getTokenKind(tokens[tIdx]);
+              pos += getTokenLength(tokens[tIdx]);
+              if (delimKind === Tokens.NewLine) break;
+              tIdx++;
+            }
+            // Check if the next line continues the table
+            const peekTIdx = tIdx + 1;
+            if (peekTIdx >= tokens.length || getTokenKind(tokens[peekTIdx]) !== Tokens.TablePipe) {
+              if (this._getActiveBlock().type === NodeTypes.Table) this.blockStack.pop();
+            }
+            this._extendAncestors(pos);
+            continue;
+          } else {
+            // Finished a data row — check if the next line continues the table
+            const peekTIdx = tIdx + 1;
+            if (peekTIdx >= tokens.length || getTokenKind(tokens[peekTIdx]) !== Tokens.TablePipe) {
+              if (this._getActiveBlock().type === NodeTypes.Table) this.blockStack.pop();
+            }
+            this._extendAncestors(nextPos);
+            pos = nextPos;
+            continue;
+          }
+        }
+
         if (activeBlock.type === NodeTypes.Heading) {
           this.blockStack.pop();
         }
@@ -308,6 +393,77 @@ export class ASTBuilder {
         pos = nextPos;
         continue;
 
+      } else if (kind === Tokens.TablePipe) {
+        // Close any open cell first
+        if (activeBlock.type === NodeTypes.TableCell) {
+          this.blockStack.pop();
+          activeBlock = this._getActiveBlock();
+        }
+
+        if (activeBlock.type === NodeTypes.TableRow) {
+          // Between-cell or trailing pipe — content will open the next cell
+          lineHasPipe = true;
+          this._extendAncestors(nextPos);
+          pos = nextPos;
+          continue;
+        }
+
+        if (activeBlock.type === NodeTypes.Table) {
+          // Leading pipe of a new data row — push a TableRow
+          const row = new TableRowNode(this.context, pos);
+          this._pushBlock(row);
+          lineHasPipe = true;
+          this._extendAncestors(nextPos);
+          pos = nextPos;
+          continue;
+        }
+
+        // Not yet in a table — check if the next line is a delimiter row
+        if (!lineHasPipe) {
+          let curLineEndTIdx = tIdx + 1;
+          let curLineEndPos = nextPos;
+          while (curLineEndTIdx < tokens.length && getTokenKind(tokens[curLineEndTIdx]) !== Tokens.NewLine) {
+            curLineEndPos += getTokenLength(tokens[curLineEndTIdx]);
+            curLineEndTIdx++;
+          }
+          const nextLineTIdx = curLineEndTIdx + 1;
+          const nextLinePos = curLineEndPos + (curLineEndTIdx < tokens.length ? getTokenLength(tokens[curLineEndTIdx]) : 0);
+          if (nextLineTIdx < tokens.length && this._isDelimiterLine(tokens, nextLineTIdx, nextLinePos)) {
+            if (activeBlock.type === NodeTypes.Paragraph) this.blockStack.pop();
+            const tableNode = new TableNode(this.context, pos);
+            this._pushBlock(tableNode);
+            const headerRow = new TableRowNode(this.context, pos);
+            // @ts-ignore
+            headerRow.isHeader = true;
+            this._pushBlock(headerRow);
+            inTableHeader = true;
+            lineHasPipe = true;
+            this._extendAncestors(nextPos);
+            pos = nextPos;
+            continue;
+          }
+        }
+
+        // Not a table pipe in a structural sense — treat as inline text
+        {
+          const curAb = this._getActiveBlock();
+          if (curAb.type === NodeTypes.Document || curAb.type === NodeTypes.Blockquote) {
+            this._pushBlock(new ParagraphNode(this.context, pos));
+          }
+          const parent = this._getActiveParent();
+          if (parent.children && parent.children.length > 0) {
+            const last = parent.children[parent.children.length - 1];
+            if (last.type === NodeTypes.Text) { last.end = nextPos; }
+            else { const t = new TextNode(this.context, pos); t.end = nextPos; this._append(t); }
+          } else {
+            const t = new TextNode(this.context, pos); t.end = nextPos; this._append(t);
+          }
+        }
+        lineHasPipe = true;
+        this._extendAncestors(nextPos);
+        pos = nextPos;
+        continue;
+
       } else if (kind === Tokens.ATXHeadingOpen) {
         if (activeBlock.type === NodeTypes.Paragraph) this.blockStack.pop();
         const depth = getHeadingDepth(token);
@@ -394,6 +550,24 @@ export class ASTBuilder {
         this._extendAncestors(nextPos);
         pos = nextPos;
         continue;
+      }
+
+      // Inside a TableRow: skip inter-cell whitespace; open a TableCell on first content
+      {
+        const curAb = this._getActiveBlock();
+        if (curAb.type === NodeTypes.TableRow) {
+          if (kind === Tokens.Whitespace) {
+            // Leading/trailing cell padding — skip
+            this._extendAncestors(nextPos);
+            pos = nextPos;
+            continue;
+          } else if (kind !== Tokens.NewLine && kind !== Tokens.TablePipe) {
+            // First content token after a pipe — open a new TableCell
+            const cell = new TableCellNode(this.context, pos);
+            this._pushBlock(cell);
+            // Fall through to switch for actual content handling
+          }
+        }
       }
 
       switch (kind) {
