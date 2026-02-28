@@ -27,7 +27,12 @@ export class BlockquoteNode extends ASTNode {
   constructor(context, start) { super(context, NodeTypes.Blockquote, start); this.children = []; }
 }
 export class ListNode extends ASTNode {
-  constructor(context, start, isOrdered) { super(context, NodeTypes.List, start); this.children = []; this._isOrdered = isOrdered; }
+  constructor(context, start, isOrdered, indent = 0) { 
+    super(context, NodeTypes.List, start); 
+    this.children = []; 
+    this._isOrdered = isOrdered; 
+    this.indent = indent;
+  }
   get isOrdered() { return this._isOrdered; }
 }
 export class ListItemNode extends ASTNode {
