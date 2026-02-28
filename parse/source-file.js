@@ -386,7 +386,13 @@ export class SourceFile {
     const tokens = /** @type {import('./scan0.js').ProvisionalToken[]} */ ([]);
     semantic({ input: this.text, startOffset: 0, endOffset: this.text.length })(tokens);
 
-    // Root context: parent arenaIndex 0.
+    // [HEADER, FIRST_CHILD, NEXT_SIBLING, PARENT, PREV_SIBLING, MATERIALIZED]
+    const NODE_STRIDE = 6;
+    // Pre-allocate arena size based on token count to avoid frequent resizing
+    // Each token will likely create one node. 6 slots per node.
+    this.arena = [0,0,0,0,0,0];
+    let arenaCursor = NODE_STRIDE;
+
     const rootState = { arenaIndex: 0, lastChildIdx: 0, startPos: 0 };
     const stack = [rootState];
     let pos = 0;
@@ -401,17 +407,47 @@ export class SourceFile {
 
         if ((flags & IsSafeReparsePoint) || (pos === 0)) {
             this.paragraphIndex.push(pos);
-            this.paragraphArenaIndices.push(this.arena.length);
+            this.paragraphArenaIndices.push(arenaCursor);
         }
 
         const parentState = stack[stack.length - 1];
 
         if (this._isOpenToken(kind)) {
-            const idx = this._pushNode(token, parentState);
-            this.arena[idx + NODE_MATERIALIZED] = len; // Marker width
+            const idx = arenaCursor;
+            arenaCursor += NODE_STRIDE;
+            // [HEADER, FIRST_CHILD, NEXT_SIBLING, PARENT, PREV_SIBLING, MATERIALIZED]
+            this.arena[idx + NODE_HEADER] = token;
+            this.arena[idx + NODE_FIRST_CHILD] = 0;
+            this.arena[idx + NODE_NEXT_SIBLING] = 0;
+            this.arena[idx + NODE_PARENT] = parentState.arenaIndex;
+            this.arena[idx + NODE_PREV_SIBLING] = parentState.lastChildIdx;
+            this.arena[idx + NODE_MATERIALIZED] = len;
+
+            if (parentState.lastChildIdx !== 0) {
+                this.arena[parentState.lastChildIdx + NODE_NEXT_SIBLING] = idx;
+            } else {
+                this.arena[parentState.arenaIndex + NODE_FIRST_CHILD] = idx;
+            }
+            parentState.lastChildIdx = idx;
+
             stack.push({ arenaIndex: idx, startPos: pos, lastChildIdx: 0 });
         } else if (this._isCloseToken(kind)) {
-            this._pushNode(token, parentState);
+            const idx = arenaCursor;
+            arenaCursor += NODE_STRIDE;
+            this.arena[idx + NODE_HEADER] = token;
+            this.arena[idx + NODE_FIRST_CHILD] = 0;
+            this.arena[idx + NODE_NEXT_SIBLING] = 0;
+            this.arena[idx + NODE_PARENT] = parentState.arenaIndex;
+            this.arena[idx + NODE_PREV_SIBLING] = parentState.lastChildIdx;
+            this.arena[idx + NODE_MATERIALIZED] = 0;
+
+            if (parentState.lastChildIdx !== 0) {
+                this.arena[parentState.lastChildIdx + NODE_NEXT_SIBLING] = idx;
+            } else {
+                this.arena[parentState.arenaIndex + NODE_FIRST_CHILD] = idx;
+            }
+            parentState.lastChildIdx = idx;
+
             const top = stack.length > 1 ? stack.pop() : null;
             if (top && top.arenaIndex !== 0) {
                 const totalWidth = (pos + len) - top.startPos;
@@ -421,18 +457,53 @@ export class SourceFile {
             // Special case: ATXHeading ends at NewLine if not closed by ATXHeadingClose.
             if (kind === NewLine && stack.length > 1) {
                 const top = stack[stack.length - 1];
-                const topHeader = this.getArenaHeader(top.arenaIndex);
+                const topHeader = (/** @type {number} */(this.arena[top.arenaIndex + NODE_HEADER]));
                 if (getTokenKind(topHeader) === ATXHeadingOpen) {
                     stack.pop();
                     this._updateNodeWidth(top.arenaIndex, pos - top.startPos);
-                    this._pushNode(token, stack[stack.length - 1]);
+                    
+                    const pState = stack[stack.length - 1];
+                    const idx = arenaCursor;
+                    arenaCursor += NODE_STRIDE;
+                    this.arena[idx + NODE_HEADER] = token;
+                    this.arena[idx + NODE_FIRST_CHILD] = 0;
+                    this.arena[idx + NODE_NEXT_SIBLING] = 0;
+                    this.arena[idx + NODE_PARENT] = pState.arenaIndex;
+                    this.arena[idx + NODE_PREV_SIBLING] = pState.lastChildIdx;
+                    this.arena[idx + NODE_MATERIALIZED] = 0;
+                    if (pState.lastChildIdx !== 0) {
+                        this.arena[pState.lastChildIdx + NODE_NEXT_SIBLING] = idx;
+                    } else {
+                        this.arena[pState.arenaIndex + NODE_FIRST_CHILD] = idx;
+                    }
+                    pState.lastChildIdx = idx;
+
                     pos += len;
                     continue;
                 }
             }
-            this._pushNode(token, stack[stack.length - 1]);
+            
+            const idx = arenaCursor;
+            arenaCursor += NODE_STRIDE;
+            this.arena[idx + NODE_HEADER] = token;
+            this.arena[idx + NODE_FIRST_CHILD] = 0;
+            this.arena[idx + NODE_NEXT_SIBLING] = 0;
+            this.arena[idx + NODE_PARENT] = parentState.arenaIndex;
+            this.arena[idx + NODE_PREV_SIBLING] = parentState.lastChildIdx;
+            this.arena[idx + NODE_MATERIALIZED] = 0;
+            if (parentState.lastChildIdx !== 0) {
+                this.arena[parentState.lastChildIdx + NODE_NEXT_SIBLING] = idx;
+            } else {
+                this.arena[parentState.arenaIndex + NODE_FIRST_CHILD] = idx;
+            }
+            parentState.lastChildIdx = idx;
         }
         pos += len;
+    }
+
+    // Trim arena if it was over-allocated
+    if (this.arena.length > arenaCursor) {
+        this.arena.length = arenaCursor;
     }
 
     // Close any remaining open nodes
@@ -443,32 +514,12 @@ export class SourceFile {
         }
     }
 
-    if (this.arena.length > NODE_STRIDE) {
+    if (arenaCursor > NODE_STRIDE) {
         if (this.paragraphIndex.length === 0 || this.paragraphIndex[0] !== 0) {
             this.paragraphIndex.unshift(0);
             this.paragraphArenaIndices.unshift(NODE_STRIDE);
         }
     }
-  }
-
-  /**
-   * @param {number} token
-   * @param {{ arenaIndex: number, lastChildIdx: number }} parent
-   * @returns {number}
-   * @private
-   */
-  _pushNode(token, parent) {
-    const idx = this.arena.length;
-    // [HEADER, FIRST_CHILD, NEXT_SIBLING, PARENT, PREV_SIBLING, MATERIALIZED]
-    this.arena.push(token, 0, 0, parent.arenaIndex, parent.lastChildIdx, null);
-    
-    if (parent.lastChildIdx !== 0) {
-      this.arena[parent.lastChildIdx + NODE_NEXT_SIBLING] = idx;
-    } else {
-      this.arena[parent.arenaIndex + NODE_FIRST_CHILD] = idx;
-    }
-    parent.lastChildIdx = idx;
-    return idx;
   }
 
   /**
