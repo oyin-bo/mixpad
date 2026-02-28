@@ -1,43 +1,45 @@
 # Text Coalescing
 
-The semantic scanner merges adjacent InlineText tokens produced by scan0.
-In practice scan0 is already aggressive about merging, so coalescing is
-a safety net for edge cases produced by delimiter demotion.
+In the semantic scanner, adjacent fragment tokens that result in text
+should be coalesced into single InlineText tokens. This includes
+original InlineText tokens, and demoted delimiters.
 
-## Simple pass-through text
-
-Plain text with no delimiters passes straight through.
+## Basic word coalescing
 
 Hello world
 1
 @1 InlineText "Hello world"
 
-Text with entity â€” entity stays as EntityNamed, surrounding text coalesces.
+<--EOF
+
+## Entities stay separate
+
+Text with entity — entity remains as its original EntityNamed/EntityNumeric kind,
+preventing merging across entity boundaries. Surrounding text fragments
+between entities should still coalesce.
 
 Some text &amp; more
-1         2     3
+1         2    3
 @1 InlineText "Some text"
 @2 EntityNamed "&amp;"
-@3 InlineText "more"
+@3 Whitespace " "
+@4 InlineText "more"
 
 ## Delimiter demotion coalesces with neighbours
 
-An unmatched lone asterisk surrounded by text is demoted to InlineText
-and merged with adjacent text tokens.
-
-text*more
+text * more
 1
-@1 InlineText "text*more"
+@1 InlineText "text * more"
 
-A space-flanked asterisk is already demoted by scan0 to inline text.
+## Multiple spaces remain separate
 
-word * word
-1
-@1 InlineText "word * word"
+word   word
+1   2
+@1 InlineText "word"
+@2 Whitespace "   "
+@3 InlineText "word"
 
-## Whitespace tokens pass through unchanged
-
-A line with leading whitespace.
+## Whitespace at start of line remains separate
 
  indented
 12

@@ -43,11 +43,13 @@ __strong__
 ## Nested emphasis
 
 *em **and strong** here*
-1   2           3      4
+12  3 4            5   6
 @1 EmphasisOpen "*"
-@2 StrongOpen "**"
-@3 StrongClose "**"
-@4 EmphasisClose "*"
+@2 InlineText "em"
+@3 StrongOpen "**"
+@4 InlineText "and strong"
+@5 InlineText "here"
+@6 EmphasisClose "*"
 
 ## Mixed: emphasis inside a sentence
 
@@ -77,7 +79,7 @@ unclosed*
 
 <--EOF
 
-## Underscore intraword â€” scan0 already demotes
+## Underscore intraword — scan0 already demotes
 
 Underscore inside an alphanumeric word is demoted by scan0, so the
 semantic layer receives a plain InlineText and passes it through unchanged.

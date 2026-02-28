@@ -10,13 +10,16 @@ import {
   StrikethroughClose, StrikethroughOpen,
   StrongClose, StrongOpen,
   TildeDelimiter,
-  UnderscoreDelimiter
+  UnderscoreDelimiter,
+  NewLine, FencedOpen, ThematicBreak,
+  LinkOpen, LinkClose, LinkDestOpen, LinkDestClose, ImageMarker,
+  EntityNamed, EntityDecimal, EntityHex, Whitespace
 } from './scan-tokens.js';
 
 /** @typedef {import('./scan0.js').ProvisionalToken} ProvisionalToken */
 
 /**
- * Module-level growing buffers ÔÇö zero-allocation reuse.
+ * Module-level growing buffers � zero-allocation reuse.
  * Set of Arrays (SoA) for delimiters and match events.
  */
 
@@ -44,15 +47,23 @@ const matchUsedLen = [];       // 1 or 2
 /** @type {number[]} */
 const openerStackDi = [];      // index in delims* arrays
 
+// Link and Image matching
+/** @type {number[]} */
+const linkOpenerStack = [];
+/** @type {number[]} */
+const linkMatchesObjStr = []; // Stores 4 integers per match: start(open), end(close), destOpen, destClose
+/** @type {boolean[]} */
+const isMatchedLinkToken = [];
+
 // Buffer for provisional tokens
 /** @type {ProvisionalToken[]} */
 const provisionalBuf = [];
 
 /**
- * Semantic scanner: processes provisional tokens from `scan0` into resolved semantic tokens.
+ * Semantic scanner: processes provisional tokens from scan0 into resolved semantic tokens.
  *
  * Zero-allocation: uses module-level growing buffers; no string materialization.
- * Implements CommonMark emphasis matching with SoA architecture.
+ * Implements CommonMark emphasis matching and chunk-level invalidation.
  *
  * @param {{
  *  input: string,
@@ -66,33 +77,61 @@ export function semantic({ input, startOffset, endOffset }) {
 
   /** @param {ProvisionalToken[]} output */
   function scan(output) {
-    // Phase 0: Collect all provisional tokens
-    provisionalBuf.length = 0;
     let pos = startOffset;
+    
     while (pos < endOffset) {
-      const prevLen = provisionalBuf.length;
-      const count = scan0({ input, startOffset: pos, endOffset, output: provisionalBuf });
-      if (count === 0) {
-        // Just in case scan0 gets stuck or returns 0 improperly
-        pos++;
-        continue;
-      }
-      // scan0 returns the number of tokens ADDED to provisionalBuf, not the total length
-      // but the while loop should advance pos by the length of tokens added.
-      let addedLen = 0;
-      for (let i = prevLen; i < provisionalBuf.length; i++) {
-        addedLen += getTokenLength(provisionalBuf[i]);
-      }
-      pos += addedLen;
-      if (addedLen === 0) pos++; // failsafe
-    }
+      provisionalBuf.length = 0;
+      let chunkEndFound = false;
+      const chunkStartOffset = pos;
 
-    // Phase 1: Identify delimiters and compute flanking
+      // Phase 0: Collect a single chunk (paragraph, fence, etc)
+      while (pos < endOffset) {
+        const prevLen = provisionalBuf.length;
+        const count = scan0({ input, startOffset: pos, endOffset, output: provisionalBuf });
+        
+        if (count === 0) {
+          pos++;
+          continue;
+        }
+
+        let addedLen = 0;
+        for (let i = prevLen; i < provisionalBuf.length; i++) {
+          const tok = provisionalBuf[i];
+          const kind = getTokenKind(tok);
+          addedLen += getTokenLength(tok);
+
+          if (kind === NewLine && i > 0 && getTokenKind(provisionalBuf[i-1]) === NewLine) {
+             chunkEndFound = true;
+          } else if (kind === FencedOpen || kind === ThematicBreak) {
+             chunkEndFound = true;
+          }
+        }
+        
+        pos += addedLen;
+        if (addedLen === 0) pos++; // failsafe
+
+        if (chunkEndFound) {
+          break;
+        }
+      }
+
+      if (provisionalBuf.length > 0) {
+        processChunk(output, chunkStartOffset);
+      }
+    }
+  }
+
+  /**
+   * @param {number[]} output
+   * @param {number} chunkStartOffset
+   */
+  function processChunk(output, chunkStartOffset) {
+    // Phase 1: Identify delimiters and compute flanking for emphasis
     delimsData.length = 0;
     delimsProvIdx.length = 0;
     delimsRemaining.length = 0;
 
-    let inputPos = startOffset;
+    let inputPos = chunkStartOffset;
     for (let i = 0; i < provisionalBuf.length; i++) {
       const tok = provisionalBuf[i];
       const kind = getTokenKind(tok);
@@ -123,7 +162,7 @@ export function semantic({ input, startOffset, endOffset }) {
       inputPos += len;
     }
 
-    // Phase 2: Stack-based matching (mod-3 rule)
+    // Phase 2: Stack-based matching for emphasis (mod-3 rule)
     matchOpenerDi.length = 0;
     matchCloserDi.length = 0;
     matchUsedLen.length = 0;
@@ -138,7 +177,6 @@ export function semantic({ input, startOffset, endOffset }) {
           const odi = openerStackDi[si];
           const odata = delimsData[odi];
           if ((odata & DelimKindMask) === kind && (odata & DelimCanOpen)) {
-            // CommonMark mod-3 rule
             const opLen = getTokenLength(provisionalBuf[delimsProvIdx[odi]]);
             const clLen = getTokenLength(provisionalBuf[delimsProvIdx[di]]);
             if ((opLen + clLen) % 3 === 0 && opLen % 3 !== 0 && clLen % 3 !== 0) {
@@ -159,8 +197,6 @@ export function semantic({ input, startOffset, endOffset }) {
             if (delimsRemaining[odi] === 0) {
               openerStackDi.splice(si, 1);
             }
-            // If we found a match, we might have more chars to match for this closer,
-            // but the stack has changed. CM says to keep looking with the same closer.
             si = openerStackDi.length - 1;
           } else {
             si--;
@@ -172,18 +208,110 @@ export function semantic({ input, startOffset, endOffset }) {
       }
     }
 
-    // Phase 3: Emission
+    // Phase 2.5: Link and Image pairing
+    linkOpenerStack.length = 0;
+    linkMatchesObjStr.length = 0;
+    isMatchedLinkToken.length = provisionalBuf.length;
+    isMatchedLinkToken.fill(false);
+
+    for (let i = 0; i < provisionalBuf.length; i++) {
+      const kind = getTokenKind(provisionalBuf[i]);
+      if (kind === LinkOpen) {
+        linkOpenerStack.push(i);
+      } else if (kind === LinkClose) {
+        if (linkOpenerStack.length > 0) {
+          const openIdx = linkOpenerStack.pop();
+          
+          let hasDest = false;
+          let destOpenIdx = -1;
+          let destCloseIdx = -1;
+          
+          if (i + 1 < provisionalBuf.length && getTokenKind(provisionalBuf[i+1]) === LinkDestOpen) {
+            destOpenIdx = i + 1;
+            for(let j = destOpenIdx + 1; j < provisionalBuf.length; j++) {
+              if (getTokenKind(provisionalBuf[j]) === LinkDestClose) {
+                destCloseIdx = j;
+                hasDest = true;
+                break;
+              } else if (getTokenKind(provisionalBuf[j]) === NewLine) {
+                break;
+              }
+            }
+          }
+
+          if (hasDest) {
+            linkMatchesObjStr.push(openIdx, i, destOpenIdx, destCloseIdx);
+          }
+        }
+      }
+    }
+
+    // Process link matches. Outermost first.
+    /** @type {boolean[]} */
+    const isContained = new Array(linkMatchesObjStr.length / 4).fill(false);
+    for (let m1 = 0; m1 < linkMatchesObjStr.length; m1 += 4) {
+      const start1 = linkMatchesObjStr[m1];
+      const end1 = linkMatchesObjStr[m1 + 3];
+      for (let m2 = 0; m2 < linkMatchesObjStr.length; m2 += 4) {
+        if (m1 !== m2) {
+          const start2 = linkMatchesObjStr[m2];
+          const end2 = linkMatchesObjStr[m2 + 3];
+          if (start1 <= start2 && end1 >= end2) {
+            isContained[m2 / 4] = true;
+          }
+        }
+      }
+    }
+
+    // Mark valid tokens
+    for (let m = 0; m < linkMatchesObjStr.length; m += 4) {
+      if (!isContained[m / 4]) {
+        const startIdx = linkMatchesObjStr[m];
+        const closeIdx = linkMatchesObjStr[m+1];
+        const destOpenIdx = linkMatchesObjStr[m+2];
+        const destCloseIdx = linkMatchesObjStr[m+3];
+        isMatchedLinkToken[startIdx] = true;
+        isMatchedLinkToken[closeIdx] = true;
+        isMatchedLinkToken[destOpenIdx] = true;
+        isMatchedLinkToken[destCloseIdx] = true;
+        if (startIdx > 0 && getTokenKind(provisionalBuf[startIdx - 1]) === ImageMarker) {
+          isMatchedLinkToken[startIdx - 1] = true;
+        }
+      }
+    }
+
+    // Phase 3: Emission and Coalescing
     let nextDiIdx = 0;
     for (let i = 0; i < provisionalBuf.length; i++) {
       const tok = provisionalBuf[i];
+      const kind = getTokenKind(tok);
+      const len = getTokenLength(tok);
+      const flags = getTokenFlags(tok);
+
       if (nextDiIdx < delimsProvIdx.length && delimsProvIdx[nextDiIdx] === i) {
         const di = nextDiIdx++;
         emitDelimiterTokens(di, output);
       } else {
-        const kind = getTokenKind(tok);
-        const len = getTokenLength(tok);
-        const flags = getTokenFlags(tok);
-        if (kind === InlineText) {
+        const isDemotedLinkToken = (
+          (kind === LinkOpen || kind === LinkClose || kind === LinkDestOpen || kind === LinkDestClose || kind === ImageMarker) 
+          && !isMatchedLinkToken[i]
+        );
+
+        if (kind === InlineText || isDemotedLinkToken) {
+          // Retroactive merging of single whitespace, matching scan0 logic in scan-inline-text.js
+          if (output.length > 1 && kind === InlineText && len === 1) {
+            const last = output[output.length - 1];
+            const lastKind = getTokenKind(last);
+            const lastLen = getTokenLength(last);
+            const prev = output[output.length - 2];
+            const prevKind = getTokenKind(prev);
+            
+            if (lastKind === Whitespace && prevKind === InlineText && lastLen === 1) {
+              output[output.length - 2] += 2; // Increment length of InlineText
+              output.pop(); // Remove Whitespace
+              // Existing pushInlineText will then append to this merged InlineText
+            }
+          }
           pushInlineText(output, len, flags);
         } else {
           output.push(tok);
@@ -205,7 +333,7 @@ function emitDelimiterTokens(di, output) {
   const kind = data & DelimKindMask;
   let currentFlags = data;
 
-  // 1. Close events (inner-first, chronological)
+  // 1. Close events
   for (let mi = 0; mi < matchOpenerDi.length; mi++) {
     if (matchCloserDi[mi] === di) {
       const ul = matchUsedLen[mi];
@@ -221,7 +349,7 @@ function emitDelimiterTokens(di, output) {
     currentFlags &= ~IsSafeReparsePoint;
   }
 
-  // 3. Open events (outer-first, reverse chronological)
+  // 3. Open events
   openerIndicesBuf.length = 0;
   for (let mi = 0; mi < matchOpenerDi.length; mi++) {
     if (matchOpenerDi[mi] === di) openerIndicesBuf.push(mi);
