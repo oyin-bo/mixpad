@@ -105,6 +105,48 @@ export class ASTBuilder {
   }
 
   /**
+   * Check whether any token on the current line (up to the next NewLine) is a TablePipe.
+   * @param {ProvisionalToken[]} tokens
+   * @param {number} fromTIdx
+   * @returns {boolean}
+   */
+  _lineHasPipe(tokens, fromTIdx) {
+    for (let i = fromTIdx; i < tokens.length; i++) {
+      const k = getTokenKind(tokens[i]);
+      if (k === Tokens.NewLine) break;
+      if (k === Tokens.TablePipe) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Check if the line starting at fromTIdx (which may begin with non-pipe content)
+   * contains a TablePipe and is followed by a valid delimiter row.
+   * Used to detect GFM tables that have no leading pipe on the header row.
+   * @param {ProvisionalToken[]} tokens
+   * @param {number} fromTIdx
+   * @param {number} fromPos
+   * @returns {boolean}
+   */
+  _currentLineIsTableHeader(tokens, fromTIdx, fromPos) {
+    let pos = fromPos;
+    let hasPipe = false;
+    let newLineTIdx = -1;
+    let newLinePos = pos;
+    for (let i = fromTIdx; i < tokens.length; i++) {
+      const k = getTokenKind(tokens[i]);
+      const l = getTokenLength(tokens[i]);
+      if (k === Tokens.NewLine) { newLineTIdx = i; newLinePos = pos; break; }
+      if (k === Tokens.TablePipe) hasPipe = true;
+      pos += l;
+    }
+    if (!hasPipe || newLineTIdx === -1) return false;
+    const nextLineTIdx = newLineTIdx + 1;
+    const nextLinePos = newLinePos + getTokenLength(tokens[newLineTIdx]);
+    return nextLineTIdx < tokens.length && this._isDelimiterLine(tokens, nextLineTIdx, nextLinePos);
+  }
+
+  /**
    * Check if the token sequence from fromTIdx to the next NewLine is a valid
    * GFM table delimiter row (cells containing only :?-{3,}:? with optional whitespace).
    * @param {ProvisionalToken[]} tokens
@@ -134,6 +176,19 @@ export class ASTBuilder {
       pos += l;
     }
     return hasPipe && cellCount > 0;
+  }
+
+  /**
+   * Trim trailing whitespace from a TableCell's last Text child.
+   * @param {TableCellNode} cell
+   */
+  _trimCellTrailingWhitespace(cell) {
+    if (!cell.children || cell.children.length === 0) return;
+    const last = cell.children[cell.children.length - 1];
+    if (last.type !== NodeTypes.Text) return;
+    const trimmedLen = this.context.sourceText.substring(last.start, last.end).trimEnd().length;
+    if (trimmedLen === 0) cell.children.pop();
+    else last.end = last.start + trimmedLen;
   }
 
   /**
@@ -188,26 +243,46 @@ export class ASTBuilder {
 
         // Table row/cell closing
         if (activeBlock.type === NodeTypes.TableCell) {
+          this._trimCellTrailingWhitespace(activeBlock);
           this.blockStack.pop();
           activeBlock = this._getActiveBlock();
         }
         if (activeBlock.type === NodeTypes.TableRow) {
+          const closedRow = activeBlock;
           this.blockStack.pop();
           activeBlock = this._getActiveBlock();
           if (inTableHeader) {
             inTableHeader = false;
-            // Fast-forward through the delimiter row tokens
+            // Fast-forward through the delimiter row tokens, collecting alignment info
             pos = nextPos;
             tIdx++;
+            const alignments = [];
+            let curAlign = null;
             while (tIdx < tokens.length) {
               const delimKind = getTokenKind(tokens[tIdx]);
-              pos += getTokenLength(tokens[tIdx]);
+              const delimLen = getTokenLength(tokens[tIdx]);
+              const delimPos = pos;
+              pos += delimLen;
               if (delimKind === Tokens.NewLine) break;
+              if (delimKind === Tokens.TablePipe) {
+                if (curAlign !== null) { alignments.push(curAlign); curAlign = null; }
+              } else if (delimKind === Tokens.InlineText) {
+                const txt = this.context.sourceText.substring(delimPos, delimPos + delimLen).trim();
+                const hasLeft = txt.startsWith(':');
+                const hasRight = txt.endsWith(':');
+                curAlign = hasLeft && hasRight ? 'center' : hasLeft ? 'left' : hasRight ? 'right' : null;
+              }
               tIdx++;
             }
+            if (curAlign !== null) alignments.push(curAlign);
+            // Apply alignments to header cells (skip leading empty slots from leading pipe)
+            const headerCells = (closedRow.children || []).filter(n => n.type === NodeTypes.TableCell);
+            headerCells.forEach((cell, i) => {
+              if (alignments[i] !== null && alignments[i] !== undefined) cell.align = alignments[i];
+            });
             // Check if the next line continues the table
             const peekTIdx = tIdx + 1;
-            if (peekTIdx >= tokens.length || getTokenKind(tokens[peekTIdx]) !== Tokens.TablePipe) {
+            if (peekTIdx >= tokens.length || !this._lineHasPipe(tokens, peekTIdx)) {
               if (this._getActiveBlock().type === NodeTypes.Table) this.blockStack.pop();
             }
             this._extendAncestors(pos);
@@ -215,7 +290,7 @@ export class ASTBuilder {
           } else {
             // Finished a data row — check if the next line continues the table
             const peekTIdx = tIdx + 1;
-            if (peekTIdx >= tokens.length || getTokenKind(tokens[peekTIdx]) !== Tokens.TablePipe) {
+            if (peekTIdx >= tokens.length || !this._lineHasPipe(tokens, peekTIdx)) {
               if (this._getActiveBlock().type === NodeTypes.Table) this.blockStack.pop();
             }
             this._extendAncestors(nextPos);
@@ -394,8 +469,9 @@ export class ASTBuilder {
         continue;
 
       } else if (kind === Tokens.TablePipe) {
-        // Close any open cell first
+        // Close any open cell first, trimming trailing whitespace
         if (activeBlock.type === NodeTypes.TableCell) {
+          this._trimCellTrailingWhitespace(activeBlock);
           this.blockStack.pop();
           activeBlock = this._getActiveBlock();
         }
@@ -473,9 +549,24 @@ export class ASTBuilder {
         if (activeBlock.type === NodeTypes.Paragraph) this.blockStack.pop();
         this._pushBlock(new FencedCodeBlockNode(this.context, pos));
         activeBlock = this._getActiveBlock();
-      } else if (kind !== Tokens.NewLine && (activeBlock.type === NodeTypes.Document || activeBlock.type === NodeTypes.Blockquote)) {
-        // Need paragraph if currently at Document or inside a Blockquote with no open paragraph.
-        this._pushBlock(new ParagraphNode(this.context, pos));
+      } else if (kind !== Tokens.NewLine && (activeBlock.type === NodeTypes.Document || activeBlock.type === NodeTypes.Blockquote || (activeBlock.type === NodeTypes.Table && kind !== Tokens.Whitespace))) {
+        if (activeBlock.type === NodeTypes.Table) {
+          // No-leading-pipe data row: start a new TableRow
+          const row = new TableRowNode(this.context, pos);
+          this._pushBlock(row);
+        } else if (this._currentLineIsTableHeader(tokens, tIdx, pos)) {
+          // No-leading-pipe table header: line contains pipes and next line is a delimiter row
+          const tableNode = new TableNode(this.context, pos);
+          this._pushBlock(tableNode);
+          const headerRow = new TableRowNode(this.context, pos);
+          // @ts-ignore
+          headerRow.isHeader = true;
+          this._pushBlock(headerRow);
+          inTableHeader = true;
+        } else {
+          // Need paragraph if currently at Document or inside a Blockquote with no open paragraph.
+          this._pushBlock(new ParagraphNode(this.context, pos));
+        }
         activeBlock = this._getActiveBlock();
       }
 

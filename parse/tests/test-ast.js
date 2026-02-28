@@ -248,3 +248,42 @@ test('AST Builder: Table - Followed by paragraph', () => {
     assert.ok(para, 'Should have a trailing Paragraph');
     assert.ok(para.text.includes('After'));
 });
+
+test('AST Builder: Table - No leading pipe', () => {
+  const doc = parse('a | b\n---|---\n1 | 2\n');
+  assert.strictEqual(doc.children.length, 1, 'Should produce one Table, not a Paragraph+Table mix');
+  const table = doc.children[0];
+  assert.strictEqual(table.type, NodeTypes.Table, 'Root child should be Table');
+  const rows = table.children.filter(n => n.type === NodeTypes.TableRow);
+  assert.strictEqual(rows.length, 2, 'Should have header and data row');
+  assert.ok(rows[0].isHeader, 'First row is header');
+  const hCells = rows[0].children.filter(n => n.type === NodeTypes.TableCell);
+  assert.strictEqual(hCells[0].text.trim(), 'a', 'Header cell 0');
+  assert.strictEqual(hCells[1].text.trim(), 'b', 'Header cell 1');
+  const dCells = rows[1].children.filter(n => n.type === NodeTypes.TableCell);
+  assert.strictEqual(dCells[0].text.trim(), '1', 'Data cell 0');
+  assert.strictEqual(dCells[1].text.trim(), '2', 'Data cell 1');
+});
+
+test('AST Builder: Table - Cell trailing whitespace trimmed', () => {
+  const doc = parse('| spaces  |\n|---|\n| val  |\n');
+  const table = doc.children.find(n => n.type === NodeTypes.Table);
+  assert.ok(table, 'Table should exist');
+  const headerCell = table.children[0].children.find(n => n.type === NodeTypes.TableCell);
+  assert.strictEqual(headerCell.text, 'spaces', 'Header cell text should be trimmed');
+  const dataCell = table.children[1].children.find(n => n.type === NodeTypes.TableCell);
+  assert.strictEqual(dataCell.text, 'val', 'Data cell text should be trimmed');
+});
+
+test('AST Builder: Table - Column alignment stored on header cells', () => {
+  const doc = parse('| L | C | R | D |\n|:---|:---:|---:|---|\n| a | b | c | d |\n');
+  const table = doc.children.find(n => n.type === NodeTypes.Table);
+  assert.ok(table, 'Table should exist');
+  const headerCells = table.children[0].children.filter(n => n.type === NodeTypes.TableCell);
+  assert.strictEqual(headerCells.length, 4, 'Should have 4 header cells');
+  assert.strictEqual(headerCells[0].align, 'left', 'First column: left');
+  assert.strictEqual(headerCells[1].align, 'center', 'Second column: center');
+  assert.strictEqual(headerCells[2].align, 'right', 'Third column: right');
+  assert.strictEqual(headerCells[3].align, undefined, 'Fourth column: no alignment');
+});
+
