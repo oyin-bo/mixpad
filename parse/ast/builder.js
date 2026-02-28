@@ -1,18 +1,38 @@
 // @ts-check
 
-import { getTokenKind, getTokenLength, getHeadingDepth } from '../scan-core.js';
-import * as Tokens from '../scan-tokens.js';
+import { getHeadingDepth, getTokenKind, getTokenLength } from '../scan-core.js';
 import { isVoidElement } from '../scan-html-tag.js';
-import { ParseContext } from './parser.js';
-import {
-  DocumentNode, ParagraphNode, HeadingNode, BlockquoteNode,
-  ListNode, ListItemNode, FencedCodeBlockNode, ThematicBreakNode,
-  TableNode, TableRowNode, TableCellNode, FrontmatterNode, FormulaBlockNode,
-  TextNode, EmphasisNode, StrongNode, StrikethroughNode, LinkNode, ImageNode,
-  InlineCodeNode, AutolinkNode, HtmlCommentNode, HtmlCDataNode,
-  HtmlDocTypeNode, XmlProcessingInstructionNode, InlineFormulaNode, HtmlElementNode
-} from './nodes.js';
+import * as Tokens from '../scan-tokens.js';
 import * as NodeTypes from './node-types.js';
+import {
+  AutolinkNode,
+  BlockquoteNode,
+  DocumentNode,
+  EmphasisNode,
+  FencedCodeBlockNode,
+  FormulaBlockNode,
+  FrontmatterNode,
+  HeadingNode,
+  HtmlCDataNode,
+  HtmlCommentNode,
+  HtmlDocTypeNode,
+  HtmlElementNode,
+  ImageNode,
+  InlineCodeNode,
+  InlineFormulaNode,
+  LinkNode,
+  ListItemNode,
+  ListNode,
+  ParagraphNode,
+  StrikethroughNode,
+  StrongNode,
+  TableCellNode,
+  TableNode, TableRowNode,
+  TextNode,
+  ThematicBreakNode,
+  XmlProcessingInstructionNode
+} from './nodes.js';
+import { ParseContext } from './parser.js';
 
 /** @typedef {import('../scan0.js').ProvisionalToken} ProvisionalToken */
 /** @typedef {import('./node.js').ASTNode} ASTNode */
@@ -103,7 +123,11 @@ export class ASTBuilder {
     // Phase 3 & 4: Inner Container Initiation and Resolution
     // (Deferred mostly to Inline Stream looping as we scan multiple kinds of blocks within single chunk stream)
 
-    // Phase 5: Inline Stream Processing
+    // Tracks how many BlockquoteMarker tokens have been seen on the current logical line.
+    // Resets to 0 on every NewLine token.
+    let lineQuoteDepth = 0;
+
+    // Inline Stream Processing
     for (; tIdx < tokens.length; tIdx++) {
       const token = tokens[tIdx];
       const kind = getTokenKind(token);
@@ -114,6 +138,7 @@ export class ASTBuilder {
 
       // Structural Break Introspection inside Stream
       if (kind === Tokens.NewLine) {
+        lineQuoteDepth = 0;
         if (activeBlock.type === NodeTypes.Heading) {
           this.blockStack.pop();
         }
@@ -128,151 +153,160 @@ export class ASTBuilder {
       // Whitespace
       // If leading whitespace before a block marker, we need to handle specific logic?
       // For now, treat indentation as purely visual/textual unless it triggers a block change (which requires indentation awareness)
-      
+
       if (kind === Tokens.BulletListMarker || kind === Tokens.OrderedListMarker || kind === Tokens.TaskListMarker) {
-         if (activeBlock.type === NodeTypes.Paragraph) this.blockStack.pop();
-         activeBlock = this._getActiveBlock();
+        if (activeBlock.type === NodeTypes.Paragraph) this.blockStack.pop();
+        activeBlock = this._getActiveBlock();
 
-         // duplicate variable remove
-         // const isOrdered = (kind === Tokens.OrderedListMarker || kind === Tokens.OrderedListMarker); 
-         // The token check above for isOrdered handles OrderedListMarker specifically.
-         const isOrderedList = (kind === Tokens.OrderedListMarker);
+        // duplicate variable remove
+        // const isOrdered = (kind === Tokens.OrderedListMarker || kind === Tokens.OrderedListMarker); 
+        // The token check above for isOrdered handles OrderedListMarker specifically.
+        const isOrderedList = (kind === Tokens.OrderedListMarker);
 
-         // 1. Calculate Indentation
-         let currentIndent = 0;
-         if (tIdx > 0 && getTokenKind(tokens[tIdx - 1]) === Tokens.Whitespace) {
-             currentIndent = getTokenLength(tokens[tIdx - 1]);
-         }
+        // 1. Calculate Indentation
+        let currentIndent = 0;
+        if (tIdx > 0 && getTokenKind(tokens[tIdx - 1]) === Tokens.Whitespace) {
+          currentIndent = getTokenLength(tokens[tIdx - 1]);
+        }
 
-         // 2. Resolve Nesting Layout
-         // We might be deep in a stack of Lists/ListItems. We need to find the correct level.
-         // CommonMark: A list item can contain a sublist.
-         // If indent > current List indent, we start a new List inside the current Item.
-         // If indent < current List indent, we pop Lists until we find the matching level.
+        // 2. Resolve Nesting Layout
+        // We might be deep in a stack of Lists/ListItems. We need to find the correct level.
+        // CommonMark: A list item can contain a sublist.
+        // If indent > current List indent, we start a new List inside the current Item.
+        // If indent < current List indent, we pop Lists until we find the matching level.
 
-         // Helper: Find the deepest List or Item
-         // If we are in a ListItem, the relevant List is the parent.
+        // Helper: Find the deepest List or Item
+        // If we are in a ListItem, the relevant List is the parent.
 
-         let listNode = activeBlock;
+        let listNode = activeBlock;
 
-         // If we are at a ListItem, check if we should dedent, indent, or stay
-         if (listNode.type === NodeTypes.ListItem) {
-             const parentList = this.blockStack[this.blockStack.length - 2]; 
-             // @ts-ignore
-             const parentIndent = parentList.indent || 0;
+        // If we are at a ListItem, check if we should dedent, indent, or stay
+        if (listNode.type === NodeTypes.ListItem) {
+          const parentList = this.blockStack[this.blockStack.length - 2];
+          // @ts-ignore
+          const parentIndent = parentList.indent || 0;
 
-             if (currentIndent > parentIndent) {
-                 // Indent: Start NEW nested list INSIDE this item
-                 // We do NOT pop the item. We push a new List.
-                 const newList = new ListNode(this.context, pos, isOrderedList, currentIndent);
-                 this._pushBlock(newList);
+          if (currentIndent > parentIndent) {
+            // Indent: Start NEW nested list INSIDE this item
+            // We do NOT pop the item. We push a new List.
+            const newList = new ListNode(this.context, pos, isOrderedList, currentIndent);
+            this._pushBlock(newList);
 
-                 // Immediately add the item
-                 const newItem = new ListItemNode(this.context, pos, 0);
-                 this._pushBlock(newItem);
+            // Immediately add the item
+            const newItem = new ListItemNode(this.context, pos, 0);
+            this._pushBlock(newItem);
 
-                 this._extendAncestors(nextPos);
-                 pos = nextPos;
-                 continue;
-             } else if (currentIndent < parentIndent) {
-                 // Dedent: We are too deep. Pop until we find a matching indent or root.
+            this._extendAncestors(nextPos);
+            pos = nextPos;
+            continue;
+          } else if (currentIndent < parentIndent) {
+            // Dedent: We are too deep. Pop until we find a matching indent or root.
 
-                 // Pop current Item and current List
-                 this.blockStack.pop(); // Item
-                 // Now at List. We check if we need to pop it too.
-                 // Actually, we need to loop.
+            // Pop current Item and current List
+            this.blockStack.pop(); // Item
+            // Now at List. We check if we need to pop it too.
+            // Actually, we need to loop.
 
-                 while (this.blockStack.length > 0) {
-                     const top = this._getActiveBlock();
-                     if (top.type === NodeTypes.List) {
-                         // @ts-ignore
-                         if (top.indent > currentIndent) {
-                             this.blockStack.pop(); // Pop List
-                             // If we pop a List, we are likely in a ListItem of the parent list.
-                             if (this._getActiveBlock().type === NodeTypes.ListItem) {
-                                 this.blockStack.pop(); // Pop that Item too to be ready for sibling?
-                                 // Wait, if we are dedenting to a sibling of the parent Item, 
-                                 // we expect to find a List at the target indent.
-                             }
-                         } else {
-                             break;
-                         }
-                     } else if (top.type === NodeTypes.ListItem) {
-                          // If we hit an item, we usually want to check ITS list
-                          this.blockStack.pop();
-                     } else {
-                         break;
-                     }
-                 }
-                 // Reset activeBlock after popping
-                 activeBlock = this._getActiveBlock();
-             } else {
-                 // Same Indent: Sibling Item.
-                 this.blockStack.pop(); // Close previous Item
-                 activeBlock = this._getActiveBlock(); // Now at List
-             }
-         }
+            while (this.blockStack.length > 0) {
+              const top = this._getActiveBlock();
+              if (top.type === NodeTypes.List) {
+                // @ts-ignore
+                if (top.indent > currentIndent) {
+                  this.blockStack.pop(); // Pop List
+                  // If we pop a List, we are likely in a ListItem of the parent list.
+                  if (this._getActiveBlock().type === NodeTypes.ListItem) {
+                    this.blockStack.pop(); // Pop that Item too to be ready for sibling?
+                    // Wait, if we are dedenting to a sibling of the parent Item, 
+                    // we expect to find a List at the target indent.
+                  }
+                } else {
+                  break;
+                }
+              } else if (top.type === NodeTypes.ListItem) {
+                // If we hit an item, we usually want to check ITS list
+                this.blockStack.pop();
+              } else {
+                break;
+              }
+            }
+            // Reset activeBlock after popping
+            activeBlock = this._getActiveBlock();
+          } else {
+            // Same Indent: Sibling Item.
+            this.blockStack.pop(); // Close previous Item
+            activeBlock = this._getActiveBlock(); // Now at List
+          }
+        }
 
-         // At this point, activeBlock should be a List (if we found a match) or something else (if we need to start a new root list)
+        // At this point, activeBlock should be a List (if we found a match) or something else (if we need to start a new root list)
 
-         if (activeBlock.type !== NodeTypes.List) {
-             // Start new root list
-             const list = new ListNode(this.context, pos, isOrderedList, currentIndent);
-             this._pushBlock(list);
-             activeBlock = list;
-         } else {
-             // We are at a List. Check compatibility (Indent is guaranteed <= by loop above, but if <, we created new list above?)
-             // Refine: comparison above handles dedent. 
-             // What if indent is distinct but close? For now, exact match or treat as new?
-             // CommonMark is fuzzy. Let's assume strict indent match for same list.
+        if (activeBlock.type !== NodeTypes.List) {
+          // Start new root list
+          const list = new ListNode(this.context, pos, isOrderedList, currentIndent);
+          this._pushBlock(list);
+          activeBlock = list;
+        } else {
+          // We are at a List. Check compatibility (Indent is guaranteed <= by loop above, but if <, we created new list above?)
+          // Refine: comparison above handles dedent. 
+          // What if indent is distinct but close? For now, exact match or treat as new?
+          // CommonMark is fuzzy. Let's assume strict indent match for same list.
 
-             // @ts-ignore
-             if (activeBlock.indent !== currentIndent) {
-                  // Mismatch indent but didn't pop earlier? logic gap or simply start new list?
-                  // If we are here, it means indent > active (nested?) or we failed to pop.
-                  // If indent > active, we should have handled it in "Indent" block above IF we were in an item.
-                  // If we are at a List directly (no open item?), then we just add item?
-                  // NOTE: A List without open Item is rare unless just created.
+          // @ts-ignore
+          if (activeBlock.indent !== currentIndent) {
+            // Mismatch indent but didn't pop earlier? logic gap or simply start new list?
+            // If we are here, it means indent > active (nested?) or we failed to pop.
+            // If indent > active, we should have handled it in "Indent" block above IF we were in an item.
+            // If we are at a List directly (no open item?), then we just add item?
+            // NOTE: A List without open Item is rare unless just created.
 
-                  // Simple fallback: If list type mismatch, pop and new.
-             }
+            // Simple fallback: If list type mismatch, pop and new.
+          }
 
-             // @ts-ignore
-             if (activeBlock.isOrdered !== isOrderedList) {
-                 // Mixed list types at same level -> technically valid in some MD, distinct lists in others.
-                 // We will close old and start new to be safe.
-                 this.blockStack.pop();
-                 const list = new ListNode(this.context, pos, isOrderedList, currentIndent);
-                 this._pushBlock(list);
-             }
-         }
+          // @ts-ignore
+          if (activeBlock.isOrdered !== isOrderedList) {
+            // Mixed list types at same level -> technically valid in some MD, distinct lists in others.
+            // We will close old and start new to be safe.
+            this.blockStack.pop();
+            const list = new ListNode(this.context, pos, isOrderedList, currentIndent);
+            this._pushBlock(list);
+          }
+        }
 
-         // Now we are guaranteed to be in a compatible List
-         // Add new Item
-         const item = new ListItemNode(this.context, pos, 0);
-         this._pushBlock(item);
+        // Now we are guaranteed to be in a compatible List
+        // Add new Item
+        const item = new ListItemNode(this.context, pos, 0);
+        this._pushBlock(item);
 
-         this._extendAncestors(nextPos);
-         pos = nextPos;
-         continue;
+        this._extendAncestors(nextPos);
+        pos = nextPos;
+        continue;
 
       } else if (kind === Tokens.BlockquoteMarker) {
+        // Pop any open paragraph — a blockquote marker always interrupts an outer paragraph.
         if (activeBlock.type === NodeTypes.Paragraph) {
-             // If we are in a paragraph, we might be interrupting it with a blockquote (?)
-             // Classic CommonMark: blockquote continuation line vs new blockquote.
-             // If we are already in a blockquote, this marker continues it.
-             // Simpler approach for now: if we see a marker, ensure we are in a blockquote or start one.
+          this.blockStack.pop();
+          activeBlock = this._getActiveBlock();
         }
-        
-        // This structural handling is tricky because markers appear on every line.
-        // We will need a Phase 3 mechanism ("Container Initiation") to align markers with stack depth.
-        // For this prototype, we'll assume a marker simply means "Add a blockquote if not present"
-        // But for nested ones (>>), we need to match levels.
-        
-        // STUB: Treat as simple text for now to avoid breaking build until proper container matching is implemented
-        // const t = new TextNode(this.context, pos);
-        // t.end = nextPos;
-        // this._append(t);
+
+        lineQuoteDepth++;
+
+        // Count the number of BlockquoteNode layers already open on the stack.
+        let existingQuoteDepth = 0;
+        for (let i = 0; i < this.blockStack.length; i++) {
+          if (this.blockStack[i].type === NodeTypes.Blockquote) existingQuoteDepth++;
+        }
+
+        if (lineQuoteDepth > existingQuoteDepth) {
+          // This marker opens a new (possibly nested) blockquote.
+          const bq = new BlockquoteNode(this.context, pos);
+          this._pushBlock(bq);
+        }
+        // If lineQuoteDepth <= existingQuoteDepth, this marker is a continuation of an
+        // already-open blockquote at this depth — no structural change needed.
+
+        this._extendAncestors(nextPos);
+        pos = nextPos;
+        continue;
 
       } else if (kind === Tokens.ATXHeadingOpen) {
         if (activeBlock.type === NodeTypes.Paragraph) this.blockStack.pop();
@@ -283,8 +317,8 @@ export class ASTBuilder {
         if (activeBlock.type === NodeTypes.Paragraph) this.blockStack.pop();
         this._pushBlock(new FencedCodeBlockNode(this.context, pos));
         activeBlock = this._getActiveBlock();
-      } else if (kind !== Tokens.NewLine && activeBlock.type === NodeTypes.Document) {
-        // Need paragraph if currently matching Document
+      } else if (kind !== Tokens.NewLine && (activeBlock.type === NodeTypes.Document || activeBlock.type === NodeTypes.Blockquote)) {
+        // Need paragraph if currently at Document or inside a Blockquote with no open paragraph.
         this._pushBlock(new ParagraphNode(this.context, pos));
         activeBlock = this._getActiveBlock();
       }
@@ -314,52 +348,52 @@ export class ASTBuilder {
         pos = nextPos;
         continue;
       }
-      
+
       // Frontmatter Block Logic
       if (this._getActiveBlock().type === NodeTypes.Frontmatter) {
-          if (kind === Tokens.FrontmatterClose) {
-              this.blockStack.pop();
-          } else {
-             // Frontmatter just consumes text
-             const t = new TextNode(this.context, pos);
-             t.end = nextPos;
-             this._append(t);
-          }
-          this._extendAncestors(nextPos);
-          pos = nextPos;
-          continue;
+        if (kind === Tokens.FrontmatterClose) {
+          this.blockStack.pop();
+        } else {
+          // Frontmatter just consumes text
+          const t = new TextNode(this.context, pos);
+          t.end = nextPos;
+          this._append(t);
+        }
+        this._extendAncestors(nextPos);
+        pos = nextPos;
+        continue;
       }
 
       // Special Block Initiation Tokens
       if (kind === Tokens.FrontmatterOpen) {
-          this._pushBlock(new FrontmatterNode(this.context, pos));
-          activeBlock = this._getActiveBlock();
-          // We consume the opening marker but the content is inside
-          this._extendAncestors(nextPos);
-          pos = nextPos;
-          continue;
+        this._pushBlock(new FrontmatterNode(this.context, pos));
+        activeBlock = this._getActiveBlock();
+        // We consume the opening marker but the content is inside
+        this._extendAncestors(nextPos);
+        pos = nextPos;
+        continue;
       } else if (kind === Tokens.FormulaOpen) {
-           this._pushBlock(new FormulaBlockNode(this.context, pos));
-           // Formula uses fenced-like content rules usually? Or inline?
-           // Assuming block formula for now similar to fenced code
-           activeBlock = this._getActiveBlock();
-           this._extendAncestors(nextPos);
-           pos = nextPos;
-           continue;
+        this._pushBlock(new FormulaBlockNode(this.context, pos));
+        // Formula uses fenced-like content rules usually? Or inline?
+        // Assuming block formula for now similar to fenced code
+        activeBlock = this._getActiveBlock();
+        this._extendAncestors(nextPos);
+        pos = nextPos;
+        continue;
       }
 
       // Formula Block Content
       if (this._getActiveBlock().type === NodeTypes.FormulaBlock) {
-          if (kind === Tokens.FormulaClose) {
-              this.blockStack.pop();
-          } else {
-              const t = new TextNode(this.context, pos);
-              t.end = nextPos;
-              this._append(t);
-          }
-          this._extendAncestors(nextPos);
-          pos = nextPos;
-          continue;
+        if (kind === Tokens.FormulaClose) {
+          this.blockStack.pop();
+        } else {
+          const t = new TextNode(this.context, pos);
+          t.end = nextPos;
+          this._append(t);
+        }
+        this._extendAncestors(nextPos);
+        pos = nextPos;
+        continue;
       }
 
       switch (kind) {
@@ -403,43 +437,43 @@ export class ASTBuilder {
           break;
         }
         case Tokens.AngleLinkOpen: {
-            const start = pos;
-            let idx = tIdx + 1;
-            let currentPos = pos + len;
-            let url = "";
+          const start = pos;
+          let idx = tIdx + 1;
+          let currentPos = pos + len;
+          let url = "";
 
-            while(idx < tokens.length) {
-              const tk = tokens[idx];
-              const k = getTokenKind(tk);
-              const l = getTokenLength(tk);
+          while (idx < tokens.length) {
+            const tk = tokens[idx];
+            const k = getTokenKind(tk);
+            const l = getTokenLength(tk);
 
-              if (k === Tokens.AngleLinkClose) {
-                currentPos += l;
-                idx++;
-                break;
-              } else if (k === Tokens.AngleLinkURL || k === Tokens.AngleLinkEmail) {
-                url += this.context.sourceText.substring(currentPos, currentPos + l);
-              }
+            if (k === Tokens.AngleLinkClose) {
               currentPos += l;
               idx++;
+              break;
+            } else if (k === Tokens.AngleLinkURL || k === Tokens.AngleLinkEmail) {
+              url += this.context.sourceText.substring(currentPos, currentPos + l);
             }
+            currentPos += l;
+            idx++;
+          }
 
-            const autoLink = new AutolinkNode(this.context, start);
-            autoLink.end = currentPos;
-            // Hacky manual url setting for now, ideally AutolinkNode would parse from children or source
-            // But AutolinkNode in nodes.js has destStart/destEnd logic.
-            // We can just set a text child.
-            const textNode = new TextNode(this.context, start + 1); // skip <
-            textNode.end = currentPos - 1; // skip >
-            autoLink.children = [textNode];
+          const autoLink = new AutolinkNode(this.context, start);
+          autoLink.end = currentPos;
+          // Hacky manual url setting for now, ideally AutolinkNode would parse from children or source
+          // But AutolinkNode in nodes.js has destStart/destEnd logic.
+          // We can just set a text child.
+          const textNode = new TextNode(this.context, start + 1); // skip <
+          textNode.end = currentPos - 1; // skip >
+          autoLink.children = [textNode];
 
-            this._append(autoLink);
+          this._append(autoLink);
 
-            tIdx = idx - 1; 
-            nextPos = currentPos;
-            this._extendAncestors(nextPos);
-            pos = nextPos;
-            continue;
+          tIdx = idx - 1;
+          nextPos = currentPos;
+          this._extendAncestors(nextPos);
+          pos = nextPos;
+          continue;
         }
 
         case Tokens.ImageMarker: {
@@ -457,7 +491,7 @@ export class ASTBuilder {
         case Tokens.LinkClose: {
           const top = this._getActiveParent();
           if (top.type === NodeTypes.Link || top.type === NodeTypes.Image) {
-               // ... (waiting for destination part)
+            // ... (waiting for destination part)
           }
           break;
         }
@@ -480,20 +514,20 @@ export class ASTBuilder {
           break;
         }
         case Tokens.RawURL: {
-           const autoLink = new AutolinkNode(this.context, pos);
-           autoLink.end = nextPos;
-           autoLink.destStart = pos; 
-           autoLink.destEnd = nextPos;
-           this._append(autoLink);
-           break;
+          const autoLink = new AutolinkNode(this.context, pos);
+          autoLink.end = nextPos;
+          autoLink.destStart = pos;
+          autoLink.destEnd = nextPos;
+          this._append(autoLink);
+          break;
         }
         case Tokens.EmailAutolink: {
-           const autoLink = new AutolinkNode(this.context, pos);
-           autoLink.end = nextPos;
-           autoLink.destStart = pos; 
-           autoLink.destEnd = nextPos;
-           this._append(autoLink);
-           break;
+          const autoLink = new AutolinkNode(this.context, pos);
+          autoLink.end = nextPos;
+          autoLink.destStart = pos;
+          autoLink.destEnd = nextPos;
+          this._append(autoLink);
+          break;
         }
 
         case Tokens.InlineCode: {
@@ -524,119 +558,119 @@ export class ASTBuilder {
           break;
         }
         case Tokens.HtmlCommentOpen: {
-            const openLen = len;
-            let idx = tIdx + 1;
-            let currentPos = pos + openLen;
-            const startPos = pos;
+          const openLen = len;
+          let idx = tIdx + 1;
+          let currentPos = pos + openLen;
+          const startPos = pos;
 
-            while(idx < tokens.length) {
-              const tk = tokens[idx];
-              const k = getTokenKind(tk);
-              const l = getTokenLength(tk);
+          while (idx < tokens.length) {
+            const tk = tokens[idx];
+            const k = getTokenKind(tk);
+            const l = getTokenLength(tk);
 
-              if (k === Tokens.HTMLCommentClose) {
-                currentPos += l;
-                idx++;
-                break;
-              }
+            if (k === Tokens.HTMLCommentClose) {
               currentPos += l;
               idx++;
+              break;
             }
+            currentPos += l;
+            idx++;
+          }
 
-            const comment = new HtmlCommentNode(this.context, startPos);
-            comment.end = currentPos;
-            this._append(comment);
+          const comment = new HtmlCommentNode(this.context, startPos);
+          comment.end = currentPos;
+          this._append(comment);
 
-            tIdx = idx - 1; 
-            nextPos = currentPos;
-            this._extendAncestors(nextPos);
-            pos = nextPos;
-            continue;
+          tIdx = idx - 1;
+          nextPos = currentPos;
+          this._extendAncestors(nextPos);
+          pos = nextPos;
+          continue;
         }
 
         case Tokens.HTMLCDataOpen: {
-            const startPos = pos;
-            let idx = tIdx + 1;
-            let currentPos = pos + len;
+          const startPos = pos;
+          let idx = tIdx + 1;
+          let currentPos = pos + len;
 
-            while(idx < tokens.length) {
-              const tk = tokens[idx];
-              const k = getTokenKind(tk);
-              const l = getTokenLength(tk);
-              if (k === Tokens.HTMLCDataClose) {
-                currentPos += l;
-                idx++;
-                break;
-              }
+          while (idx < tokens.length) {
+            const tk = tokens[idx];
+            const k = getTokenKind(tk);
+            const l = getTokenLength(tk);
+            if (k === Tokens.HTMLCDataClose) {
               currentPos += l;
               idx++;
+              break;
             }
-            const cdata = new HtmlCDataNode(this.context, startPos);
-            cdata.end = currentPos;
-            this._append(cdata);
-            tIdx = idx - 1;
-            nextPos = currentPos;
-            this._extendAncestors(nextPos);
-            pos = nextPos;
-            continue;
+            currentPos += l;
+            idx++;
+          }
+          const cdata = new HtmlCDataNode(this.context, startPos);
+          cdata.end = currentPos;
+          this._append(cdata);
+          tIdx = idx - 1;
+          nextPos = currentPos;
+          this._extendAncestors(nextPos);
+          pos = nextPos;
+          continue;
         }
 
         case Tokens.HTMLDocTypeOpen: {
-            const startPos = pos;
-            let idx = tIdx + 1;
-            let currentPos = pos + len;
-            while(idx < tokens.length) {
-              const tk = tokens[idx];
-              const k = getTokenKind(tk);
-              const l = getTokenLength(tk);
-              if (k === Tokens.HTMLDocTypeClose) {
-                currentPos += l;
-                idx++;
-                 break;
-              }
+          const startPos = pos;
+          let idx = tIdx + 1;
+          let currentPos = pos + len;
+          while (idx < tokens.length) {
+            const tk = tokens[idx];
+            const k = getTokenKind(tk);
+            const l = getTokenLength(tk);
+            if (k === Tokens.HTMLDocTypeClose) {
               currentPos += l;
               idx++;
+              break;
             }
-             const doctype = new HtmlDocTypeNode(this.context, startPos);
-             doctype.end = currentPos;
-             this._append(doctype);
-             tIdx = idx - 1;
-             nextPos = currentPos;
-             this._extendAncestors(nextPos);
-             pos = nextPos;
-             continue;
+            currentPos += l;
+            idx++;
+          }
+          const doctype = new HtmlDocTypeNode(this.context, startPos);
+          doctype.end = currentPos;
+          this._append(doctype);
+          tIdx = idx - 1;
+          nextPos = currentPos;
+          this._extendAncestors(nextPos);
+          pos = nextPos;
+          continue;
         }
 
         case Tokens.XMLProcessingInstructionOpen: {
-            const startPos = pos;
-            let idx = tIdx + 1;
-            let currentPos = pos + len;
-             while(idx < tokens.length) {
-              const tk = tokens[idx];
-              const k = getTokenKind(tk);
-              const l = getTokenLength(tk);
-              if (k === Tokens.XMLProcessingInstructionClose) {
-                currentPos += l;
-                idx++;
-                 break;
-              }
+          const startPos = pos;
+          let idx = tIdx + 1;
+          let currentPos = pos + len;
+          while (idx < tokens.length) {
+            const tk = tokens[idx];
+            const k = getTokenKind(tk);
+            const l = getTokenLength(tk);
+            if (k === Tokens.XMLProcessingInstructionClose) {
               currentPos += l;
               idx++;
+              break;
             }
-            const pi = new XmlProcessingInstructionNode(this.context, startPos);
-            pi.end = currentPos;
-            this._append(pi);
-             tIdx = idx - 1;
-             nextPos = currentPos;
-             this._extendAncestors(nextPos);
-             pos = nextPos;
-             continue;
+            currentPos += l;
+            idx++;
+          }
+          const pi = new XmlProcessingInstructionNode(this.context, startPos);
+          pi.end = currentPos;
+          this._append(pi);
+          tIdx = idx - 1;
+          nextPos = currentPos;
+          this._extendAncestors(nextPos);
+          pos = nextPos;
+          continue;
         }
 
         case Tokens.HTMLTagOpen: {
           const openLen = len;
           // Length 2 means '</', i.e. a closing tag
-          const isClosingTag = openLen === 2; 
+          const isClosingTag = openLen === 2;
 
           // State for parsing the tag
           let tagName = "";
@@ -646,7 +680,7 @@ export class ASTBuilder {
           let tagEndPos = -1;
           /** @type {Array<{name: string, value: string}>} */
           const attributes = [];
-          
+
           let currentAttributeName = "";
 
           // Consume tag internals loop
@@ -659,10 +693,10 @@ export class ASTBuilder {
             const l = getTokenLength(tk);
 
             if (k === Tokens.HTMLTagName) {
-               tagNameStart = currentPos;
-               tagNameLen = l;
-               // Extract tagName for node property
-               tagName = this.context.sourceText.substring(currentPos, currentPos + l).toLowerCase();
+              tagNameStart = currentPos;
+              tagNameLen = l;
+              // Extract tagName for node property
+              tagName = this.context.sourceText.substring(currentPos, currentPos + l).toLowerCase();
             } else if (k === Tokens.HTMLTagClose) {
               currentPos += l;
               tagEndPos = currentPos;
@@ -675,19 +709,19 @@ export class ASTBuilder {
               idx++;
               break;
             } else if (k === Tokens.HTMLAttributeName) {
-               currentAttributeName = this.context.sourceText.substring(currentPos, currentPos + l);
-               attributes.push({ name: currentAttributeName, value: null }); 
+              currentAttributeName = this.context.sourceText.substring(currentPos, currentPos + l);
+              attributes.push({ name: currentAttributeName, value: null });
             } else if (k === Tokens.HTMLAttributeValue) {
-               if (attributes.length > 0) {
-                 attributes[attributes.length - 1].value = this.context.sourceText.substring(currentPos, currentPos + l);
-               }
+              if (attributes.length > 0) {
+                attributes[attributes.length - 1].value = this.context.sourceText.substring(currentPos, currentPos + l);
+              }
             } else if (k === Tokens.HTMLAttributeQuote || k === Tokens.HTMLAttributeEquals) {
-               // If we see a quote or equals, it implicates at least an empty value
-               if (attributes.length > 0 && attributes[attributes.length - 1].value === null) {
-                 attributes[attributes.length - 1].value = "";
-               }
+              // If we see a quote or equals, it implicates at least an empty value
+              if (attributes.length > 0 && attributes[attributes.length - 1].value === null) {
+                attributes[attributes.length - 1].value = "";
+              }
             }
-            
+
             currentPos += l;
             idx++;
           }
@@ -703,26 +737,26 @@ export class ASTBuilder {
               const node = this.blockStack[i];
               // Stop at root
               if (node.type === NodeTypes.Document) break;
-              
-              if (node.type === NodeTypes.HtmlElement && 
+
+              if (node.type === NodeTypes.HtmlElement &&
                   /** @type {HtmlElementNode} */(node).tagName === tagName) {
                 matchIndex = i;
                 break;
               }
             }
-            
+
             if (matchIndex !== -1) {
               // Close everything down to matchIndex (inclusive of the matched element)
               while (this.blockStack.length > matchIndex) {
-                 const popped = this.blockStack.pop();
-                 if (popped) popped.end = tagEndPos;
+                const popped = this.blockStack.pop();
+                if (popped) popped.end = tagEndPos;
               }
             } else {
-               // Orphaned closing tag: treat as text (but we don't really know start pos of close)
-               // The original pos was the start of `</`
-               const t = new TextNode(this.context, pos);
-               t.end = tagEndPos;
-               this._append(t);
+              // Orphaned closing tag: treat as text (but we don't really know start pos of close)
+              // The original pos was the start of `</`
+              const t = new TextNode(this.context, pos);
+              t.end = tagEndPos;
+              this._append(t);
             }
           } else {
             // Opening tag
@@ -730,25 +764,25 @@ export class ASTBuilder {
             el.tagName = tagName;
             el.attributes = attributes;
             el.end = tagEndPos;
-            
+
             this._append(el);
-            
+
             // Check void element using the zero-allocation scanner utility
             const isVoid = tagNameLen > 0 && isVoidElement(this.context.sourceText, tagNameStart, tagNameLen);
-            
+
             if (!selfClosing && !isVoid) {
-               // Push to block stack to contain content
-               // NOTE: Because we push to blockStack, children will be processed normally.
-               // Including inline elements which will be appended to this block.
-               this.blockStack.push(el);
+              // Push to block stack to contain content
+              // NOTE: Because we push to blockStack, children will be processed normally.
+              // Including inline elements which will be appended to this block.
+              this.blockStack.push(el);
             }
           }
 
           // Advance the main loop
           // tIdx will be incremented by loop, so set to idx - 1
-          tIdx = idx - 1; 
+          tIdx = idx - 1;
           nextPos = tagEndPos;
-          
+
           // Continue forces next iteration with updated pos
           this._extendAncestors(nextPos);
           pos = nextPos;
