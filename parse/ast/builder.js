@@ -545,6 +545,18 @@ export class ASTBuilder {
         const depth = getHeadingDepth(token);
         this._pushBlock(new HeadingNode(this.context, pos, depth));
         activeBlock = this._getActiveBlock();
+
+        // The single space/tab following ATX heading hashes is purely structural.
+        // It's emitted directly as a Whitespace token by scanATXHeading. Skip it so it isn't parsed as Text.
+        const peekTIdx = tIdx + 1;
+        if (peekTIdx < tokens.length && getTokenKind(tokens[peekTIdx]) === Tokens.Whitespace) {
+          nextPos += getTokenLength(tokens[peekTIdx]);
+          tIdx = peekTIdx;
+        }
+
+        this._extendAncestors(nextPos);
+        pos = nextPos;
+        continue;
       } else if (kind === Tokens.FencedOpen) {
         if (activeBlock.type === NodeTypes.Paragraph) this.blockStack.pop();
         this._pushBlock(new FencedCodeBlockNode(this.context, pos));
@@ -809,6 +821,13 @@ export class ASTBuilder {
         case Tokens.EntityHex: {
           // Leaf processing
           const parent = this._getActiveParent();
+
+          // Ignore whitespace and newlines between block-level elements
+          if ((parent.type === NodeTypes.Document || parent.type === NodeTypes.Blockquote) &&
+              (kind === Tokens.Whitespace || kind === Tokens.NewLine)) {
+            break;
+          }
+
           // Coalesce continuous text
           if (parent.children && parent.children.length > 0) {
             const last = parent.children[parent.children.length - 1];
