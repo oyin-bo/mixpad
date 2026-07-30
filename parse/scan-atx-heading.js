@@ -68,10 +68,15 @@ export function scanATXHeading(input, start, end, output) {
   // Emit ATXHeadingOpen (just the # characters)
   output.push(hashCount | ATXHeadingOpen | depthBits);
   
-  // Emit Whitespace token for the space/tab after opening if present
-  if (pos < end && (input.charCodeAt(pos) === 32 || input.charCodeAt(pos) === 9)) {
-    output.push(1 | Whitespace | depthBits);
+  // Emit a single Whitespace token spanning all spaces/tabs after the opening.
+  // Per CommonMark, the raw heading contents are stripped of leading whitespace,
+  // so the entire run is structural and excluded from the content span.
+  const wsStart = pos;
+  while (pos < end && (input.charCodeAt(pos) === 32 || input.charCodeAt(pos) === 9)) {
     pos++;
+  }
+  if (pos > wsStart) {
+    output.push((pos - wsStart) | Whitespace | depthBits);
   }
   
   // Content starts after the whitespace

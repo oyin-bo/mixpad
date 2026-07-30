@@ -17,13 +17,6 @@ export class ParagraphNode extends ASTNode {
 export class HeadingNode extends ASTNode {
   /** @param {ParseContext} context @param {number} start @param {number} level */
   constructor(context, start, level) { super(context, NodeTypes.Heading, start); this._container(); this._level = level; }
-  get text() {
-    if (this._textCache !== null) return this._textCache;
-    let raw = super.text;
-    if (raw.startsWith(' ')) raw = raw.slice(1);
-    this._textCache = raw;
-    return raw;
-  }
 }
 export class BlockquoteNode extends ASTNode {
   /** @param {ParseContext} context @param {number} start */

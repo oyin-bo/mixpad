@@ -40,6 +40,20 @@ Level 6
 @1 Heading level=6
 @2 Text "Heading 6"
 
+## Multiple Spaces After Hashes
+
+Leading spaces stripped from content
+#    Heading
+1    2
+@1 Heading level=1
+@2 Text "Heading"
+
+Tabs and spaces stripped
+##	  Heading
+1    2
+@1 Heading level=2
+@2 Text "Heading"
+
 ## With Closing Sequences
 
 Level 1 with closing
