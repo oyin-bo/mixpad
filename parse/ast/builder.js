@@ -153,8 +153,7 @@ export class ASTBuilder {
       if (k === Tokens.TablePipe) {
         hasPipe = true;
       } else if (k === Tokens.InlineText) {
-        const txt = this.context.sourceText.substring(pos, pos + l).trim();
-        if (!/^:?-{3,}:?$/.test(txt)) return false;
+        if (!this._isDelimiterCell(pos, pos + l)) return false;
         cellCount++;
       } else if (k !== Tokens.Whitespace) {
         // Any other token type means this is not a pure delimiter row
@@ -166,8 +165,8 @@ export class ASTBuilder {
   }
 
   /**
-   * Trim trailing whitespace from a TableCell's last Text child.
-   * @param {TableCellNode} cell
+   * Trim trailing whitespace from a container's last Text child.
+   * @param {ASTNode} cell
    */
   _trimCellTrailingWhitespace(cell) {
     if (!cell.children || cell.children.length === 0) return;
@@ -176,6 +175,66 @@ export class ASTBuilder {
     const trimmedLen = this.context.sourceText.substring(last.start, last.end).trimEnd().length;
     if (trimmedLen === 0) cell.children.pop();
     else last.end = last.start + trimmedLen;
+  }
+
+  /**
+   * Whether source span [start,end) is a GFM delimiter cell (:?-{3,}:? with optional
+   * surrounding whitespace). Allocation-free: reads char codes over the delimited span.
+   * @param {number} start
+   * @param {number} end
+   * @returns {boolean}
+   */
+  _isDelimiterCell(start, end) {
+    const s = this.context.sourceText;
+    let i = start, j = end;
+    while (i < j && (s.charCodeAt(i) === 32 || s.charCodeAt(i) === 9)) i++;
+    while (j > i && (s.charCodeAt(j - 1) === 32 || s.charCodeAt(j - 1) === 9)) j--;
+    if (i >= j) return false;
+    if (s.charCodeAt(i) === 58) i++;
+    if (j > i && s.charCodeAt(j - 1) === 58) j--;
+    if (i >= j) return false;
+    for (let k = i; k < j; k++) if (s.charCodeAt(k) !== 45) return false;
+    return (j - i) >= 3;
+  }
+
+  /**
+   * Alignment for a delimiter cell span, or null when unspecified. Allocation-free.
+   * @param {number} start
+   * @param {number} end
+   * @returns {('left'|'center'|'right'|null)}
+   */
+  _delimiterAlign(start, end) {
+    const s = this.context.sourceText;
+    let i = start, j = end;
+    while (i < j && (s.charCodeAt(i) === 32 || s.charCodeAt(i) === 9)) i++;
+    while (j > i && (s.charCodeAt(j - 1) === 32 || s.charCodeAt(j - 1) === 9)) j--;
+    const left = i < j && s.charCodeAt(i) === 58;
+    const right = j > i && s.charCodeAt(j - 1) === 58;
+    return left && right ? 'center' : left ? 'left' : right ? 'right' : null;
+  }
+
+  /**
+   * Consume tokens from the open token at tIdx until a matching close kind,
+   * finalise `node` bounds, append it, and return the index just past the run.
+   * @param {ProvisionalToken[]} tokens
+   * @param {number} tIdx
+   * @param {number} pos
+   * @param {number} closeKind
+   * @param {ASTNode} node
+   * @returns {number} token index just past the consumed run
+   */
+  _consumeUntil(tokens, tIdx, pos, closeKind, node) {
+    let idx = tIdx + 1;
+    let currentPos = pos + getTokenLength(tokens[tIdx]);
+    while (idx < tokens.length) {
+      const l = getTokenLength(tokens[idx]);
+      if (getTokenKind(tokens[idx]) === closeKind) { currentPos += l; idx++; break; }
+      currentPos += l;
+      idx++;
+    }
+    node.end = currentPos;
+    this._append(node);
+    return idx;
   }
 
   /**
@@ -279,10 +338,12 @@ export class ASTBuilder {
           activeBlock = this._getActiveBlock();
           if (inTableHeader) {
             inTableHeader = false;
-            // Fast-forward through the delimiter row tokens, collecting alignment info
+            // Fast-forward through the delimiter row, mapping one alignment per cell.
             pos = nextPos;
             tIdx++;
+            /** @type {('left' | 'center' | 'right' | null)[]} */
             const alignments = [];
+            let sawCell = false;
             let curAlign = null;
             while (tIdx < tokens.length) {
               const delimKind = getTokenKind(tokens[tIdx]);
@@ -291,21 +352,22 @@ export class ASTBuilder {
               pos += delimLen;
               if (delimKind === Tokens.NewLine) break;
               if (delimKind === Tokens.TablePipe) {
-                if (curAlign !== null) { alignments.push(curAlign); curAlign = null; }
+                if (sawCell) { alignments.push(curAlign); sawCell = false; curAlign = null; }
               } else if (delimKind === Tokens.InlineText) {
-                const txt = this.context.sourceText.substring(delimPos, delimPos + delimLen).trim();
-                const hasLeft = txt.startsWith(':');
-                const hasRight = txt.endsWith(':');
-                curAlign = hasLeft && hasRight ? 'center' : hasLeft ? 'left' : hasRight ? 'right' : null;
+                sawCell = true;
+                curAlign = this._delimiterAlign(delimPos, delimPos + delimLen);
               }
               tIdx++;
             }
-            if (curAlign !== null) alignments.push(curAlign);
-            // Apply alignments to header cells (skip leading empty slots from leading pipe)
-            const headerCells = (closedRow.children || []).filter(n => n.type === NodeTypes.TableCell);
-            headerCells.forEach((cell, i) => {
-              if (alignments[i] !== null && alignments[i] !== undefined) cell.align = alignments[i];
-            });
+            if (sawCell) alignments.push(curAlign);
+            // Apply alignments to header cells positionally.
+            const cells = closedRow.children || [];
+            let ci = 0;
+            for (let i = 0; i < cells.length; i++) {
+              if (cells[i].type !== NodeTypes.TableCell) continue;
+              if (alignments[ci]) cells[i].align = alignments[ci];
+              ci++;
+            }
             // Check if the next line continues the table
             const peekTIdx = tIdx + 1;
             if (peekTIdx >= tokens.length || !this._lineHasPipe(tokens, peekTIdx)) {
@@ -369,7 +431,6 @@ export class ASTBuilder {
         // If we are at a ListItem, check if we should dedent, indent, or stay
         if (listNode.type === NodeTypes.ListItem) {
           const parentList = this.blockStack[this.blockStack.length - 2];
-          // @ts-ignore
           const parentIndent = parentList.indent || 0;
 
           if (currentIndent > parentIndent) {
@@ -396,7 +457,6 @@ export class ASTBuilder {
             while (this.blockStack.length > 0) {
               const top = this._getActiveBlock();
               if (top.type === NodeTypes.List) {
-                // @ts-ignore
                 if (top.indent > currentIndent) {
                   this.blockStack.pop(); // Pop List
                   // If we pop a List, we are likely in a ListItem of the parent list.
@@ -437,7 +497,6 @@ export class ASTBuilder {
           // What if indent is distinct but close? For now, exact match or treat as new?
           // CommonMark is fuzzy. Let's assume strict indent match for same list.
 
-          // @ts-ignore
           if (activeBlock.indent !== currentIndent) {
             // Mismatch indent but didn't pop earlier? logic gap or simply start new list?
             // If we are here, it means indent > active (nested?) or we failed to pop.
@@ -448,7 +507,6 @@ export class ASTBuilder {
             // Simple fallback: If list type mismatch, pop and new.
           }
 
-          // @ts-ignore
           if (activeBlock.isOrdered !== isOrderedList) {
             // Mixed list types at same level -> technically valid in some MD, distinct lists in others.
             // We will close old and start new to be safe.
@@ -535,7 +593,6 @@ export class ASTBuilder {
             const tableNode = new TableNode(this.context, pos);
             this._pushBlock(tableNode);
             const headerRow = new TableRowNode(this.context, pos);
-            // @ts-ignore
             headerRow.isHeader = true;
             this._pushBlock(headerRow);
             inTableHeader = true;
@@ -597,7 +654,6 @@ export class ASTBuilder {
           const tableNode = new TableNode(this.context, pos);
           this._pushBlock(tableNode);
           const headerRow = new TableRowNode(this.context, pos);
-          // @ts-ignore
           headerRow.isHeader = true;
           this._pushBlock(headerRow);
           inTableHeader = true;
@@ -613,8 +669,6 @@ export class ASTBuilder {
         if (kind === Tokens.FencedClose) {
           this.blockStack.pop(); // exit code block
         } else {
-          /** @type {FencedCodeBlockNode} */
-          // @ts-ignore
           const codeBlock = this._getActiveBlock();
           // Naive info string grab: the tokens right after FencedOpen usually make up the language
           if (codeBlock.infoEnd === 0 && (kind === Tokens.InlineText || kind === Tokens.Whitespace)) {
@@ -804,7 +858,6 @@ export class ASTBuilder {
           // Assume the top is a Link or Image
           const top = this._getActiveParent();
           if (top.type === NodeTypes.Link || top.type === NodeTypes.Image) {
-            // @ts-ignore
             top.destStart = nextPos; // Start collecting URL
           }
           break;
@@ -812,7 +865,6 @@ export class ASTBuilder {
         case Tokens.LinkDestClose: {
           const top = this.inlineStack.pop();
           if (top && (top.type === NodeTypes.Link || top.type === NodeTypes.Image)) {
-            // @ts-ignore
             top.destEnd = pos;
             top.end = nextPos; // finalize link bounds
           }
@@ -867,111 +919,37 @@ export class ASTBuilder {
           this._append(t);
           break;
         }
-        case Tokens.HtmlCommentOpen: {
-          const openLen = len;
-          let idx = tIdx + 1;
-          let currentPos = pos + openLen;
-          const startPos = pos;
-
-          while (idx < tokens.length) {
-            const tk = tokens[idx];
-            const k = getTokenKind(tk);
-            const l = getTokenLength(tk);
-
-            if (k === Tokens.HTMLCommentClose) {
-              currentPos += l;
-              idx++;
-              break;
-            }
-            currentPos += l;
-            idx++;
-          }
-
-          const comment = new HtmlCommentNode(this.context, startPos);
-          comment.end = currentPos;
-          this._append(comment);
-
-          tIdx = idx - 1;
-          nextPos = currentPos;
+        case Tokens.HTMLCommentOpen: {
+          const node = new HtmlCommentNode(this.context, pos);
+          tIdx = this._consumeUntil(tokens, tIdx, pos, Tokens.HTMLCommentClose, node) - 1;
+          nextPos = node.end;
           this._extendAncestors(nextPos);
           pos = nextPos;
           continue;
         }
 
         case Tokens.HTMLCDataOpen: {
-          const startPos = pos;
-          let idx = tIdx + 1;
-          let currentPos = pos + len;
-
-          while (idx < tokens.length) {
-            const tk = tokens[idx];
-            const k = getTokenKind(tk);
-            const l = getTokenLength(tk);
-            if (k === Tokens.HTMLCDataClose) {
-              currentPos += l;
-              idx++;
-              break;
-            }
-            currentPos += l;
-            idx++;
-          }
-          const cdata = new HtmlCDataNode(this.context, startPos);
-          cdata.end = currentPos;
-          this._append(cdata);
-          tIdx = idx - 1;
-          nextPos = currentPos;
+          const node = new HtmlCDataNode(this.context, pos);
+          tIdx = this._consumeUntil(tokens, tIdx, pos, Tokens.HTMLCDataClose, node) - 1;
+          nextPos = node.end;
           this._extendAncestors(nextPos);
           pos = nextPos;
           continue;
         }
 
         case Tokens.HTMLDocTypeOpen: {
-          const startPos = pos;
-          let idx = tIdx + 1;
-          let currentPos = pos + len;
-          while (idx < tokens.length) {
-            const tk = tokens[idx];
-            const k = getTokenKind(tk);
-            const l = getTokenLength(tk);
-            if (k === Tokens.HTMLDocTypeClose) {
-              currentPos += l;
-              idx++;
-              break;
-            }
-            currentPos += l;
-            idx++;
-          }
-          const doctype = new HtmlDocTypeNode(this.context, startPos);
-          doctype.end = currentPos;
-          this._append(doctype);
-          tIdx = idx - 1;
-          nextPos = currentPos;
+          const node = new HtmlDocTypeNode(this.context, pos);
+          tIdx = this._consumeUntil(tokens, tIdx, pos, Tokens.HTMLDocTypeClose, node) - 1;
+          nextPos = node.end;
           this._extendAncestors(nextPos);
           pos = nextPos;
           continue;
         }
 
         case Tokens.XMLProcessingInstructionOpen: {
-          const startPos = pos;
-          let idx = tIdx + 1;
-          let currentPos = pos + len;
-          while (idx < tokens.length) {
-            const tk = tokens[idx];
-            const k = getTokenKind(tk);
-            const l = getTokenLength(tk);
-            if (k === Tokens.XMLProcessingInstructionClose) {
-              currentPos += l;
-              idx++;
-              break;
-            }
-            currentPos += l;
-            idx++;
-          }
-          const pi = new XmlProcessingInstructionNode(this.context, startPos);
-          pi.end = currentPos;
-          this._append(pi);
-          tIdx = idx - 1;
-          nextPos = currentPos;
+          const node = new XmlProcessingInstructionNode(this.context, pos);
+          tIdx = this._consumeUntil(tokens, tIdx, pos, Tokens.XMLProcessingInstructionClose, node) - 1;
+          nextPos = node.end;
           this._extendAncestors(nextPos);
           pos = nextPos;
           continue;
@@ -988,7 +966,7 @@ export class ASTBuilder {
           let tagNameLen = 0;
           let selfClosing = false;
           let tagEndPos = -1;
-          /** @type {Array<{name: string, value: string}>} */
+          /** @type {{name: string, value: (string | null)}[]} */
           const attributes = [];
 
           let currentAttributeName = "";
@@ -1098,8 +1076,8 @@ export class ASTBuilder {
           pos = nextPos;
           continue;
         }
-        case Tokens.HtmlTagClose:
-        case Tokens.HtmlTagSelfClosing: {
+        case Tokens.HTMLTagClose:
+        case Tokens.HTMLTagSelfClosing: {
           // Orphaned parts outside of an open tag loop
           const t = new TextNode(this.context, pos);
           t.end = nextPos;

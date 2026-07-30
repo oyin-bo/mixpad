@@ -284,6 +284,39 @@ test('AST Builder: Table - Column alignment stored on header cells', () => {
   assert.strictEqual(headerCells[0].align, 'left', 'First column: left');
   assert.strictEqual(headerCells[1].align, 'center', 'Second column: center');
   assert.strictEqual(headerCells[2].align, 'right', 'Third column: right');
-  assert.strictEqual(headerCells[3].align, undefined, 'Fourth column: no alignment');
+  assert.strictEqual(headerCells[3].align, null, 'Fourth column: no alignment');
+});
+
+test('AST Builder: List - Bullet items', () => {
+  const doc = parse('- a\n- b\n');
+  const list = doc.children.find(n => n.type === NodeTypes.List);
+  assert.ok(list, 'List should exist');
+  assert.strictEqual(list.isOrdered, false, 'Bullet list is not ordered');
+  const items = list.children.filter(n => n.type === NodeTypes.ListItem);
+  assert.strictEqual(items.length, 2, 'Two items');
+  assert.strictEqual(items[0].text.trim(), 'a');
+  assert.strictEqual(items[1].text.trim(), 'b');
+});
+
+test('AST Builder: List - Ordered items', () => {
+  const doc = parse('1. one\n2. two\n');
+  const list = doc.children.find(n => n.type === NodeTypes.List);
+  assert.ok(list, 'List should exist');
+  assert.strictEqual(list.isOrdered, true, 'Ordered list');
+  const items = list.children.filter(n => n.type === NodeTypes.ListItem);
+  assert.strictEqual(items.length, 2, 'Two items');
+});
+
+test('AST Builder: List - Nested sublist', () => {
+  const doc = parse('- a\n  - nested\n');
+  const list = doc.children.find(n => n.type === NodeTypes.List);
+  assert.ok(list, 'Outer list exists');
+  const outerItem = list.children.find(n => n.type === NodeTypes.ListItem);
+  assert.ok(outerItem, 'Outer item exists');
+  const sublist = outerItem.children.find(n => n.type === NodeTypes.List);
+  assert.ok(sublist, 'Nested list exists');
+  const subItems = sublist.children.filter(n => n.type === NodeTypes.ListItem);
+  assert.strictEqual(subItems.length, 1, 'One nested item');
+  assert.strictEqual(subItems[0].text.trim(), 'nested');
 });
 

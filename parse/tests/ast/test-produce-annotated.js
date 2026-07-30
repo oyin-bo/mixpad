@@ -214,12 +214,12 @@ function walk(node, start, end, results) {
 
 function synthesizeAssertion(node) {
   let res = NodeNames[node.type];
-  if (node.level !== undefined) res += ` level=${node.level}`;
-  if (node.isOrdered !== undefined) res += ` isOrdered=${node.isOrdered}`;
-  if (node.indent !== undefined && node.type === NodeTypes.List) res += ` indent=${node.indent}`;
-  if (node.url !== undefined) res += ` url=${JSON.stringify(node.url)}`;
-  if (node.language !== undefined && node.language !== "") res += ` language=${JSON.stringify(node.language)}`;
-  if (node.tagName !== undefined && node.tagName !== "") res += ` tagName=${JSON.stringify(node.tagName)}`;
+  if (node.type === NodeTypes.Heading) res += ` level=${node.level}`;
+  if (node.type === NodeTypes.List) res += ` isOrdered=${node.isOrdered} indent=${node.indent}`;
+  if ((node.type === NodeTypes.Link || node.type === NodeTypes.Image || node.type === NodeTypes.Autolink) && node.url) res += ` url=${JSON.stringify(node.url)}`;
+  if (node.type === NodeTypes.FencedCodeBlock && node.language) res += ` language=${JSON.stringify(node.language)}`;
+  if (node.type === NodeTypes.HtmlElement && node.tagName) res += ` tagName=${JSON.stringify(node.tagName)}`;
+  if (node.type === NodeTypes.TableCell && node.align) res += ` align=${node.align}`;
   if (node.text !== undefined) res += ` ${JSON.stringify(node.text)}`;
   return res;
 }

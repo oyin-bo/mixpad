@@ -102,8 +102,6 @@ export function scanATXHeading(input, start, end, output) {
         input.charCodeAt(hashStart - 1) === 9) {
       closingStart = hashStart;
       closingEnd = contentEnd;
-      // Set flag on opening token
-      output[output.length - 1] |= (1 << 31);
       // Adjust content end to exclude closing
       contentEnd = hashStart;
       // Trim whitespace before closing
@@ -154,13 +152,4 @@ export function scanATXHeading(input, start, end, output) {
  */
 export function getHeadingDepth(token) {
   return (token >> 26) & 0x7; // Extract bits 26-28
-}
-
-/**
- * Check if ATX heading has closing sequence
- * @param {number} token - ATXHeadingOpen token
- * @returns {boolean}
- */
-export function hasATXClosingSequence(token) {
-  return ((token >> 31) & 1) === 1;
 }

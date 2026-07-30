@@ -12,11 +12,8 @@ export class ParagraphNode extends ASTNode {
 }
 export class HeadingNode extends ASTNode {
   constructor(context, start, level) { super(context, NodeTypes.Heading, start); this.children = []; this._level = level; }
-  get level() { return this._level; }
   get text() {
-    // Typically we don't want the `# ` prefix in the heading's textual content, but right now the children span the whole text including whitespace
-    // We will let text() on a Heading strip the leading space if the first child is text.
-    if (this._textCache !== undefined && this._textCache !== null) return this._textCache;
+    if (this._textCache !== null) return this._textCache;
     let raw = super.text;
     if (raw.startsWith(' ')) raw = raw.slice(1);
     this._textCache = raw;
@@ -27,24 +24,18 @@ export class BlockquoteNode extends ASTNode {
   constructor(context, start) { super(context, NodeTypes.Blockquote, start); this.children = []; }
 }
 export class ListNode extends ASTNode {
-  constructor(context, start, isOrdered, indent = 0) { 
-    super(context, NodeTypes.List, start); 
-    this.children = []; 
-    this._isOrdered = isOrdered; 
+  constructor(context, start, isOrdered, indent = 0) {
+    super(context, NodeTypes.List, start);
+    this.children = [];
+    this._isOrdered = isOrdered;
     this.indent = indent;
   }
-  get isOrdered() { return this._isOrdered; }
 }
 export class ListItemNode extends ASTNode {
   constructor(context, start, contentIndent) { super(context, NodeTypes.ListItem, start); this.children = []; this._contentIndent = contentIndent; }
 }
 export class FencedCodeBlockNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.FencedCodeBlock, start); this.children = []; this._language = null; this.infoStart = 0; this.infoEnd = 0; }
-  get language() {
-    if (this._language !== null) return this._language;
-    if (this.infoEnd > this.infoStart) { this._language = this._ctx.sourceText.substring(this.infoStart, this.infoEnd).trim(); } else { this._language = ""; }
-    return this._language;
-  }
+  constructor(context, start) { super(context, NodeTypes.FencedCodeBlock, start); this.children = []; }
 }
 // HtmlBlockNode removed
 export class ThematicBreakNode extends ASTNode {
@@ -68,12 +59,7 @@ export class FormulaBlockNode extends ASTNode {
 
 // Inline Types
 export class TextNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.Text, start); this._textCache = null; }
-  get text() {
-    if (this._textCache !== null) return this._textCache;
-    this._textCache = this._ctx.sourceText.substring(this.start, this.end);
-    return this._textCache;
-  }
+  constructor(context, start) { super(context, NodeTypes.Text, start); }
 }
 export class EmphasisNode extends ASTNode {
   constructor(context, start) { super(context, NodeTypes.Emphasis, start); this.children = []; }
@@ -85,14 +71,7 @@ export class StrikethroughNode extends ASTNode {
   constructor(context, start) { super(context, NodeTypes.Strikethrough, start); this.children = []; }
 }
 export class LinkNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.Link, start); this.children = []; this.destStart = 0; this.destEnd = 0; this._url = null; }
-  get url() {
-    if (this._url !== null) return this._url;
-    if (this.destStart < this.destEnd) {
-      this._url = this._ctx.sourceText.substring(this.destStart, this.destEnd);
-    } else { this._url = ""; }
-    return this._url;
-  }
+  constructor(context, start) { super(context, NodeTypes.Link, start); this.children = []; }
 }
 export class ImageNode extends LinkNode {
   constructor(context, start) { super(context, start); this.type = NodeTypes.Image; }
@@ -101,12 +80,7 @@ export class InlineCodeNode extends ASTNode {
   constructor(context, start) { super(context, NodeTypes.InlineCode, start); }
 }
 export class AutolinkNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.Autolink, start); this.destStart = 0; this.destEnd = 0; this._url = null; }
-  get url() {
-    if (this._url !== null) return this._url;
-    if (this.destStart < this.destEnd) { this._url = this._ctx.sourceText.substring(this.destStart, this.destEnd); } else { this._url = ""; }
-    return this._url;
-  }
+  constructor(context, start) { super(context, NodeTypes.Autolink, start); }
 }
 // HtmlTagNode removed
 export class HtmlCommentNode extends ASTNode {
