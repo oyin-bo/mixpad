@@ -52,6 +52,8 @@ export class ASTBuilder {
     this.blockStack = [this.root];
     /** @type {ASTNode[]} Intra-chunk tracking for inline elements */
     this.inlineStack = [];
+    /** @type {number} Resume token index set by run-consuming builders. */
+    this._resumeIndex = 0;
   }
 
   /** Gets the active node where new children should be mounted */
@@ -238,6 +240,210 @@ export class ASTBuilder {
   }
 
   /**
+   * Resolve a list marker into the correct List/ListItem nesting and open a new item.
+   * @param {ProvisionalToken[]} tokens
+   * @param {number} tIdx
+   * @param {number} pos
+   * @param {boolean} isOrderedList
+   */
+  _openListItem(tokens, tIdx, pos, isOrderedList) {
+    let activeBlock = this._getActiveBlock();
+    if (activeBlock.type === NodeTypes.Paragraph) { this.blockStack.pop(); activeBlock = this._getActiveBlock(); }
+
+    let currentIndent = 0;
+    if (tIdx > 0 && getTokenKind(tokens[tIdx - 1]) === Tokens.Whitespace) {
+      currentIndent = getTokenLength(tokens[tIdx - 1]);
+    }
+
+    if (activeBlock.type === NodeTypes.ListItem) {
+      const parentIndent = this.blockStack[this.blockStack.length - 2].indent || 0;
+      if (currentIndent > parentIndent) {
+        // Deeper indent: open a nested list inside the current item.
+        this._pushBlock(new ListNode(this.context, pos, isOrderedList, currentIndent));
+        this._pushBlock(new ListItemNode(this.context, pos, 0));
+        return;
+      }
+      if (currentIndent < parentIndent) {
+        // Shallower indent: pop nested lists/items back to the matching level.
+        this.blockStack.pop();
+        while (this.blockStack.length > 0) {
+          const top = this._getActiveBlock();
+          if (top.type === NodeTypes.List) {
+            if (top.indent > currentIndent) {
+              this.blockStack.pop();
+              if (this._getActiveBlock().type === NodeTypes.ListItem) this.blockStack.pop();
+            } else break;
+          } else if (top.type === NodeTypes.ListItem) {
+            this.blockStack.pop();
+          } else break;
+        }
+      } else {
+        this.blockStack.pop(); // sibling: close the previous item
+      }
+      activeBlock = this._getActiveBlock();
+    }
+
+    if (activeBlock.type !== NodeTypes.List) {
+      this._pushBlock(new ListNode(this.context, pos, isOrderedList, currentIndent));
+    } else if (activeBlock.isOrdered !== isOrderedList) {
+      // Different marker kind at the same level starts a distinct list.
+      this.blockStack.pop();
+      this._pushBlock(new ListNode(this.context, pos, isOrderedList, currentIndent));
+    }
+
+    this._pushBlock(new ListItemNode(this.context, pos, 0));
+  }
+
+  /**
+   * Build an HTML tag (open, close, or self-closing) from the run starting at tIdx.
+   * Sets this._resumeIndex to the token index past the tag; returns the byte end.
+   * @param {ProvisionalToken[]} tokens
+   * @param {number} tIdx
+   * @param {number} pos
+   * @param {number} openLen
+   * @returns {number}
+   */
+  _buildHtmlTag(tokens, tIdx, pos, openLen) {
+    const isClosingTag = openLen === 2;
+    let tagName = "";
+    let tagNameStart = 0;
+    let tagNameLen = 0;
+    let selfClosing = false;
+    let tagEndPos = -1;
+    /** @type {{name: string, value: (string | null)}[]} */
+    const attributes = [];
+    let idx = tIdx + 1;
+    let currentPos = pos + openLen;
+
+    while (idx < tokens.length) {
+      const k = getTokenKind(tokens[idx]);
+      const l = getTokenLength(tokens[idx]);
+      if (k === Tokens.HTMLTagName) {
+        tagNameStart = currentPos;
+        tagNameLen = l;
+        tagName = this.context.sourceText.substring(currentPos, currentPos + l).toLowerCase();
+      } else if (k === Tokens.HTMLTagClose) {
+        currentPos += l; tagEndPos = currentPos; idx++; break;
+      } else if (k === Tokens.HTMLTagSelfClosing) {
+        selfClosing = true; currentPos += l; tagEndPos = currentPos; idx++; break;
+      } else if (k === Tokens.HTMLAttributeName) {
+        attributes.push({ name: this.context.sourceText.substring(currentPos, currentPos + l), value: null });
+      } else if (k === Tokens.HTMLAttributeValue) {
+        if (attributes.length > 0) attributes[attributes.length - 1].value = this.context.sourceText.substring(currentPos, currentPos + l);
+      } else if (k === Tokens.HTMLAttributeQuote || k === Tokens.HTMLAttributeEquals) {
+        if (attributes.length > 0 && attributes[attributes.length - 1].value === null) attributes[attributes.length - 1].value = "";
+      }
+      currentPos += l;
+      idx++;
+    }
+    if (tagEndPos === -1) tagEndPos = currentPos;
+
+    if (isClosingTag) {
+      let matchIndex = -1;
+      for (let i = this.blockStack.length - 1; i >= 0; i--) {
+        const node = this.blockStack[i];
+        if (node.type === NodeTypes.Document) break;
+        if (node.type === NodeTypes.HtmlElement && node.tagName === tagName) { matchIndex = i; break; }
+      }
+      if (matchIndex !== -1) {
+        while (this.blockStack.length > matchIndex) {
+          const popped = this.blockStack.pop();
+          if (popped) popped.end = tagEndPos;
+        }
+      } else {
+        const t = new TextNode(this.context, pos); // orphaned close tag becomes text
+        t.end = tagEndPos;
+        this._append(t);
+      }
+    } else {
+      const el = new HtmlElementNode(this.context, pos);
+      el.tagName = tagName;
+      el.attributes = attributes;
+      el.end = tagEndPos;
+      this._append(el);
+      const isVoid = tagNameLen > 0 && isVoidElement(this.context.sourceText, tagNameStart, tagNameLen);
+      if (!selfClosing && !isVoid) this.blockStack.push(el);
+    }
+
+    this._resumeIndex = idx;
+    return tagEndPos;
+  }
+
+  /**
+   * Build an angle-bracket autolink from the run starting at tIdx.
+   * @param {ProvisionalToken[]} tokens
+   * @param {number} tIdx
+   * @param {number} pos
+   * @param {number} openLen
+   * @returns {number}
+   */
+  _buildAngleAutolink(tokens, tIdx, pos, openLen) {
+    let idx = tIdx + 1;
+    let currentPos = pos + openLen;
+    while (idx < tokens.length) {
+      const l = getTokenLength(tokens[idx]);
+      if (getTokenKind(tokens[idx]) === Tokens.AngleLinkClose) { currentPos += l; idx++; break; }
+      currentPos += l;
+      idx++;
+    }
+    const autoLink = new AutolinkNode(this.context, pos);
+    autoLink.end = currentPos;
+    const textNode = new TextNode(this.context, pos + 1); // content inside the angle brackets
+    textNode.end = currentPos - 1;
+    autoLink.children = [textNode];
+    this._append(autoLink);
+    this._resumeIndex = idx;
+    return currentPos;
+  }
+
+  /**
+   * Consume the GFM delimiter row after a header row, apply per-cell alignment to the
+   * header, and close the table when the next line does not continue it. Sets
+   * this._resumeIndex to the delimiter row's newline index; returns the byte position
+   * after that row.
+   * @param {ProvisionalToken[]} tokens
+   * @param {number} tIdx - index of the newline that ended the header row
+   * @param {number} pos - byte position after that newline
+   * @param {ASTNode} closedRow - the header TableRow
+   * @returns {number}
+   */
+  _consumeDelimiterRow(tokens, tIdx, pos, closedRow) {
+    tIdx++;
+    /** @type {('left' | 'center' | 'right' | null)[]} */
+    const alignments = [];
+    let sawCell = false;
+    let curAlign = null;
+    while (tIdx < tokens.length) {
+      const delimKind = getTokenKind(tokens[tIdx]);
+      const delimLen = getTokenLength(tokens[tIdx]);
+      const delimPos = pos;
+      pos += delimLen;
+      if (delimKind === Tokens.NewLine) break;
+      if (delimKind === Tokens.TablePipe) {
+        if (sawCell) { alignments.push(curAlign); sawCell = false; curAlign = null; }
+      } else if (delimKind === Tokens.InlineText) {
+        sawCell = true;
+        curAlign = this._delimiterAlign(delimPos, delimPos + delimLen);
+      }
+      tIdx++;
+    }
+    if (sawCell) alignments.push(curAlign);
+    const cells = closedRow.children || [];
+    let ci = 0;
+    for (let i = 0; i < cells.length; i++) {
+      if (cells[i].type !== NodeTypes.TableCell) continue;
+      if (alignments[ci]) cells[i].align = alignments[ci];
+      ci++;
+    }
+    const peekTIdx = tIdx + 1;
+    if (peekTIdx >= tokens.length || !this._lineHasPipe(tokens, peekTIdx)) {
+      if (this._getActiveBlock().type === NodeTypes.Table) this.blockStack.pop();
+    }
+    this._resumeIndex = tIdx;
+    return pos;
+  }
+
+  /**
    * Processes a chunk of semantic tokens (typically one line/paragraph)
    * 
    * @param {ProvisionalToken[]} tokens 
@@ -338,41 +544,8 @@ export class ASTBuilder {
           activeBlock = this._getActiveBlock();
           if (inTableHeader) {
             inTableHeader = false;
-            // Fast-forward through the delimiter row, mapping one alignment per cell.
-            pos = nextPos;
-            tIdx++;
-            /** @type {('left' | 'center' | 'right' | null)[]} */
-            const alignments = [];
-            let sawCell = false;
-            let curAlign = null;
-            while (tIdx < tokens.length) {
-              const delimKind = getTokenKind(tokens[tIdx]);
-              const delimLen = getTokenLength(tokens[tIdx]);
-              const delimPos = pos;
-              pos += delimLen;
-              if (delimKind === Tokens.NewLine) break;
-              if (delimKind === Tokens.TablePipe) {
-                if (sawCell) { alignments.push(curAlign); sawCell = false; curAlign = null; }
-              } else if (delimKind === Tokens.InlineText) {
-                sawCell = true;
-                curAlign = this._delimiterAlign(delimPos, delimPos + delimLen);
-              }
-              tIdx++;
-            }
-            if (sawCell) alignments.push(curAlign);
-            // Apply alignments to header cells positionally.
-            const cells = closedRow.children || [];
-            let ci = 0;
-            for (let i = 0; i < cells.length; i++) {
-              if (cells[i].type !== NodeTypes.TableCell) continue;
-              if (alignments[ci]) cells[i].align = alignments[ci];
-              ci++;
-            }
-            // Check if the next line continues the table
-            const peekTIdx = tIdx + 1;
-            if (peekTIdx >= tokens.length || !this._lineHasPipe(tokens, peekTIdx)) {
-              if (this._getActiveBlock().type === NodeTypes.Table) this.blockStack.pop();
-            }
+            pos = this._consumeDelimiterRow(tokens, tIdx, nextPos, closedRow);
+            tIdx = this._resumeIndex;
             this._extendAncestors(pos);
             continue;
           } else {
@@ -403,124 +576,7 @@ export class ASTBuilder {
       // For now, treat indentation as purely visual/textual unless it triggers a block change (which requires indentation awareness)
 
       if (kind === Tokens.BulletListMarker || kind === Tokens.OrderedListMarker || kind === Tokens.TaskListMarker) {
-        if (activeBlock.type === NodeTypes.Paragraph) this.blockStack.pop();
-        activeBlock = this._getActiveBlock();
-
-        // duplicate variable remove
-        // const isOrdered = (kind === Tokens.OrderedListMarker || kind === Tokens.OrderedListMarker); 
-        // The token check above for isOrdered handles OrderedListMarker specifically.
-        const isOrderedList = (kind === Tokens.OrderedListMarker);
-
-        // 1. Calculate Indentation
-        let currentIndent = 0;
-        if (tIdx > 0 && getTokenKind(tokens[tIdx - 1]) === Tokens.Whitespace) {
-          currentIndent = getTokenLength(tokens[tIdx - 1]);
-        }
-
-        // 2. Resolve Nesting Layout
-        // We might be deep in a stack of Lists/ListItems. We need to find the correct level.
-        // CommonMark: A list item can contain a sublist.
-        // If indent > current List indent, we start a new List inside the current Item.
-        // If indent < current List indent, we pop Lists until we find the matching level.
-
-        // Helper: Find the deepest List or Item
-        // If we are in a ListItem, the relevant List is the parent.
-
-        let listNode = activeBlock;
-
-        // If we are at a ListItem, check if we should dedent, indent, or stay
-        if (listNode.type === NodeTypes.ListItem) {
-          const parentList = this.blockStack[this.blockStack.length - 2];
-          const parentIndent = parentList.indent || 0;
-
-          if (currentIndent > parentIndent) {
-            // Indent: Start NEW nested list INSIDE this item
-            // We do NOT pop the item. We push a new List.
-            const newList = new ListNode(this.context, pos, isOrderedList, currentIndent);
-            this._pushBlock(newList);
-
-            // Immediately add the item
-            const newItem = new ListItemNode(this.context, pos, 0);
-            this._pushBlock(newItem);
-
-            this._extendAncestors(nextPos);
-            pos = nextPos;
-            continue;
-          } else if (currentIndent < parentIndent) {
-            // Dedent: We are too deep. Pop until we find a matching indent or root.
-
-            // Pop current Item and current List
-            this.blockStack.pop(); // Item
-            // Now at List. We check if we need to pop it too.
-            // Actually, we need to loop.
-
-            while (this.blockStack.length > 0) {
-              const top = this._getActiveBlock();
-              if (top.type === NodeTypes.List) {
-                if (top.indent > currentIndent) {
-                  this.blockStack.pop(); // Pop List
-                  // If we pop a List, we are likely in a ListItem of the parent list.
-                  if (this._getActiveBlock().type === NodeTypes.ListItem) {
-                    this.blockStack.pop(); // Pop that Item too to be ready for sibling?
-                    // Wait, if we are dedenting to a sibling of the parent Item, 
-                    // we expect to find a List at the target indent.
-                  }
-                } else {
-                  break;
-                }
-              } else if (top.type === NodeTypes.ListItem) {
-                // If we hit an item, we usually want to check ITS list
-                this.blockStack.pop();
-              } else {
-                break;
-              }
-            }
-            // Reset activeBlock after popping
-            activeBlock = this._getActiveBlock();
-          } else {
-            // Same Indent: Sibling Item.
-            this.blockStack.pop(); // Close previous Item
-            activeBlock = this._getActiveBlock(); // Now at List
-          }
-        }
-
-        // At this point, activeBlock should be a List (if we found a match) or something else (if we need to start a new root list)
-
-        if (activeBlock.type !== NodeTypes.List) {
-          // Start new root list
-          const list = new ListNode(this.context, pos, isOrderedList, currentIndent);
-          this._pushBlock(list);
-          activeBlock = list;
-        } else {
-          // We are at a List. Check compatibility (Indent is guaranteed <= by loop above, but if <, we created new list above?)
-          // Refine: comparison above handles dedent. 
-          // What if indent is distinct but close? For now, exact match or treat as new?
-          // CommonMark is fuzzy. Let's assume strict indent match for same list.
-
-          if (activeBlock.indent !== currentIndent) {
-            // Mismatch indent but didn't pop earlier? logic gap or simply start new list?
-            // If we are here, it means indent > active (nested?) or we failed to pop.
-            // If indent > active, we should have handled it in "Indent" block above IF we were in an item.
-            // If we are at a List directly (no open item?), then we just add item?
-            // NOTE: A List without open Item is rare unless just created.
-
-            // Simple fallback: If list type mismatch, pop and new.
-          }
-
-          if (activeBlock.isOrdered !== isOrderedList) {
-            // Mixed list types at same level -> technically valid in some MD, distinct lists in others.
-            // We will close old and start new to be safe.
-            this.blockStack.pop();
-            const list = new ListNode(this.context, pos, isOrderedList, currentIndent);
-            this._pushBlock(list);
-          }
-        }
-
-        // Now we are guaranteed to be in a compatible List
-        // Add new Item
-        const item = new ListItemNode(this.context, pos, 0);
-        this._pushBlock(item);
-
+        this._openListItem(tokens, tIdx, pos, kind === Tokens.OrderedListMarker);
         this._extendAncestors(nextPos);
         pos = nextPos;
         continue;
@@ -796,40 +852,8 @@ export class ASTBuilder {
           break;
         }
         case Tokens.AngleLinkOpen: {
-          const start = pos;
-          let idx = tIdx + 1;
-          let currentPos = pos + len;
-          let url = "";
-
-          while (idx < tokens.length) {
-            const tk = tokens[idx];
-            const k = getTokenKind(tk);
-            const l = getTokenLength(tk);
-
-            if (k === Tokens.AngleLinkClose) {
-              currentPos += l;
-              idx++;
-              break;
-            } else if (k === Tokens.AngleLinkURL || k === Tokens.AngleLinkEmail) {
-              url += this.context.sourceText.substring(currentPos, currentPos + l);
-            }
-            currentPos += l;
-            idx++;
-          }
-
-          const autoLink = new AutolinkNode(this.context, start);
-          autoLink.end = currentPos;
-          // Hacky manual url setting for now, ideally AutolinkNode would parse from children or source
-          // But AutolinkNode in nodes.js has destStart/destEnd logic.
-          // We can just set a text child.
-          const textNode = new TextNode(this.context, start + 1); // skip <
-          textNode.end = currentPos - 1; // skip >
-          autoLink.children = [textNode];
-
-          this._append(autoLink);
-
-          tIdx = idx - 1;
-          nextPos = currentPos;
+          nextPos = this._buildAngleAutolink(tokens, tIdx, pos, len);
+          tIdx = this._resumeIndex - 1;
           this._extendAncestors(nextPos);
           pos = nextPos;
           continue;
@@ -956,122 +980,8 @@ export class ASTBuilder {
         }
 
         case Tokens.HTMLTagOpen: {
-          const openLen = len;
-          // Length 2 means '</', i.e. a closing tag
-          const isClosingTag = openLen === 2;
-
-          // State for parsing the tag
-          let tagName = "";
-          let tagNameStart = 0;
-          let tagNameLen = 0;
-          let selfClosing = false;
-          let tagEndPos = -1;
-          /** @type {{name: string, value: (string | null)}[]} */
-          const attributes = [];
-
-          let currentAttributeName = "";
-
-          // Consume tag internals loop
-          let idx = tIdx + 1;
-          let currentPos = pos + openLen;
-
-          while (idx < tokens.length) {
-            const tk = tokens[idx];
-            const k = getTokenKind(tk);
-            const l = getTokenLength(tk);
-
-            if (k === Tokens.HTMLTagName) {
-              tagNameStart = currentPos;
-              tagNameLen = l;
-              // Extract tagName for node property
-              tagName = this.context.sourceText.substring(currentPos, currentPos + l).toLowerCase();
-            } else if (k === Tokens.HTMLTagClose) {
-              currentPos += l;
-              tagEndPos = currentPos;
-              idx++;
-              break;
-            } else if (k === Tokens.HTMLTagSelfClosing) {
-              selfClosing = true;
-              currentPos += l;
-              tagEndPos = currentPos;
-              idx++;
-              break;
-            } else if (k === Tokens.HTMLAttributeName) {
-              currentAttributeName = this.context.sourceText.substring(currentPos, currentPos + l);
-              attributes.push({ name: currentAttributeName, value: null });
-            } else if (k === Tokens.HTMLAttributeValue) {
-              if (attributes.length > 0) {
-                attributes[attributes.length - 1].value = this.context.sourceText.substring(currentPos, currentPos + l);
-              }
-            } else if (k === Tokens.HTMLAttributeQuote || k === Tokens.HTMLAttributeEquals) {
-              // If we see a quote or equals, it implicates at least an empty value
-              if (attributes.length > 0 && attributes[attributes.length - 1].value === null) {
-                attributes[attributes.length - 1].value = "";
-              }
-            }
-
-            currentPos += l;
-            idx++;
-          }
-
-          // If we ran out of tokens without closing, treat what we found as valid end
-          if (tagEndPos === -1) tagEndPos = currentPos;
-
-          if (isClosingTag) {
-            // "Pop-Until-Match" Logic
-            let matchIndex = -1;
-            // Iterate backwards from top of stack
-            for (let i = this.blockStack.length - 1; i >= 0; i--) {
-              const node = this.blockStack[i];
-              // Stop at root
-              if (node.type === NodeTypes.Document) break;
-
-              if (node.type === NodeTypes.HtmlElement &&
-                  /** @type {HtmlElementNode} */(node).tagName === tagName) {
-                matchIndex = i;
-                break;
-              }
-            }
-
-            if (matchIndex !== -1) {
-              // Close everything down to matchIndex (inclusive of the matched element)
-              while (this.blockStack.length > matchIndex) {
-                const popped = this.blockStack.pop();
-                if (popped) popped.end = tagEndPos;
-              }
-            } else {
-              // Orphaned closing tag: treat as text (but we don't really know start pos of close)
-              // The original pos was the start of `</`
-              const t = new TextNode(this.context, pos);
-              t.end = tagEndPos;
-              this._append(t);
-            }
-          } else {
-            // Opening tag
-            const el = new HtmlElementNode(this.context, pos);
-            el.tagName = tagName;
-            el.attributes = attributes;
-            el.end = tagEndPos;
-
-            this._append(el);
-
-            // Check void element using the zero-allocation scanner utility
-            const isVoid = tagNameLen > 0 && isVoidElement(this.context.sourceText, tagNameStart, tagNameLen);
-
-            if (!selfClosing && !isVoid) {
-              // Push to block stack to contain content
-              // NOTE: Because we push to blockStack, children will be processed normally.
-              // Including inline elements which will be appended to this block.
-              this.blockStack.push(el);
-            }
-          }
-
-          // Advance the main loop
-          // tIdx will be incremented by loop, so set to idx - 1
-          tIdx = idx - 1;
-          nextPos = tagEndPos;
-
-          // Continue forces next iteration with updated pos
+          nextPos = this._buildHtmlTag(tokens, tIdx, pos, len);
+          tIdx = this._resumeIndex - 1;
           this._extendAncestors(nextPos);
           pos = nextPos;
           continue;

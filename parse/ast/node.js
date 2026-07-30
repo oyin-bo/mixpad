@@ -91,4 +91,10 @@ export class ASTNode {
       : "";
     return this._language;
   }
+
+  /** Initialise this node as a container with an empty children array. */
+  _container() { this.children = []; }
+
+  /** Initialise this node's html attributes array. */
+  _initAttributes() { this.attributes = []; }
 }

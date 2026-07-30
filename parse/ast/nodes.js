@@ -3,15 +3,20 @@
 import { ASTNode } from './node.js';
 import * as NodeTypes from './node-types.js';
 
+/** @typedef {import('./parser.js').ParseContext} ParseContext */
+
 // Block Types
 export class DocumentNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.Document, start); this.children = []; }
+  /** @param {ParseContext} context @param {number} start */
+  constructor(context, start) { super(context, NodeTypes.Document, start); this._container(); }
 }
 export class ParagraphNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.Paragraph, start); this.children = []; }
+  /** @param {ParseContext} context @param {number} start */
+  constructor(context, start) { super(context, NodeTypes.Paragraph, start); this._container(); }
 }
 export class HeadingNode extends ASTNode {
-  constructor(context, start, level) { super(context, NodeTypes.Heading, start); this.children = []; this._level = level; }
+  /** @param {ParseContext} context @param {number} start @param {number} level */
+  constructor(context, start, level) { super(context, NodeTypes.Heading, start); this._container(); this._level = level; }
   get text() {
     if (this._textCache !== null) return this._textCache;
     let raw = super.text;
@@ -21,89 +26,110 @@ export class HeadingNode extends ASTNode {
   }
 }
 export class BlockquoteNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.Blockquote, start); this.children = []; }
+  /** @param {ParseContext} context @param {number} start */
+  constructor(context, start) { super(context, NodeTypes.Blockquote, start); this._container(); }
 }
 export class ListNode extends ASTNode {
+  /** @param {ParseContext} context @param {number} start @param {boolean} isOrdered @param {number} [indent] */
   constructor(context, start, isOrdered, indent = 0) {
     super(context, NodeTypes.List, start);
-    this.children = [];
+    this._container();
     this._isOrdered = isOrdered;
     this.indent = indent;
   }
 }
 export class ListItemNode extends ASTNode {
-  constructor(context, start, contentIndent) { super(context, NodeTypes.ListItem, start); this.children = []; this._contentIndent = contentIndent; }
+  /** @param {ParseContext} context @param {number} start @param {number} contentIndent */
+  constructor(context, start, contentIndent) { super(context, NodeTypes.ListItem, start); this._container(); this._contentIndent = contentIndent; }
 }
 export class FencedCodeBlockNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.FencedCodeBlock, start); this.children = []; }
+  /** @param {ParseContext} context @param {number} start */
+  constructor(context, start) { super(context, NodeTypes.FencedCodeBlock, start); this._container(); }
 }
-// HtmlBlockNode removed
 export class ThematicBreakNode extends ASTNode {
+  /** @param {ParseContext} context @param {number} start */
   constructor(context, start) { super(context, NodeTypes.ThematicBreak, start); }
 }
 export class TableNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.Table, start); this.children = []; }
+  /** @param {ParseContext} context @param {number} start */
+  constructor(context, start) { super(context, NodeTypes.Table, start); this._container(); }
 }
 export class TableRowNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.TableRow, start); this.children = []; }
+  /** @param {ParseContext} context @param {number} start */
+  constructor(context, start) { super(context, NodeTypes.TableRow, start); this._container(); }
 }
 export class TableCellNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.TableCell, start); this.children = []; }
+  /** @param {ParseContext} context @param {number} start */
+  constructor(context, start) { super(context, NodeTypes.TableCell, start); this._container(); }
 }
 export class FrontmatterNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.Frontmatter, start); this.children = []; }
+  /** @param {ParseContext} context @param {number} start */
+  constructor(context, start) { super(context, NodeTypes.Frontmatter, start); this._container(); }
 }
 export class FormulaBlockNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.FormulaBlock, start); this.children = []; }
+  /** @param {ParseContext} context @param {number} start */
+  constructor(context, start) { super(context, NodeTypes.FormulaBlock, start); this._container(); }
 }
 
 // Inline Types
 export class TextNode extends ASTNode {
+  /** @param {ParseContext} context @param {number} start */
   constructor(context, start) { super(context, NodeTypes.Text, start); }
 }
 export class EmphasisNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.Emphasis, start); this.children = []; }
+  /** @param {ParseContext} context @param {number} start */
+  constructor(context, start) { super(context, NodeTypes.Emphasis, start); this._container(); }
 }
 export class StrongNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.Strong, start); this.children = []; }
+  /** @param {ParseContext} context @param {number} start */
+  constructor(context, start) { super(context, NodeTypes.Strong, start); this._container(); }
 }
 export class StrikethroughNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.Strikethrough, start); this.children = []; }
+  /** @param {ParseContext} context @param {number} start */
+  constructor(context, start) { super(context, NodeTypes.Strikethrough, start); this._container(); }
 }
 export class LinkNode extends ASTNode {
-  constructor(context, start) { super(context, NodeTypes.Link, start); this.children = []; }
+  /** @param {ParseContext} context @param {number} start */
+  constructor(context, start) { super(context, NodeTypes.Link, start); this._container(); }
 }
 export class ImageNode extends LinkNode {
+  /** @param {ParseContext} context @param {number} start */
   constructor(context, start) { super(context, start); this.type = NodeTypes.Image; }
 }
 export class InlineCodeNode extends ASTNode {
+  /** @param {ParseContext} context @param {number} start */
   constructor(context, start) { super(context, NodeTypes.InlineCode, start); }
 }
 export class AutolinkNode extends ASTNode {
+  /** @param {ParseContext} context @param {number} start */
   constructor(context, start) { super(context, NodeTypes.Autolink, start); }
 }
-// HtmlTagNode removed
 export class HtmlCommentNode extends ASTNode {
+  /** @param {ParseContext} context @param {number} start */
   constructor(context, start) { super(context, NodeTypes.HtmlComment, start); }
 }
 export class HtmlCDataNode extends ASTNode {
+  /** @param {ParseContext} context @param {number} start */
   constructor(context, start) { super(context, NodeTypes.HtmlCData, start); }
 }
 export class HtmlDocTypeNode extends ASTNode {
+  /** @param {ParseContext} context @param {number} start */
   constructor(context, start) { super(context, NodeTypes.HtmlDocType, start); }
 }
 export class XmlProcessingInstructionNode extends ASTNode {
+  /** @param {ParseContext} context @param {number} start */
   constructor(context, start) { super(context, NodeTypes.XmlProcessingInstruction, start); }
 }
 export class InlineFormulaNode extends ASTNode {
+  /** @param {ParseContext} context @param {number} start */
   constructor(context, start) { super(context, NodeTypes.InlineFormula, start); }
 }
 
 export class HtmlElementNode extends ASTNode {
-  constructor(context, start) { 
-    super(context, NodeTypes.HtmlElement, start); 
-    this.children = [];
-    this.tagName = ""; 
-    this.attributes = []; 
+  /** @param {ParseContext} context @param {number} start */
+  constructor(context, start) {
+    super(context, NodeTypes.HtmlElement, start);
+    this._container();
+    this._initAttributes();
   }
 }
