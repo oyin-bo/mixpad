@@ -19,7 +19,6 @@ import {
   HtmlElementNode,
   ImageNode,
   InlineCodeNode,
-  InlineFormulaNode,
   LinkNode,
   ListItemNode,
   ListNode,
@@ -78,18 +77,6 @@ export class ASTBuilder {
   _pushBlock(node) {
     this._append(node);
     this.blockStack.push(node);
-  }
-
-  /**
-   * Closes blocks down to a certain index. Updates their `end` tracking.
-   * @param {number} downToIndex
-   * @param {number} pos
-   */
-  _severBlocks(downToIndex, pos) {
-    while (this.blockStack.length > downToIndex) {
-      const popped = this.blockStack.pop();
-      if (popped) popped.end = pos; // Typically they update continuous bounds themselves, but hard-sever closes it out.
-    }
   }
 
   /**
@@ -203,10 +190,6 @@ export class ASTBuilder {
     let pos = startOffset;
     let tIdx = 0;
 
-    // Phase 1 & 2: Prefix Context Matching & Severance
-    let firstTokKind = getTokenKind(tokens[0]);
-    let activeBlock = this._getActiveBlock();
-
     // Phase 3 & 4: Inner Container Initiation and Resolution
     // (Deferred mostly to Inline Stream looping as we scan multiple kinds of blocks within single chunk stream)
 
@@ -218,6 +201,29 @@ export class ASTBuilder {
     // Tracks whether we are currently building the header row of a table.
     let inTableHeader = false;
 
+    // Whether the current logical line produced inline content; a content-less
+    // line is a blank line that terminates an open paragraph.
+    let currentLineHasContent = false;
+
+    // Start offset of buffered whitespace not yet committed to a Text node, or -1.
+    // Interior whitespace is committed when inline content follows; trailing
+    // whitespace is discarded at block and line boundaries.
+    let pendingWsStart = -1;
+
+    const flushPendingWs = (/** @type {number} */ uptoPos) => {
+      if (pendingWsStart === -1) return;
+      const parent = this._getActiveParent();
+      const kids = parent.children;
+      if (kids && kids.length > 0 && kids[kids.length - 1].type === NodeTypes.Text) {
+        kids[kids.length - 1].end = uptoPos;
+      } else {
+        const t = new TextNode(this.context, pendingWsStart);
+        t.end = uptoPos;
+        this._append(t);
+      }
+      pendingWsStart = -1;
+    };
+
     // Inline Stream Processing
     for (; tIdx < tokens.length; tIdx++) {
       const token = tokens[tIdx];
@@ -227,8 +233,28 @@ export class ASTBuilder {
 
       let activeBlock = this._getActiveBlock();
 
+      if (kind !== Tokens.NewLine && kind !== Tokens.Whitespace) currentLineHasContent = true;
+
+      // Block boundaries discard any buffered trailing whitespace.
+      if (kind === Tokens.BulletListMarker || kind === Tokens.OrderedListMarker ||
+          kind === Tokens.TaskListMarker || kind === Tokens.BlockquoteMarker ||
+          kind === Tokens.TablePipe || kind === Tokens.ATXHeadingOpen ||
+          kind === Tokens.ATXHeadingClose || kind === Tokens.FencedOpen ||
+          kind === Tokens.ThematicBreak || kind === Tokens.FrontmatterOpen ||
+          kind === Tokens.FormulaOpen) {
+        pendingWsStart = -1;
+      }
+
       // Structural Break Introspection inside Stream
       if (kind === Tokens.NewLine) {
+        // A blank line (no inline content) terminates an open paragraph.
+        if (!currentLineHasContent && activeBlock.type === NodeTypes.Paragraph) {
+          this.blockStack.pop();
+          pendingWsStart = -1;
+          activeBlock = this._getActiveBlock();
+        }
+        currentLineHasContent = false;
+
         lineQuoteDepth = 0;
         lineHasPipe = false;
 
@@ -673,6 +699,8 @@ export class ASTBuilder {
         }
       }
 
+      if (kind !== Tokens.Whitespace && kind !== Tokens.NewLine) flushPendingWs(pos);
+
       switch (kind) {
         case Tokens.EmphasisOpen: {
           const em = new EmphasisNode(this.context, pos);
@@ -813,22 +841,20 @@ export class ASTBuilder {
           this._append(code);
           break;
         }
-        case Tokens.InlineText:
         case Tokens.Whitespace:
-        case Tokens.NewLine:
+        case Tokens.NewLine: {
+          // Between blocks whitespace is structural noise; inside inline content
+          // it is buffered and only committed once real content follows.
+          const parent = this._getActiveParent();
+          if (parent.type === NodeTypes.Document || parent.type === NodeTypes.Blockquote) break;
+          if (pendingWsStart === -1) pendingWsStart = pos;
+          break;
+        }
+        case Tokens.InlineText:
         case Tokens.EntityNamed:
         case Tokens.EntityDecimal:
         case Tokens.EntityHex: {
-          // Leaf processing
           const parent = this._getActiveParent();
-
-          // Ignore whitespace and newlines between block-level elements
-          if ((parent.type === NodeTypes.Document || parent.type === NodeTypes.Blockquote) &&
-              (kind === Tokens.Whitespace || kind === Tokens.NewLine)) {
-            break;
-          }
-
-          // Coalesce continuous text
           if (parent.children && parent.children.length > 0) {
             const last = parent.children[parent.children.length - 1];
             if (last.type === NodeTypes.Text) {

@@ -64,14 +64,18 @@ Longer closing sequence
 ## Invalid Cases
 
 Seven hashes (not a heading)
+
 ####### Not a heading
-1
-@1 Text "####### Not a heading"
+12
+@1 Paragraph
+@2 Text "####### Not a heading"
 
 No space after hash
+
 ##NoSpace
-1
-@1 Text "##NoSpace"
+12
+@1 Paragraph
+@2 Text "##NoSpace"
 
 ## Indentation
 
@@ -86,7 +90,7 @@ Valid: up to 3 spaces
 Empty heading
 ##
 1
-@1 Heading level=1
+@1 Heading level=2
 
 Empty with space
 ## 
