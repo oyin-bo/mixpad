@@ -1,0 +1,20 @@
+[package]
+name = "mixpad"
+version = "0.1.0"
+edition = "2021"
+description = "Blazingly fast, editor-grade, low-allocation Markdown parser with first-class HTML. Rust port of MixPad."
+license = "MIT"
+
+[lib]
+name = "mixpad"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mixpad"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
